@@ -518,6 +518,7 @@
   let waitingTimer = null, biteTimer = null;
   let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, timeLimit, timeStart, fromBottom }
   let currentCatch = null; // chosen in triggerBite(), consumed by startReel()/catchSuccess()
+  let devForceTier = null; // set only by the gitignored dev-mode.js panel; see __zzhDevCast below
 
   // ================= Persistence (localStorage, no account needed) =================
   // Everything the player would be upset to lose -- shells, rod, unsold
@@ -643,6 +644,12 @@
     waitingTimer = setTimeout(triggerBite, delay);
   }
 
+  // Ordinal ladder for the hit-counter's rarity climb (junk sits at the
+  // bottom so even a real fish's early hits can flash "might be nothing"
+  // gray before climbing into actual tiers) -- also used to size how many
+  // hits a catch demands (see startReel()).
+  const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
+
   function triggerBite() {
     if (state !== 'waiting') return;
     state = 'bite';
@@ -650,7 +657,10 @@
     bobberDipT = performance.now() / 1000;
     // Tier is chosen now but no longer announced up front -- the hit
     // counter's rarity climb is the only reveal during casting/reeling.
-    currentCatch = FishData.pickCatch();
+    // devForceTier (set only by the gitignored dev-mode.js panel) overrides
+    // the random pick for one catch, then clears itself.
+    currentCatch = FishData.pickCatch(devForceTier);
+    devForceTier = null;
     sfx.bite();
     showStatus('입질이 왔어요!', 'icons/bite.svg');
     biteTimer = setTimeout(startReel, 500);
@@ -662,9 +672,13 @@
     state = 'reeling';
     bobberState = 'reeling';
     const f = getEffectiveReel(currentCatch.tier);
-    // f.hitsRequired is only the tier's minimum now -- each reel adds 0~1
-    // more so the exact count varies catch to catch.
-    const hitsRequired = f.hitsRequired + Math.floor(Math.random() * 2);
+    // Hit count is fully random per catch, not a fixed per-tier table: floor
+    // is how many tiers sit at-or-below the real one (junk=1 .. legendary=5),
+    // ceiling is one more than that -- so higher real tiers always demand
+    // more hits (legendary: 5~6) while staying random within that band.
+    const targetOrdinal = REEL_TIER_ORDER.indexOf(currentCatch.tier);
+    const tierCount = targetOrdinal + 1;
+    const hitsRequired = tierCount + Math.floor(Math.random() * 2);
     const colorSeq = buildClimbSequence(currentCatch.tier, hitsRequired);
     // The very first hit's speed already matches whatever tier colorSeq[0]
     // displays -- see attemptHit() for how it keeps following the climb.
@@ -684,6 +698,9 @@
     };
     renderHitsCounter();
     renderChanceLights();
+    // Reveal window 0's tier immediately -- before the player has clicked
+    // even once -- see revealCurrentWindow() for why.
+    revealCurrentWindow();
     positionZone();
     timeFillEl.style.transition = 'none';
     timeFillEl.style.height = '100%';
@@ -707,19 +724,25 @@
     + '<circle cx="8" cy="8" r="1.6" fill="#0a1a1e"/></svg>';
   function renderHitsCounter() {
     hitsCounterEl.innerHTML = '';
+    hitsCounterEl.classList.remove('legendary-glow');
     for (let i = 0; i < reel.hitsRequired; i++) {
       hitsCounterEl.insertAdjacentHTML('beforeend', FISH_ICON_SVG);
     }
   }
 
   // ---- Hit-counter rarity climb ----
-  // Every filled fish icon always shows the SAME color: the tier reached by
-  // the most recent hit. Landing a hit can bump that shared color up (never
-  // down), so earlier fish visibly re-color along with the new one -- a
-  // "climbing toward the real tier" tell rather than a static count.
-  // junk sits at the bottom (ordinal 0) so even a real fish's early hits
-  // can flash "might be nothing" gray before climbing into actual tiers.
-  const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
+  // Every filled fish icon always shows the SAME color: the tier of the
+  // hit-window currently open. Landing a hit opens the next window (never
+  // goes back), so earlier fish visibly re-color along with the new one --
+  // a "climbing toward the real tier" tell rather than a static count.
+  //
+  // Each window's tier is revealed the instant that window OPENS -- window
+  // 0 right when reeling starts, window i+1 right after window i's hit
+  // lands -- not after the player resolves it. That's a real-time preview
+  // of "what could I land right now," and it also means the final window's
+  // (real) tier has already been sitting on screen for that whole window's
+  // duration by the time the qualifying hit actually completes the catch,
+  // instead of being painted and hidden in the same tick.
 
   // Stepwise climb: each hit can rise by at most MAX_STEP tiers over the
   // previous hit (never more), so it reads as a staircase building
@@ -746,12 +769,21 @@
     return seq.map(o => REEL_TIER_ORDER[o]);
   }
 
-  function applyHitColors() {
-    const color = FishData.TIERS[reel.colorSeq[reel.hits - 1]].color;
-    for (let i = 0; i < reel.hits; i++) {
+  // reel.hits doubles as "index of the window currently open" (0 before
+  // anything lands, hitsRequired-1 once only the final window remains).
+  function revealCurrentWindow() {
+    const idx = reel.hits;
+    const shownTier = reel.colorSeq[idx];
+    const color = FishData.TIERS[shownTier].color;
+    const litCount = idx + 1; // every window up through the open one
+    for (let i = 0; i < litCount; i++) {
       const fish = hitsCounterEl.children[i];
-      if (fish) fish.style.color = color;
+      if (fish) { fish.classList.add('filled'); fish.style.color = color; }
     }
+    // The climb only ever goes up, so once it touches legendary it stays
+    // legendary for the rest of this reel -- true regardless of whether the
+    // real catch actually is legendary, which is the point: it's a tease.
+    if (shownTier === 'legendary') hitsCounterEl.classList.add('legendary-glow');
   }
 
   // 신호등 모양만 빌려온 것 -- 실제로는 그냥 파란 불 N개(N = maxMisses),
@@ -820,15 +852,18 @@
       sfx.hit();
       bobberTugT = performance.now() / 1000;
       gaugeTrackEl.classList.remove('flash-good'); void gaugeTrackEl.offsetWidth; gaugeTrackEl.classList.add('flash-good');
-      const fish = hitsCounterEl.children[reel.hits - 1];
-      if (fish) fish.classList.add('filled');
-      applyHitColors();
       if (reel.hits >= reel.hitsRequired) {
+        // The final window's tier was already revealed when IT opened
+        // (right after the previous hit), so there's nothing left to
+        // paint here -- catchSuccess() can hide the gauge immediately.
         catchSuccess();
         return;
       }
-      // Speed for the upcoming hit follows whatever tier the climb shows
-      // next -- not a flat per-hit shrink, so it jumps in step with color.
+      // A new window just opened -- reveal its tier now, before the player
+      // has attempted it even once.
+      revealCurrentWindow();
+      // Speed for the upcoming window follows whatever tier it just
+      // revealed -- not a flat per-hit shrink, so it jumps in step with color.
       reel.period = FishData.TIERS[reel.colorSeq[reel.hits]].reel.period;
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
@@ -1012,6 +1047,22 @@
     updateShellsDisplay();
     renderUpgradeTab();
   });
+
+  // ================= Dev hook (inert without dev-mode.js) =================
+  // dev-mode.js is gitignored -- it never leaves this machine on push. This
+  // hook does nothing unless that file has already set the flag below, so
+  // shipping it costs nothing even though the code itself is public.
+  const DEV_FLAG_KEY = 'zanzanhan-dev-mode';
+  window.__zzhDevCast = function (tierKey) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    if (!FishData.TIERS[tierKey]) return;
+    if (state !== 'idle') return;
+    devForceTier = tierKey;
+    const top = waterTop();
+    cast(W * 0.5, top + (H - top) * 0.42);
+    clearTimeout(waitingTimer);
+    triggerBite();
+  };
 
   updateShellsDisplay();
 })();

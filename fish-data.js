@@ -122,13 +122,18 @@
   }
 
   // Weighted tier roll, then a uniform pick within that tier's species list.
-  function pickCatch() {
-    const roll = Math.random();
-    let acc = 0;
-    let tierKey = 'common';
-    for (const key of ['junk', 'common', 'rare', 'epic', 'legendary']) {
-      acc += TIERS[key].weight;
-      if (roll < acc) { tierKey = key; break; }
+  // forceTierKey skips the roll entirely -- used only by the (gitignored)
+  // dev-mode panel to test a specific tier on demand.
+  function pickCatch(forceTierKey) {
+    let tierKey = forceTierKey;
+    if (!tierKey || !TIERS[tierKey]) {
+      const roll = Math.random();
+      let acc = 0;
+      tierKey = 'common';
+      for (const key of ['junk', 'common', 'rare', 'epic', 'legendary']) {
+        acc += TIERS[key].weight;
+        if (roll < acc) { tierKey = key; break; }
+      }
     }
     const pool = tierKey === 'junk' ? JUNK_ITEMS : FISH_BY_TIER[tierKey];
     const species = pool[Math.floor(Math.random() * pool.length)];

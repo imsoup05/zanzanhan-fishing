@@ -318,6 +318,22 @@ body {
   transform: scale(1.2);
 }
 
+/* Once the climb's displayed tier touches legendary (real catch or not --
+   see applyHitColors()), every filled fish gets a slow, soft rainbow
+   glow instead of its flat tier color, as a tease. */
+@keyframes legendary-rainbow-glow {
+  0%   { filter: drop-shadow(0 0 4px #ff5a5a); }
+  16%  { filter: drop-shadow(0 0 4px #ffb75a); }
+  33%  { filter: drop-shadow(0 0 4px #f5e35a); }
+  50%  { filter: drop-shadow(0 0 4px #5aec8a); }
+  66%  { filter: drop-shadow(0 0 4px #5ac1ff); }
+  83%  { filter: drop-shadow(0 0 4px #b05aff); }
+  100% { filter: drop-shadow(0 0 4px #ff5a5a); }
+}
+.hits-counter-v.legendary-glow .fish.filled {
+  animation: legendary-rainbow-glow 3s linear infinite;
+}
+
 /* 신호등 "모양"만 -- 실제 색은 빨/노/초가 아니라 파란 불이 실패할 때마다
    하나씩 꺼지는 방식. Dot count follows reel.maxMisses, not fixed at 3. */
 .chance-lights {
