@@ -5,6 +5,15 @@
   --panel-border: rgba(255, 255, 255, 0.18);
   --accent: #ffcf6b;
   --text-light: #f4f8f6;
+  /* Every persistent-HUD size below is written as calc(Npx * var(--ui-scale))
+     so this one variable re-scales all of them together. 1 on phones (they're
+     already a sensible physical size); bumped up for desktop below, where
+     the same CSS pixel values read as noticeably small on a normal monitor
+     viewed at 100% browser zoom. */
+  --ui-scale: 1;
+}
+@media (min-width: 601px) {
+  :root { --ui-scale: 1.5; }
 }
 
 html, body {
@@ -88,20 +97,22 @@ body {
   top: 0; left: 0; right: 0;
   /* env(safe-area-inset-top) clears the notch/Dynamic Island/status bar --
      without it (and viewport-fit=cover in the meta tag) this row renders
-     underneath the iOS status bar instead of below it. */
-  padding: calc(16px + env(safe-area-inset-top)) 16px 0;
+     underneath the iOS status bar instead of below it. Only the 16px part
+     scales with --ui-scale -- the safe-area inset is a physical measurement,
+     not a design size. */
+  padding: calc(16px * var(--ui-scale) + env(safe-area-inset-top)) calc(16px * var(--ui-scale)) 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   z-index: 5;
 }
-.topbar-right { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.topbar-right { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--ui-scale)); }
 
 .bottombar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   /* env(safe-area-inset-bottom) clears the home-indicator bar on iOS. */
-  padding: 0 16px calc(22px + env(safe-area-inset-bottom));
+  padding: 0 calc(16px * var(--ui-scale)) calc(22px * var(--ui-scale) + env(safe-area-inset-bottom));
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -112,28 +123,28 @@ body {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 14px;
+  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  font-size: calc(14px * var(--ui-scale));
   backdrop-filter: blur(6px);
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6px * var(--ui-scale));
 }
 
 /* Every emoji in the UI was swapped for one of these generated icon files
    (icons/*.svg) -- emoji render inconsistently (missing glyphs, wildly
    different art style) across platforms/fonts, images don't. */
-.ui-icon { width: 16px; height: 16px; display: block; }
-.ui-icon-lg { width: 26px; height: 26px; display: block; }
-.ui-icon-xl { width: 38px; height: 38px; display: block; }
+.ui-icon { width: calc(16px * var(--ui-scale)); height: calc(16px * var(--ui-scale)); display: block; }
+.ui-icon-lg { width: calc(26px * var(--ui-scale)); height: calc(26px * var(--ui-scale)); display: block; }
+.ui-icon-xl { width: calc(38px * var(--ui-scale)); height: calc(38px * var(--ui-scale)); display: block; }
 
 /* The one action button left outside the drawer -- given its own visible
    circle (not the transparent icon-only style) since it's now the sole,
    primary bottom control rather than one of a row of equals. */
 .bait-btn-main {
-  width: 68px;
-  height: 68px;
+  width: calc(68px * var(--ui-scale));
+  height: calc(68px * var(--ui-scale));
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 50%;
@@ -171,8 +182,8 @@ body {
 #menu-toggle-btn {
   position: relative;
   z-index: 5;
-  width: 60px;
-  height: 60px;
+  width: calc(60px * var(--ui-scale));
+  height: calc(60px * var(--ui-scale));
   background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
   border: 1px solid var(--panel-border);
   padding: 0;
@@ -185,7 +196,9 @@ body {
   position: absolute;
   left: 50%;
   top: 16%;
-  transform: translateX(-50%);
+  /* Scales the whole block (text + its icon) around its own already-centered
+     point -- simpler than resizing font-size and .status-icon separately. */
+  transform: translateX(-50%) scale(var(--ui-scale));
   text-align: center;
   font-size: 17px;
   text-shadow: 0 2px 8px rgba(0,0,0,0.5);
@@ -210,7 +223,7 @@ body {
   top: 60%;
   width: 64px;
   height: 64px;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(var(--ui-scale));
   z-index: 4;
   pointer-events: none;
 }
@@ -263,12 +276,24 @@ body {
   left: 20px;
   top: 38%;
   height: 44%;
+  /* Caps how tall the sweep track gets on a big/tall desktop viewport --
+     without this, the same time-based sweep period covers more pixels (and
+     so reads as visibly faster) on a large monitor than on a small window,
+     purely because 44% of a taller #game is a taller track, not because the
+     underlying timing actually differs. Rarely engages on phones (#game's
+     height there is already well under this). */
+  max-height: 380px;
   z-index: 6;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   gap: 12px;
   pointer-events: none;
+  /* Scales the whole cluster (track, time bar, hit/chance icons all included
+     as descendants) from its left-anchored edge -- one transform instead of
+     resizing every child individually. */
+  transform: scale(var(--ui-scale));
+  transform-origin: left center;
 }
 .reel-gauge.hidden { display: none; }
 
@@ -438,7 +463,8 @@ body {
   top: 100%;
   right: 0;
   margin-top: -14px; /* tucks under the button so the seam disappears */
-  width: 60px;
+  /* Must keep matching #menu-toggle-btn's width -- see that rule's comment. */
+  width: calc(60px * var(--ui-scale));
   background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
   border: 1px solid var(--panel-border);
   border-radius: 30px;
@@ -461,7 +487,7 @@ body {
   width: 100%;
   background: transparent;
   border: none;
-  padding: 13px 0;
+  padding: calc(13px * var(--ui-scale)) 0;
   color: var(--text-light);
   font-family: inherit;
   font-size: 15px;
@@ -471,7 +497,7 @@ body {
 }
 .side-menu-item:hover { background: rgba(255,255,255,0.08); }
 .side-menu-item:active { background: rgba(255,255,255,0.14); }
-.side-menu-icon { width: 24px; height: 24px; display: block; }
+.side-menu-icon { width: calc(24px * var(--ui-scale)); height: calc(24px * var(--ui-scale)); display: block; }
 
 /* ================= Shop popup (구매/판매/업그레이드) =================
    Fixed, screen-proportional size -- switching tabs never resizes the
