@@ -28,20 +28,8 @@
     return min + Math.floor(Math.random() * (max - min + 1));
   }
 
-  // ================= Regions (venues) =================
-  // Every species belongs to exactly one region -- it never made sense that
-  // a river carp and a great white shark both turned up under the same
-  // bridge. 거북이 택시(turtle taxi) unlocks travel between them.
-  const REGIONS = {
-    bridge: { key: 'bridge', name: '다리 밑',   icon: '🌉', travelCost: 0, flavor: '다리 밑, 잔잔한 물결 위로 낚싯대를 드리워보세요.' },
-    reef:   { key: 'reef',   name: '산호초 만', icon: '🐠', travelCost: 2400, flavor: '산호초 만, 반짝이는 얕은 바다에 낚싯대를 드리워보세요.' },
-    abyss:  { key: 'abyss',  name: '심해 해구', icon: '🌑', travelCost: 5000, flavor: '심해 해구, 빛이 닿지 않는 깊은 곳에 낚싯대를 드리워보세요.' }
-  };
-  const REGION_ORDER = ['bridge', 'reef', 'abyss'];
-
   // [key, name, icon, color, sizeMin, sizeMax, desc] -- unit is always 'cm' for real fish.
   const SPECIES_IDENTITY = {
-    bridge: {
     common: [
       ['mackerel', '고등어', '🐟', '#5aa9c9', 22, 38, '등이 푸르고 은빛으로 반짝이는 흔한 물고기.'],
       ['flatfish', '넙치', '🐡', '#c9a86a', 25, 45, '모래 바닥에 몸을 숨기는 납작한 물고기. 손맛이 묵직하다.'],
@@ -142,179 +130,43 @@
       ['whitedragon', '백룡', '🐉', '#e8ecf0', 300, 500, '구름을 몰고 다닌다는 새하얀 전설의 용.'],
       ['coelacanth', '실러캔스', '🐟', '#4a5a48', 150, 200, '수억 년 전 모습 그대로 살아남은 살아있는 화석.']
     ]
-    },
-    reef: {
-      common: [
-        ['clownfish', '흰동가리', '🐠', '#ff8c42', 6, 12, '말미잘 사이에 숨어 사는 주황빛 물고기.'],
-        ['damselfish', '자리돔', '🐟', '#4a90a4', 8, 15, '산호초 주변에 떼 지어 사는 작은 물고기.'],
-        ['reefwrasse', '놀래기', '🐠', '#5ab89c', 15, 30, '화려한 색으로 산호 사이를 누비는 물고기.'],
-        ['parrotfish', '비늘돔', '🐡', '#4ac9a0', 25, 45, '부리 같은 이빨로 산호를 갉아먹는 물고기.'],
-        ['butterflyfish', '나비고기', '🐠', '#f0d060', 8, 16, '나비처럼 화려한 무늬를 가진 작은 물고기.'],
-        ['coralgoby', '산호망둑', '🐟', '#d89050', 5, 10, '산호 가지 사이에 숨어 사는 아주 작은 물고기.'],
-        ['yellowtang', '노랑탕', '🐠', '#f5d020', 15, 25, '샛노란 몸빛이 눈에 띄는 산호초 물고기.'],
-        ['cardinalfish', '홍줄고기', '🐠', '#d05050', 8, 14, '붉은 줄무늬가 있는 야행성 산호초 물고기.'],
-        ['triggerfish', '쥐치복', '🐡', '#3a5a6a', 20, 35, '단단한 이빨로 조개를 부수는 물고기.'],
-        ['reefsnapper', '얼룩퉁돔', '🐟', '#c08050', 25, 45, '무리 지어 다니는 산호초 대형 물고기.'],
-        ['squirrelfish', '다람쥐고기', '🐠', '#c8503a', 12, 22, '큰 눈이 특징인 붉은빛 야행성 물고기.'],
-        ['sergeantmajor', '세줄자리돔', '🐟', '#f0d8a0', 10, 18, '몸에 세 줄 무늬가 있는 얕은 바다 물고기.'],
-        ['moorishidol', '깃대돔', '🐠', '#202020', 12, 20, '깃발처럼 긴 등지느러미가 특징인 물고기.'],
-        ['gruntfish', '꼬마돔', '🐟', '#a0b0c0', 10, 20, '이빨을 부딪쳐 소리를 낸다는 작은 물고기.'],
-        ['sandeel', '까나리', '🐟', '#d8d8b0', 15, 25, '모래 속에 몸을 숨기는 가느다란 물고기.']
-      ],
-      uncommon: [
-        ['lionfish', '쏠배감펭', '🐠', '#d04030', 15, 30, '화려한 지느러미에 독을 품은 물고기.'],
-        ['moray', '곰치', '🐟', '#4a5a3a', 40, 90, '산호초 틈에 숨어 사냥하는 미끈한 물고기.'],
-        ['angelfish', '청줄돔', '🐠', '#3a6ac0', 15, 28, '푸른 줄무늬가 우아한 산호초 물고기.'],
-        ['boxfish', '거북복', '🐡', '#d8c040', 10, 20, '상자 모양의 단단한 몸을 가진 물고기.'],
-        ['pufferfish', '복어', '🐡', '#c8b070', 15, 30, '위협을 느끼면 몸을 부풀리는 물고기.'],
-        ['barracuda', '꼬치고기', '🐟', '#7a8a90', 40, 80, '날카로운 이빨을 가진 빠른 사냥꾼.'],
-        ['reefgrouper', '구문돔', '🐡', '#5a7a5a', 30, 55, '산호초 바위 틈에 숨어 사는 바리류.'],
-        ['seahorse', '해마', '🐟', '#d89ac0', 10, 18, '말 머리를 닮은 신비로운 작은 물고기.'],
-        ['mantisshrimp', '갯가재', '🦐', '#6ac0a0', 8, 15, '펀치를 날리듯 강력한 앞발을 가진 갑각류.'],
-        ['reefoctopus', '산호문어', '🐙', '#8a6a9a', 20, 40, '산호빛으로 몸을 바꾸는 작은 문어.'],
-        ['gardeneel', '정원장어', '🐟', '#c8c0a0', 20, 35, '모래에 몸을 반쯤 묻고 사는 가느다란 장어.'],
-        ['tropicalflyingfish', '열대날치', '🐠', '#9fd0e0', 20, 32, '따뜻한 산호초 바다 위를 날듯이 나는 물고기.']
-      ],
-      rare: [
-        ['hammerhead', '귀상어', '🦈', '#6a7a80', 200, 350, '망치처럼 넓적한 머리가 특징인 상어.'],
-        ['reefshark', '흑기흉상어', '🦈', '#4a5a5a', 150, 250, '산호초를 순찰하듯 헤엄치는 상어.'],
-        ['mantaray', '쥐가오리', '🐠', '#2a3a4a', 200, 400, '날개처럼 넓은 지느러미로 우아하게 나는 물고기.'],
-        ['seaturtle', '바다거북', '🐢', '#3a7a5a', 60, 120, '산호초를 유유히 헤엄치는 커다란 거북.'],
-        ['napoleonfish', '나폴레옹피시', '🐠', '#4ac0c0', 60, 100, '이마가 불룩 튀어나온 대형 놀래기.'],
-        ['giantgrouper', '대왕바리', '🐡', '#3a4a3a', 100, 200, '동굴처럼 큰 입을 가진 거대한 바리.'],
-        ['swordfish', '황새치', '🐟', '#2a4a5a', 150, 280, '칼처럼 긴 주둥이를 가진 빠른 사냥꾼.'],
-        ['blueoctopus', '청산호문어', '🐙', '#4a8ac0', 40, 70, '푸른 산호빛으로 위장하는 영리한 문어.'],
-        ['goldenparrotfish', '황금비늘돔', '🐡', '#e0c040', 35, 60, '금빛으로 빛나는 희귀한 비늘돔.']
-      ],
-      epic: [
-        ['rainbowdragoneel', '무지개드래곤장어', '🐟', '#d060c0', 60, 100, '산호초 전설로 전해지는 무지갯빛 곰치.'],
-        ['crystaljellyfish', '수정해파리', '🪼', '#a0e0e0', 20, 40, '몸이 수정처럼 투명하게 빛나는 신비한 해파리.'],
-        ['coralguardian', '산호수호자', '🐢', '#40a080', 80, 140, '산호초를 지킨다는 전설의 거대 거북.'],
-        ['phoenixfish', '불사조고기', '🐠', '#ff6a30', 50, 90, '불꽃처럼 타오르는 붉은 비늘을 가진 물고기.'],
-        ['moonjelly', '달빛해파리', '🪼', '#d0d0f0', 15, 30, '달빛 아래에서만 나타난다는 신비한 해파리.'],
-        ['pearlturtle', '진주거북', '🐢', '#e8e0c8', 70, 110, '등딱지에 진주가 박혀있다는 전설의 거북.']
-      ],
-      legendary: [
-        ['mermaidprincess', '인어공주', '🧜', '#40c0d0', 130, 170, '산호초 깊은 곳에 산다는 인어 공주의 전설.'],
-        ['reefleviathan', '산호리바이어던', '🐉', '#2a8a70', 400, 700, '산호초 바다 밑에 잠들어 있다는 전설의 괴수.'],
-        ['goldensealion', '황금바다사자', '🦭', '#f0c040', 200, 300, '전설의 황금빛 바다사자. 상점 주인의 조상이라는 소문이 있다.']
-      ]
-    },
-    abyss: {
-      common: [
-        ['glowanchovy', '발광멸치', '🐟', '#3a4a6a', 8, 15, '몸에서 은은한 빛이 나는 심해 멸치류.'],
-        ['hatchetfish', '도끼고기', '🐟', '#5a6a8a', 5, 10, '납작한 몸이 도끼날처럼 생긴 심해 물고기.'],
-        ['deepsmelt', '심해빙어', '🐠', '#6a7a9a', 8, 14, '차갑고 어두운 물 속에서 사는 빙어류.'],
-        ['smallgulper', '작은삼킴장어', '🐟', '#2a2a3a', 15, 30, '입이 몸보다 커 보이는 작은 심해 장어.'],
-        ['blackdragonfish', '검은용고기', '🐟', '#1a1a2a', 15, 25, '온몸이 새까만 심해의 작은 사냥꾼.'],
-        ['dumbooctopus', '둠보문어', '🐙', '#c090b0', 10, 20, '귀처럼 생긴 지느러미로 헤엄치는 문어.'],
-        ['smallviper', '작은독사고기', '🐡', '#3a2a3a', 15, 25, '날카로운 송곳니를 가진 작은 심해어.'],
-        ['spiderfish', '거미고기', '🐟', '#4a3a4a', 10, 18, '가늘고 긴 지느러미로 바닥을 딛는 물고기.'],
-        ['deepshrimp', '심해새우', '🦐', '#8a4a6a', 5, 10, '깊은 바다 밑바닥을 기어다니는 새우.'],
-        ['glasssquid', '유리오징어', '🦑', '#a0d0d0', 15, 25, '몸이 유리처럼 투명한 작은 오징어.']
-      ],
-      uncommon: [
-        ['viperfish', '독사고기', '🐡', '#2a1a2a', 25, 40, '길고 날카로운 이빨이 입 밖으로 튀어나온 심해어.'],
-        ['gulpereel', '삼킴장어', '🐟', '#1a1a1a', 40, 80, '거대한 입으로 자기 몸집만한 먹이도 삼킨다.'],
-        ['redanglerfish', '붉은아귀', '🐡', '#4a1a2a', 30, 55, '붉은빛이 도는 심해 아귀류.'],
-        ['vampiresquid', '흡혈오징어', '🦑', '#4a2a5a', 20, 35, '망토 같은 막을 두른 원시적인 두족류.'],
-        ['fangtooth', '송곳니고기', '🐡', '#2a2a2a', 10, 20, '몸 크기에 비해 이빨이 가장 크다는 심해어.'],
-        ['tripodfish', '삼각대고기', '🐟', '#6a5a6a', 20, 35, '긴 지느러미로 바닥에 서서 먹이를 기다린다.'],
-        ['sixgillshark', '여섯줄아가미상어', '🦈', '#3a3a4a', 150, 250, '아가미가 여섯 개인 원시적인 심해 상어.'],
-        ['spookfish', '도깨비고기', '🐡', '#4a4a5a', 25, 40, '통 모양의 특이한 눈을 가진 심해어.'],
-        ['giantisopod', '대왕쥐며느리', '🦐', '#8a8a7a', 15, 30, '심해 바닥을 기어다니는 거대한 갑각류.'],
-        ['blobfish', '블롭피시', '🐡', '#d0a0a0', 20, 35, '수압이 낮은 곳에서 흐물흐물해지는 물고기.']
-      ],
-      rare: [
-        ['deepgiantsquid', '심해대왕오징어', '🦑', '#3a1a4a', 400, 800, '해구 깊은 곳에서 올라온 거대한 오징어.'],
-        ['colossalsquid', '콜로설오징어', '🦑', '#2a1a3a', 500, 900, '대왕오징어보다 더 크다고 알려진 심해 괴물.'],
-        ['megamouth', '메가마우스상어', '🦈', '#2a3a4a', 300, 500, '거대한 입으로 플랑크톤을 걸러 먹는 상어.'],
-        ['goblinshark', '도깨비상어', '🦈', '#c08090', 200, 350, '길게 튀어나온 주둥이가 특징인 희귀한 상어.'],
-        ['frilledshark', '주름상어', '🦈', '#3a3a2a', 150, 250, '뱀을 닮은 원시적인 모습의 심해 상어.'],
-        ['giantoarfish', '산갈치', '🐟', '#b0c0d0', 300, 600, '지진이 나기 전에 나타난다는 전설이 있는 물고기.'],
-        ['deepseacrab', '심해대게', '🦀', '#6a4a5a', 30, 50, '차가운 해구 바닥에서 잡히는 귀한 대게.'],
-        ['yeticrab', '예티게', '🦀', '#d0d0d0', 15, 30, '털로 뒤덮인 집게발을 가진 특이한 게.'],
-        ['blackswallower', '검은삼킴이', '🐡', '#0a0a0a', 20, 40, '자기보다 훨씬 큰 먹이도 통째로 삼킨다.'],
-        ['sleepershark', '그린란드상어', '🦈', '#4a5a5a', 300, 500, '수백 년을 산다는 가장 오래 사는 척추동물.']
-      ],
-      epic: [
-        ['krakenspawn', '크라켄의새끼', '🦑', '#1a0a2a', 600, 1000, '심해에 잠든 크라켄이 남긴 새끼라고 전해진다.'],
-        ['ghostshark', '유령상어', '🦈', '#d0d0e0', 200, 400, '몸이 반투명해 보인다는 신비한 상어.'],
-        ['abyssaleel', '심연장어', '🐟', '#0a0a1a', 100, 200, '빛이 닿지 않는 해구 밑바닥에 산다는 장어.'],
-        ['voidjelly', '공허해파리', '🪼', '#1a1a2a', 40, 80, '빛을 전부 삼켜버린다는 새까만 해파리.'],
-        ['deepseadragon', '심해용왕고기', '🐉', '#2a3a5a', 200, 350, '심해의 왕이라 불리는 전설의 물고기.'],
-        ['glowingleviathan', '발광리바이어던', '🐟', '#40e0d0', 250, 450, '온몸이 푸르게 빛나는 거대한 심해 괴수.'],
-        ['abysscrab', '심연대게', '🦀', '#2a1a2a', 50, 90, '해구 가장 깊은 곳에서만 발견된다는 거대 대게.'],
-        ['shadowoctopus', '그림자문어', '🐙', '#0a0a0a', 80, 150, '그림자처럼 온몸이 검은 거대 문어.']
-      ],
-      legendary: [
-        ['kraken', '크라켄', '🦑', '#1a0a2a', 800, 1500, '전설 속 심해의 지배자. 배를 통째로 끌고 들어간다는 괴수.'],
-        ['leviathan', '리바이어던', '🐉', '#0a1a2a', 600, 1000, '옛 이야기에도 등장하는 태초의 바다 괴물.'],
-        ['deepseagod', '심해의신', '🐉', '#101020', 700, 1200, '해구 가장 깊은 곳을 다스린다는 신적 존재.'],
-        ['abyssalqueen', '심연의여왕', '🧜', '#2a1a4a', 150, 200, '심해에 군림한다는 전설의 인어 여왕.'],
-        ['ancientseaturtle', '고대심해거북', '🐢', '#1a2a1a', 200, 350, '수만 년을 심해에서 살아왔다는 태초의 거북.'],
-        ['voidwhale', '공허고래', '🐋', '#0a0a1a', 500, 900, '빛조차 삼키는 새까만 몸빛의 전설적 고래.'],
-        ['starlightanglerfish', '별빛아귀', '🐡', '#4a2a6a', 100, 180, '몸에 별자리처럼 반짝이는 빛을 두른 전설의 아귀.']
-      ]
-    }
   };
 
   // [key, name, icon, color, desc]
-  const JUNK_IDENTITY = {
-    bridge: [
-      ['boots', '장화', '👢', '#8a8a8a', '꽝! 누군가 잃어버린 낡은 장화가 걸려 나왔다.'],
-      ['can', '빈 깡통', '🥫', '#9a9a9a', '꽝! 찌그러진 빈 깡통이 걸려 나왔다.'],
-      ['tire', '헌 타이어', '🛞', '#3a3a3a', '꽝! 낡아빠진 폐타이어가 걸려 나왔다.'],
-      ['seaweed', '해초 뭉치', '🌿', '#4a7c4a', '꽝! 미끌미끌한 해초 뭉치가 걸려 나왔다.'],
-      ['umbrella', '부러진 우산', '☂️', '#5a5a7a', '꽝! 살이 부러진 우산이 걸려 나왔다.'],
-      ['shoe', '낡은 신발 한짝', '👞', '#6a5a4a', '꽝! 짝 잃은 낡은 신발 한 짝이 걸려 나왔다.'],
-      ['bikeframe', '녹슨 자전거 프레임', '🚲', '#7a5a3a', '꽝! 녹슬어 못 쓰게 된 자전거 프레임이 걸려 나왔다.'],
-      ['bottle', '플라스틱 병', '🧴', '#8ac0c8', '꽝! 찌그러진 플라스틱 병이 걸려 나왔다.'],
-      ['brokenrod', '부서진 낚싯대', '🎣', '#6a6a6a', '꽝! 누군가 부러뜨리고 간 낚싯대가 걸려 나왔다.'],
-      ['newspaper', '물에 젖은 신문지', '📰', '#c8c0a8', '꽝! 흐물흐물 젖어버린 신문지가 걸려 나왔다.']
-    ],
-    reef: [
-      ['sunscreenbottle', '선크림 통', '🧴', '#f0d0a0', '꽝! 다 쓴 선크림 통이 떠밀려 왔다.'],
-      ['beachball', '비치볼', '🏐', '#f04040', '꽝! 바람 빠진 비치볼이 걸려 나왔다.'],
-      ['snorkelmask', '스노클마스크', '🤿', '#4090c0', '꽝! 누군가 잃어버린 스노클마스크가 걸려 나왔다.'],
-      ['flipflop', '슬리퍼 한짝', '🩴', '#e0a040', '꽝! 짝을 잃은 슬리퍼 한 짝이 걸려 나왔다.'],
-      ['coralfragment', '부서진 산호조각', '🪸', '#e08090', '꽝! 파도에 부서진 산호 조각이 걸려 나왔다.']
-    ],
-    abyss: [
-      ['sunkenanchor', '가라앉은 닻', '⚓', '#3a3a3a', '꽝! 오래 전 가라앉은 낡은 닻이 걸려 나왔다.'],
-      ['shipwreckplank', '난파선 판자', '🪵', '#5a4a3a', '꽝! 난파선에서 떨어져 나온 판자 조각이다.'],
-      ['deepseacan', '찌그러진 심해 통조림', '🥫', '#4a4a4a', '꽝! 수압에 찌그러진 통조림이 걸려 나왔다.'],
-      ['oldcompass', '녹슨 나침반', '🧭', '#6a5a3a', '꽝! 바늘이 멈춘 녹슨 나침반이 걸려 나왔다.'],
-      ['divinghelmet', '낡은 잠수모', '🪖', '#4a5a5a', '꽝! 오래된 잠수모가 걸려 나왔다.']
-    ]
-  };
+  const JUNK_IDENTITY = [
+    ['boots', '장화', '👢', '#8a8a8a', '꽝! 누군가 잃어버린 낡은 장화가 걸려 나왔다.'],
+    ['can', '빈 깡통', '🥫', '#9a9a9a', '꽝! 찌그러진 빈 깡통이 걸려 나왔다.'],
+    ['tire', '헌 타이어', '🛞', '#3a3a3a', '꽝! 낡아빠진 폐타이어가 걸려 나왔다.'],
+    ['seaweed', '해초 뭉치', '🌿', '#4a7c4a', '꽝! 미끌미끌한 해초 뭉치가 걸려 나왔다.'],
+    ['umbrella', '부러진 우산', '☂️', '#5a5a7a', '꽝! 살이 부러진 우산이 걸려 나왔다.'],
+    ['shoe', '낡은 신발 한짝', '👞', '#6a5a4a', '꽝! 짝 잃은 낡은 신발 한 짝이 걸려 나왔다.'],
+    ['bikeframe', '녹슨 자전거 프레임', '🚲', '#7a5a3a', '꽝! 녹슬어 못 쓰게 된 자전거 프레임이 걸려 나왔다.'],
+    ['bottle', '플라스틱 병', '🧴', '#8ac0c8', '꽝! 찌그러진 플라스틱 병이 걸려 나왔다.'],
+    ['brokenrod', '부서진 낚싯대', '🎣', '#6a6a6a', '꽝! 누군가 부러뜨리고 간 낚싯대가 걸려 나왔다.'],
+    ['newspaper', '물에 젖은 신문지', '📰', '#c8c0a8', '꽝! 흐물흐물 젖어버린 신문지가 걸려 나왔다.']
+  ];
 
   function buildSpecies() {
     const species = {};
-    Object.keys(SPECIES_IDENTITY).forEach(region => {
-      const regionTiers = SPECIES_IDENTITY[region];
-      Object.keys(regionTiers).forEach(tier => {
-        const t = TIER_DIFFICULTY[tier];
-        regionTiers[tier].forEach(([key, name, icon, color, sizeMin, sizeMax, desc]) => {
-          species[key] = {
-            key, name, icon, color, tier, region,
-            weight: t.weight, period: t.period, zoneWidth: t.zoneWidth,
-            maxMisses: t.maxMisses, periodShrink: t.periodShrink, minPeriod: t.minPeriod,
-            timeLimit: t.timeLimit, sizeRange: [sizeMin, sizeMax], unit: 'cm', desc
-          };
-        });
+    Object.keys(SPECIES_IDENTITY).forEach(tier => {
+      const t = TIER_DIFFICULTY[tier];
+      SPECIES_IDENTITY[tier].forEach(([key, name, icon, color, sizeMin, sizeMax, desc]) => {
+        species[key] = {
+          key, name, icon, color, tier,
+          weight: t.weight, period: t.period, zoneWidth: t.zoneWidth,
+          maxMisses: t.maxMisses, periodShrink: t.periodShrink, minPeriod: t.minPeriod,
+          timeLimit: t.timeLimit, sizeRange: [sizeMin, sizeMax], unit: 'cm', desc
+        };
       });
     });
     const jt = TIER_DIFFICULTY.junk;
-    Object.keys(JUNK_IDENTITY).forEach(region => {
-      JUNK_IDENTITY[region].forEach(([key, name, icon, color, desc]) => {
-        species[key] = {
-          key, name, icon, color, tier: 'junk', region,
-          weight: jt.weight, period: jt.period, zoneWidth: jt.zoneWidth,
-          maxMisses: jt.maxMisses, periodShrink: jt.periodShrink, minPeriod: jt.minPeriod,
-          timeLimit: jt.timeLimit, sizeRange: [1, 1], unit: '개', desc, isJunk: true
-        };
-      });
+    JUNK_IDENTITY.forEach(([key, name, icon, color, desc]) => {
+      species[key] = {
+        key, name, icon, color, tier: 'junk',
+        weight: jt.weight, period: jt.period, zoneWidth: jt.zoneWidth,
+        maxMisses: jt.maxMisses, periodShrink: jt.periodShrink, minPeriod: jt.minPeriod,
+        timeLimit: jt.timeLimit, sizeRange: [1, 1], unit: '개', desc, isJunk: true
+      };
     });
     return species;
   }
@@ -445,9 +297,7 @@
       containerTier: 0,
       baitStock: { mid: 0, high: 0, super: 0, legend: 0 },
       selectedBait: 'basic',
-      skipEnabled: false,
-      currentRegion: 'bridge',
-      unlockedRegions: ['bridge']
+      skipEnabled: false
     };
   }
   function loadSave() {
@@ -477,8 +327,6 @@
   if (typeof save.baitStock.legend !== 'number') save.baitStock.legend = 0;
   if (!save.selectedBait) save.selectedBait = DEFAULTS.selectedBait;
   if (typeof save.skipEnabled !== 'boolean') save.skipEnabled = DEFAULTS.skipEnabled;
-  if (!save.currentRegion) save.currentRegion = DEFAULTS.currentRegion;
-  if (!save.unlockedRegions) save.unlockedRegions = DEFAULTS.unlockedRegions;
 
   function bucketCapacity() { return CONTAINER_TIERS[save.containerTier].capacity; }
 
@@ -777,36 +625,6 @@
   }
   initSparkles();
 
-  // Fixed layout for 산호초 만's beach dressing -- generated once (not
-  // per-frame) so the shore doesn't jitter every draw call.
-  const BEACH_GRASS = [];
-  function initBeachGrass() {
-    BEACH_GRASS.length = 0;
-    for (let i = 0; i < 11; i++) {
-      BEACH_GRASS.push({
-        lane: 0.03 + Math.random() * 0.94,
-        h: 0.6 + Math.random() * 0.9,
-        lean: (Math.random() - 0.5) * 0.7,
-        blades: 3 + Math.floor(Math.random() * 3)
-      });
-    }
-  }
-  initBeachGrass();
-
-  const BEACH_SHELLS = [];
-  function initBeachShells() {
-    BEACH_SHELLS.length = 0;
-    const palette = ['#fff2df', '#f5c9a8', '#e8a0a8', '#d8d0c0'];
-    for (let i = 0; i < 14; i++) {
-      BEACH_SHELLS.push({
-        lane: Math.random(), depth: Math.random(),
-        color: palette[Math.floor(Math.random() * palette.length)],
-        r: 0.5 + Math.random() * 0.7
-      });
-    }
-  }
-  initBeachShells();
-
   let idleFish = []; // decorative silhouettes
   function maybeSpawnIdleFish(t) {
     if (idleFish.length < 2 && Math.random() < 0.006) {
@@ -827,79 +645,27 @@
   function waterTop() { return H * WATER_TOP_FRAC; }
   function pierWidth() { return W * 0.22; }
 
-  // Same bridge/pier geometry everywhere -- only the palette shifts per
-  // region, from warm dusk-river to bright tropical reef to a cold,
-  // bioluminescent-lit deep trench.
-  const BG_THEME = {
-    bridge: {
-      underside: '#2a2624',
-      archSky: ['#bfe3f0', '#ffe6ae', '#ffd98a'],
-      archGlow: 'rgba(255,244,214,0.65)',
-      farBank: 'rgba(35,64,50,0.4)',
-      archEdge: 'rgba(255,235,190,0.35)',
-      pier: ['#57524c', '#3a3531', '#262320'],
-      moss: ['rgba(35,58,32,0)', 'rgba(28,48,26,0.6)'],
-      deckCap: '#423d38',
-      bridgeShadow: 'rgba(0,0,0,0.4)',
-      rayColor: 'rgba(255,238,190,',
-      water: ['#bfe9dc', '#6cc0c2', '#2f8f9c', '#0f4b5c'],
-      pierReflect: '#0a2a30',
-      waveA: '#eaffef', waveB: '#0a3a44',
-      sunGlow: 'rgba(255,246,214,0.22)',
-      waterline: '#eafffb',
-      sparkle: '#fffbe8'
-    },
-    reef: {
-      underside: '#3a2f1f',
-      archSky: ['#bff0ec', '#ffe9b0', '#ffcf7a'],
-      archGlow: 'rgba(255,244,214,0.75)',
-      farBank: 'rgba(20,90,80,0.4)',
-      archEdge: 'rgba(255,240,210,0.4)',
-      pier: ['#c9a876', '#9c7a4e', '#6a5030'],
-      moss: ['rgba(20,120,100,0)', 'rgba(15,100,85,0.55)'],
-      deckCap: '#8a6a3e',
-      bridgeShadow: 'rgba(0,0,0,0.3)',
-      rayColor: 'rgba(255,250,220,',
-      water: ['#eafff8', '#5fe0d8', '#1fa8c8', '#0a5a8c'],
-      pierReflect: '#0a3a40',
-      waveA: '#eafff5', waveB: '#0a4048',
-      sunGlow: 'rgba(255,250,225,0.28)',
-      waterline: '#eafffa',
-      sparkle: '#fffef0'
-    },
-    abyss: {
-      underside: '#0a0a0e',
-      archSky: ['#0a1420', '#0a2030', '#05141c'],
-      archGlow: 'rgba(90,220,220,0.22)',
-      farBank: 'rgba(5,15,20,0.6)',
-      archEdge: 'rgba(90,200,200,0.22)',
-      pier: ['#2a2a30', '#1a1a20', '#0e0e12'],
-      moss: ['rgba(10,30,30,0)', 'rgba(8,25,25,0.6)'],
-      deckCap: '#1c1c22',
-      bridgeShadow: 'rgba(0,0,0,0.6)',
-      rayColor: 'rgba(90,220,220,',
-      water: ['#0e2a38', '#0a2030', '#050f1c', '#000308'],
-      pierReflect: '#020608',
-      waveA: '#3ad8d0', waveB: '#020a10',
-      sunGlow: 'rgba(90,220,220,0.14)',
-      waterline: '#4ad8d8',
-      sparkle: '#6adfe6'
-    }
+  const THEME = {
+    underside: '#2a2624',
+    archSky: ['#bfe3f0', '#ffe6ae', '#ffd98a'],
+    archGlow: 'rgba(255,244,214,0.65)',
+    farBank: 'rgba(35,64,50,0.4)',
+    archEdge: 'rgba(255,235,190,0.35)',
+    pier: ['#57524c', '#3a3531', '#262320'],
+    moss: ['rgba(35,58,32,0)', 'rgba(28,48,26,0.6)'],
+    deckCap: '#423d38',
+    bridgeShadow: 'rgba(0,0,0,0.4)',
+    rayColor: 'rgba(255,238,190,',
+    water: ['#bfe9dc', '#6cc0c2', '#2f8f9c', '#0f4b5c'],
+    pierReflect: '#0a2a30',
+    waveA: '#eaffef', waveB: '#0a3a44',
+    sunGlow: 'rgba(255,246,214,0.22)',
+    waterline: '#eafffb',
+    sparkle: '#fffbe8'
   };
-  function currentTheme() { return BG_THEME[save.currentRegion] || BG_THEME.bridge; }
 
-  // Each region gets its own structure, not just a recolored bridge:
-  // 다리 밑 keeps the stone arch bridge, 산호초 만 is an open wooden dock on
-  // pilings (no arch -- the sky shows straight through the gaps), 심해 해구 is
-  // a research platform between jagged trench walls with no sky at all.
-  function drawBridge(t) {
-    const region = save.currentRegion;
-    if (region === 'reef') { drawBeach(t); return; }
-    if (region === 'abyss') { drawTrench(t); return; }
-    drawStoneBridge(t);
-  }
   function drawStoneBridge(t) {
-    const theme = currentTheme();
+    const theme = THEME;
     const wTop = waterTop();
     const deckH = Math.max(24, H * 0.045);
     const pierW = pierWidth();
@@ -1008,333 +774,8 @@
     ctx.fillRect(0, wTop - 6, W, 50);
   }
 
-  // ---------- 산호초 만: sandy beach + lighthouse, seen past a small fishing perch ----------
-  function duneEdgeY(x, topY, duneH) {
-    return topY + Math.sin(x * 0.012 + 1.4) * duneH * 0.22 + Math.sin(x * 0.004 + 4) * duneH * 0.3;
-  }
-
-  function drawBeachShore(t, wTop) {
-    const duneH = H * 0.11;
-    const topY = wTop - duneH;
-
-    // undulating sand dune silhouette along the shoreline
-    const sandGrad = ctx.createLinearGradient(0, topY, 0, wTop);
-    sandGrad.addColorStop(0, '#f4e3b8');
-    sandGrad.addColorStop(1, '#d8b878');
-    ctx.fillStyle = sandGrad;
-    ctx.beginPath();
-    ctx.moveTo(0, wTop);
-    for (let x = 0; x <= W; x += 16) {
-      ctx.lineTo(x, duneEdgeY(x, topY, duneH));
-    }
-    ctx.lineTo(W, wTop);
-    ctx.closePath();
-    ctx.fill();
-
-    // darker wet-sand band right at the waterline
-    ctx.fillStyle = 'rgba(140,110,70,0.35)';
-    ctx.fillRect(0, wTop - 5, W, 8);
-
-    // beach grass tufts along the dune crest
-    BEACH_GRASS.forEach(g => {
-      const gx = W * g.lane;
-      const gy = duneEdgeY(gx, topY, duneH) - 2;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(70,110,50,0.7)';
-      ctx.lineCap = 'round';
-      for (let b = 0; b < g.blades; b++) {
-        const sway = Math.sin(t * 1.3 + g.lane * 10 + b) * 3;
-        const bh = duneH * g.h * (0.5 + b * 0.08);
-        const lean = g.lean + (b - g.blades / 2) * 0.12;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(gx + b * 2 - g.blades, gy);
-        ctx.quadraticCurveTo(gx + lean * bh * 0.5 + sway, gy - bh * 0.6, gx + lean * bh + sway, gy - bh);
-        ctx.stroke();
-      }
-      ctx.restore();
-    });
-
-    // scattered shells / pebbles
-    BEACH_SHELLS.forEach(s => {
-      const sx = W * s.lane;
-      const sy = wTop - 4 - s.depth * duneH * 0.35;
-      ctx.fillStyle = s.color;
-      ctx.beginPath();
-      ctx.ellipse(sx, sy, 3.5 * s.r, 2.2 * s.r, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // a piece of driftwood
-    ctx.save();
-    ctx.strokeStyle = '#5a4530';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(W * 0.16, wTop - 8);
-    ctx.quadraticCurveTo(W * 0.22, wTop - 20, W * 0.29, wTop - 9);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawLighthouse(t, wTop) {
-    const baseX = W * 0.8;
-    const groundY = wTop - H * 0.055;
-    const towerH = H * 0.2;
-    const baseW = W * 0.05;
-    const topW = baseW * 0.6;
-    const towerTopY = groundY - towerH;
-    const roomY = towerTopY + towerH * 0.12;
-
-    ctx.save();
-    // rocky outcrop the lighthouse stands on
-    ctx.fillStyle = '#8a7a68';
-    ctx.beginPath();
-    ctx.ellipse(baseX, groundY + 4, baseW * 1.7, baseW * 0.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // tapered tower body
-    ctx.fillStyle = '#f2ead9';
-    ctx.beginPath();
-    ctx.moveTo(baseX - baseW / 2, groundY);
-    ctx.lineTo(baseX - topW / 2, roomY);
-    ctx.lineTo(baseX + topW / 2, roomY);
-    ctx.lineTo(baseX + baseW / 2, groundY);
-    ctx.closePath();
-    ctx.fill();
-
-    // red stripes
-    ctx.fillStyle = '#d1483a';
-    [0.18, 0.52].forEach(f0 => {
-      const f1 = f0 + 0.16;
-      const y0 = groundY - (groundY - roomY) * f0;
-      const y1 = groundY - (groundY - roomY) * f1;
-      const w0 = baseW - (baseW - topW) * f0;
-      const w1 = baseW - (baseW - topW) * f1;
-      ctx.beginPath();
-      ctx.moveTo(baseX - w0 / 2, y0);
-      ctx.lineTo(baseX - w1 / 2, y1);
-      ctx.lineTo(baseX + w1 / 2, y1);
-      ctx.lineTo(baseX + w0 / 2, y0);
-      ctx.closePath();
-      ctx.fill();
-    });
-
-    // lantern room
-    ctx.fillStyle = '#333';
-    ctx.fillRect(baseX - topW * 0.6, towerTopY, topW * 1.2, towerH * 0.14);
-
-    // gently pulsing glow behind the light
-    const pulse = 0.6 + 0.4 * Math.sin(t * 1.4);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const glow = ctx.createRadialGradient(baseX, towerTopY + towerH * 0.07, 2, baseX, towerTopY + towerH * 0.07, topW * 2.4);
-    glow.addColorStop(0, `rgba(255,240,180,${(0.55 * pulse).toFixed(2)})`);
-    glow.addColorStop(1, 'rgba(255,240,180,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(baseX, towerTopY + towerH * 0.07, topW * 2.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = '#fff4c8';
-    ctx.beginPath();
-    ctx.arc(baseX, towerTopY + towerH * 0.07, topW * 0.42, 0, Math.PI * 2);
-    ctx.fill();
-
-    // conical red roof
-    ctx.fillStyle = '#8a1f1f';
-    ctx.beginPath();
-    ctx.moveTo(baseX - topW * 0.65, towerTopY);
-    ctx.lineTo(baseX, towerTopY - towerH * 0.1);
-    ctx.lineTo(baseX + topW * 0.65, towerTopY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawBeach(t) {
-    const theme = currentTheme();
-    const wTop = waterTop();
-    const deckH = Math.max(20, H * 0.038);
-
-    // open tropical sky -- no arch, it's visible across the whole width
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, wTop);
-    skyGrad.addColorStop(0, theme.archSky[0]);
-    skyGrad.addColorStop(0.5, theme.archSky[1]);
-    skyGrad.addColorStop(1, theme.archSky[2]);
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, W, wTop);
-
-    const glow = ctx.createRadialGradient(W * 0.72, wTop * 0.12, 5, W * 0.72, wTop * 0.12, W * 0.4);
-    glow.addColorStop(0, theme.archGlow);
-    glow.addColorStop(1, theme.archGlow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, wTop);
-
-    // hanging palm fronds from the top corners
-    function frond(baseX, dir) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(15,45,22,0.55)';
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 5; i++) {
-        const ang = -0.35 + i * 0.3;
-        const len = 55 + i * 7;
-        ctx.lineWidth = 4 - i * 0.4;
-        ctx.beginPath();
-        ctx.moveTo(baseX, 4);
-        ctx.quadraticCurveTo(
-          baseX + Math.sin(ang) * len * 0.6 * dir, 4 + len * 0.55,
-          baseX + Math.sin(ang) * len * dir, 4 + len
-        );
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    frond(W * 0.05, 1);
-    frond(W * 0.95, -1);
-
-    // small wooden fishing perch -- just a narrow plank strip, not a full pier
-    ctx.fillStyle = theme.deckCap;
-    ctx.fillRect(0, 0, W, deckH);
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 1;
-    for (let x = 10; x < W; x += 30) {
-      ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, deckH - 2); ctx.stroke();
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.14)';
-    ctx.fillRect(0, deckH - 2, W, 2);
-
-    // sandy shore + a distant lighthouse keeping watch over the bay
-    drawBeachShore(t, wTop);
-    drawLighthouse(t, wTop);
-
-    // shadow the perch casts onto the water
-    const edgeGrad = ctx.createLinearGradient(0, wTop - 6, 0, wTop + 44);
-    edgeGrad.addColorStop(0, theme.bridgeShadow);
-    edgeGrad.addColorStop(1, theme.bridgeShadow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = edgeGrad;
-    ctx.fillRect(0, wTop - 6, W, 50);
-  }
-
-  // ---------- 심해 해구: research platform between trench walls ----------
-  function drawTrench(t) {
-    const theme = currentTheme();
-    const wTop = waterTop();
-    const deckH = Math.max(26, H * 0.05);
-
-    // no real sky this deep -- just a faint cold haze between the walls
-    const hazeGrad = ctx.createLinearGradient(0, deckH, 0, wTop);
-    hazeGrad.addColorStop(0, theme.archSky[0]);
-    hazeGrad.addColorStop(1, theme.archSky[2]);
-    ctx.fillStyle = hazeGrad;
-    ctx.fillRect(0, deckH, W, wTop - deckH);
-
-    // jagged trench rock walls, left and right -- not straight piers
-    function rockWall(side) {
-      const baseW = W * 0.25;
-      ctx.save();
-      const grad = ctx.createLinearGradient(0, deckH, 0, wTop);
-      grad.addColorStop(0, theme.pier[0]);
-      grad.addColorStop(0.75, theme.pier[1]);
-      grad.addColorStop(1, theme.pier[2]);
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      const steps = 8;
-      if (side < 0) {
-        ctx.moveTo(0, deckH);
-        for (let s = 0; s <= steps; s++) {
-          const y = deckH + (wTop - deckH) * (s / steps);
-          const x = baseW + Math.sin(y * 0.045 + 1.3) * baseW * 0.22;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(0, wTop);
-      } else {
-        ctx.moveTo(W, deckH);
-        for (let s = 0; s <= steps; s++) {
-          const y = deckH + (wTop - deckH) * (s / steps);
-          const x = W - baseW + Math.sin(y * 0.045 + 4.1) * baseW * 0.22;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(W, wTop);
-      }
-      ctx.closePath();
-      ctx.fill();
-
-      // bioluminescent flecks embedded in the rock, gently flickering
-      for (let i = 0; i < 6; i++) {
-        const fy = deckH + (wTop - deckH) * ((i + 0.5) / 6);
-        const fx = side < 0
-          ? baseW * (0.3 + 0.3 * Math.sin(i * 2))
-          : W - baseW * (0.3 + 0.3 * Math.sin(i * 2 + 1));
-        const flick = 0.4 + 0.6 * Math.abs(Math.sin(t * 1.5 + i * 2));
-        ctx.globalAlpha = 0.55 * flick;
-        ctx.fillStyle = theme.sparkle;
-        ctx.beginPath();
-        ctx.arc(fx, fy, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
-    rockWall(-1);
-    rockWall(1);
-
-    // research-platform deck cap: dark metal girders + a blinking warning light
-    ctx.fillStyle = theme.deckCap;
-    ctx.fillRect(0, 0, W, deckH);
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 2;
-    for (let x = 10; x < W; x += 36) {
-      ctx.beginPath(); ctx.moveTo(x, deckH * 0.3); ctx.lineTo(x, deckH - 3); ctx.stroke();
-    }
-    const blink = 0.5 + 0.5 * Math.sin(t * 2.2);
-    ctx.fillStyle = `rgba(255,80,60,${(0.3 + blink * 0.5).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(W * 0.5, deckH * 0.55, 3, 0, Math.PI * 2); ctx.fill();
-
-    // a cable dangling from the platform down toward the water
-    ctx.save();
-    ctx.strokeStyle = 'rgba(40,40,46,0.6)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(W * 0.5, deckH);
-    ctx.quadraticCurveTo(W * 0.5 + 10, (deckH + wTop) * 0.5, W * 0.5 - 6, wTop - 20);
-    ctx.stroke();
-    ctx.restore();
-
-    // shadow the platform casts onto the water
-    const edgeGrad = ctx.createLinearGradient(0, wTop - 6, 0, wTop + 44);
-    edgeGrad.addColorStop(0, theme.bridgeShadow);
-    edgeGrad.addColorStop(1, theme.bridgeShadow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = edgeGrad;
-    ctx.fillRect(0, wTop - 6, W, 50);
-  }
-
-  // No sunlight reaches the trench -- rising bioluminescent motes replace
-  // the light shafts entirely rather than just reusing them in a new color.
-  function drawBioMotes(t, theme) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const count = 16;
-    for (let i = 0; i < count; i++) {
-      const seed = i * 37.13;
-      const x = ((Math.sin(seed) * 0.5 + 0.5) * 0.9 + 0.05) * W;
-      const top = waterTop();
-      const cycle = (t * 0.045 + seed * 0.13) % 1;
-      const y = H - (H - top) * cycle;
-      const sway = Math.sin(t * 0.6 + seed) * 10;
-      const alpha = Math.sin(cycle * Math.PI) * 0.55;
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = theme.sparkle;
-      ctx.beginPath();
-      ctx.arc(x + sway, y, 1.5 + (Math.sin(seed) * 0.5 + 0.5) * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
   function drawSunRays(t) {
-    const theme = currentTheme();
-    if (save.currentRegion === 'abyss') { drawBioMotes(t, theme); return; }
+    const theme = THEME;
     const wTop = waterTop();
     const cx = W * 0.5, topY = wTop * 0.55;
     ctx.save();
@@ -1360,7 +801,7 @@
   }
 
   function drawWater(t) {
-    const theme = currentTheme();
+    const theme = THEME;
     const top = waterTop();
     const pierW = pierWidth();
     const grad = ctx.createLinearGradient(0, top, 0, H);
@@ -1371,10 +812,8 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, top, W, H - top);
 
-    // reflections of the two piers, distorted by the waterline -- the dock's
-    // thin pilings don't read as a solid block, so this only applies to the
-    // stone bridge and the trench's rock walls.
-    if (pierW && save.currentRegion !== 'reef') {
+    // reflections of the two piers, distorted by the waterline
+    if (pierW) {
       ctx.save();
       ctx.globalAlpha = 0.22;
       ctx.fillStyle = theme.pierReflect;
@@ -1433,7 +872,7 @@
   }
 
   function drawSparkles(t) {
-    const theme = currentTheme();
+    const theme = THEME;
     ctx.save();
     const top = waterTop();
     sparkles.forEach(s => {
@@ -1600,7 +1039,7 @@
     ctx.scale(ZOOM, ZOOM);
     ctx.translate(-anchorX, -anchorY);
     drawWater(t);
-    drawBridge(t);
+    drawStoneBridge(t);
     drawSunRays(t);
     drawSparkles(t);
     maybeSpawnIdleFish(t);
@@ -1637,10 +1076,8 @@
   // its own top-level button/overlay.
   const logNewDot = document.getElementById('log-new-dot');
   function updateLogDot() { logNewDot.classList.toggle('hidden', save.newSpecies.length === 0); }
-  const logRegionTabs = document.getElementById('log-region-tabs');
   const logList = document.getElementById('log-list');
   const logTotal = document.getElementById('log-total');
-  let logActiveRegion = save.currentRegion;
 
   const bucketOverlay = document.getElementById('bucket-overlay');
   const bucketBtn = document.getElementById('bucket-btn');
@@ -1659,7 +1096,6 @@
     bucketViewEl.classList.toggle('hidden', showLog);
     logViewEl.classList.toggle('hidden', !showLog);
     if (showLog) {
-      logActiveRegion = save.currentRegion;
       renderLog();
       if (save.newSpecies.length) { save.newSpecies = []; persist(); updateLogDot(); }
     } else {
@@ -1826,80 +1262,6 @@
       : '지금 낚싯대로는 스킵 가능한 등급이 없어요.';
   }
 
-  // ================= 거북이 택시 (region travel) =================
-  const currentRegionLabelEl = document.getElementById('current-region-label');
-  const idleTextEl = document.getElementById('idle-text');
-  function updateCurrentRegionLabel() {
-    const region = REGIONS[save.currentRegion];
-    currentRegionLabelEl.textContent = `${region.icon} ${region.name}`;
-    idleTextEl.textContent = region.flavor;
-  }
-
-  // No dedicated topbar button -- opened by tapping the current-region label
-  // in the title instead (see openTaxiOverlay() wiring further down).
-  const taxiOverlay = document.getElementById('taxi-overlay');
-  const taxiClose = document.getElementById('taxi-close');
-  const taxiList = document.getElementById('taxi-list');
-  function openTaxiOverlay() { renderTaxiList(); taxiOverlay.classList.remove('hidden'); }
-
-  function renderTaxiList() {
-    taxiList.innerHTML = '';
-    REGION_ORDER.forEach(regionKey => {
-      const region = REGIONS[regionKey];
-      const unlocked = save.unlockedRegions.includes(regionKey);
-      const isCurrent = save.currentRegion === regionKey;
-      const row = document.createElement('div');
-      row.className = 'log-row';
-      const icon = document.createElement('div');
-      icon.className = 'icon';
-      icon.textContent = region.icon;
-      const info = document.createElement('div');
-      info.className = 'info';
-      const name = document.createElement('div');
-      name.className = 'name';
-      name.textContent = region.name + (isCurrent ? ' (현재 위치)' : '');
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      meta.textContent = unlocked ? '해금됨' : `첫 이동 비용 🐚${region.travelCost}`;
-      info.appendChild(name); info.appendChild(meta);
-      const btn = document.createElement('button');
-      btn.className = 'release-btn';
-      if (isCurrent) {
-        btn.textContent = '현재 위치';
-        btn.disabled = true;
-      } else if (unlocked) {
-        btn.textContent = '이동';
-        btn.disabled = false;
-      } else {
-        btn.textContent = `이동 (🐚${region.travelCost})`;
-        btn.disabled = save.shells < region.travelCost;
-      }
-      btn.addEventListener('click', () => travelToRegion(regionKey));
-      row.appendChild(icon); row.appendChild(info); row.appendChild(btn);
-      taxiList.appendChild(row);
-    });
-  }
-
-  // Travel is blocked mid-bite/reel so a region switch can't yank a fish
-  // from a different venue out from under an in-progress catch.
-  function travelToRegion(regionKey) {
-    if (state !== 'idle') return;
-    if (regionKey === save.currentRegion) return;
-    const region = REGIONS[regionKey];
-    if (!region) return;
-    if (!save.unlockedRegions.includes(regionKey)) {
-      if (save.shells < region.travelCost) return;
-      save.shells -= region.travelCost;
-      save.unlockedRegions.push(regionKey);
-    }
-    save.currentRegion = regionKey;
-    persist();
-    sfx.splash();
-    updateShellsDisplay();
-    updateCurrentRegionLabel();
-    renderTaxiList();
-  }
-
   const shopOverlay = document.getElementById('shop-overlay');
   const shopBtn = document.getElementById('shop-btn');
   const shopClose = document.getElementById('shop-close');
@@ -2037,7 +1399,7 @@
     const mult = BAIT_WEIGHT_MULT[bait] || BAIT_WEIGHT_MULT.basic;
     const minTier = BAIT_MIN_TIER[bait];
     const minOrdinal = minTier ? FISH_TIER_ORDINAL[minTier] : 0;
-    const pool = SPECIES_ORDER.filter(k => SPECIES[k].region === save.currentRegion && FISH_TIER_ORDINAL[SPECIES[k].tier] >= minOrdinal);
+    const pool = SPECIES_ORDER.filter(k => FISH_TIER_ORDINAL[SPECIES[k].tier] >= minOrdinal);
     const weights = pool.map(k => SPECIES[k].weight * (mult[SPECIES[k].tier] || 1));
     const total = weights.reduce((s, w) => s + w, 0);
     let r = Math.random() * total;
@@ -2345,43 +1707,15 @@
   }
 
   // ================= Collection log =================
-  // Tabbed by region (venue) first, then highest tier first (legendary down
-  // to junk) within the active tab's region, grouped under a header per tier.
+  // Highest tier first (legendary down to junk), grouped under a header per tier.
   const LOG_TIER_ORDER = ['legendary', 'epic', 'rare', 'uncommon', 'common', 'junk'];
 
-  function renderLogRegionTabs() {
-    logRegionTabs.innerHTML = '';
-    REGION_ORDER.forEach(regionKey => {
-      const region = REGIONS[regionKey];
-      const unlocked = save.unlockedRegions.includes(regionKey);
-      const tab = document.createElement('button');
-      tab.className = 'region-tab' + (regionKey === logActiveRegion ? ' active' : '') + (unlocked ? '' : ' locked');
-      tab.textContent = `${region.icon} ${region.name}${unlocked ? '' : ' 🔒'}`;
-      tab.addEventListener('click', () => {
-        logActiveRegion = regionKey;
-        renderLog();
-      });
-      logRegionTabs.appendChild(tab);
-    });
-  }
-
   function renderLog() {
-    renderLogRegionTabs();
     logList.innerHTML = '';
-
-    if (!save.unlockedRegions.includes(logActiveRegion)) {
-      const region = REGIONS[logActiveRegion];
-      const locked = document.createElement('p');
-      locked.className = 'log-region-locked';
-      locked.textContent = `🔒 아직 가보지 못한 곳이에요.\n🐢 거북이 택시로 ${region.name}까지 이동하면(🐚${region.travelCost}) 도감이 채워집니다.`;
-      logList.appendChild(locked);
-      logTotal.textContent = '';
-      return;
-    }
 
     let totalCaught = 0;
     LOG_TIER_ORDER.forEach(tier => {
-      const keysInTier = SPECIES_ORDER.filter(k => SPECIES[k].region === logActiveRegion && SPECIES[k].tier === tier);
+      const keysInTier = SPECIES_ORDER.filter(k => SPECIES[k].tier === tier);
       if (!keysInTier.length) return;
       const header = document.createElement('h3');
       header.className = 'shop-section-title';
@@ -2475,7 +1809,6 @@
   function anyOverlayOpen() {
     return !bucketOverlay.classList.contains('hidden')
       || !shopOverlay.classList.contains('hidden')
-      || !taxiOverlay.classList.contains('hidden')
       || !settingsOverlay.classList.contains('hidden');
   }
 
@@ -2511,10 +1844,6 @@
     renderRodPanel();
   });
 
-  currentRegionLabelEl.addEventListener('click', openTaxiOverlay);
-  taxiClose.addEventListener('click', () => taxiOverlay.classList.add('hidden'));
-  taxiOverlay.addEventListener('click', (e) => { if (e.target === taxiOverlay) taxiOverlay.classList.add('hidden'); });
-
   shopBtn.addEventListener('click', () => {
     renderShopPanel();
     renderRodPanel();
@@ -2538,7 +1867,6 @@
   updateLogDot();
   updateShellsDisplay();
   updateBgmButton();
-  updateCurrentRegionLabel();
   renderBaitSelector();
   renderRouletteOdds();
   showPanel('idle');

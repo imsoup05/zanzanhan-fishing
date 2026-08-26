@@ -85,17 +85,6 @@ body {
   min-width: 0;
   flex: 1 1 auto;
 }
-.current-region-label {
-  display: block;
-  font-size: 11px;
-  opacity: 0.75;
-  font-weight: normal;
-  letter-spacing: 0;
-  cursor: pointer;
-  text-decoration: underline dotted;
-  width: fit-content;
-}
-
 /* Full-width tab bar instead of small squeezed pills -- wide, easy to see
    and tap, each button sharing the screen width equally. */
 .topbar-btns {
@@ -581,23 +570,6 @@ body {
 
 .log-card { text-align: left; max-height: 80%; display: flex; flex-direction: column; }
 .log-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.region-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-.region-tab {
-  flex: 1;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--panel-border);
-  color: var(--text-light);
-  border-radius: 10px;
-  padding: 7px 4px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: center;
-  opacity: 0.65;
-}
-.region-tab.active { opacity: 1; background: rgba(255,207,107,0.18); border-color: var(--accent); }
-.region-tab.locked { opacity: 0.4; }
-.log-region-locked { text-align: center; padding: 30px 10px; opacity: 0.75; font-size: 13px; line-height: 1.7; }
 .log-card-head h2 { color: var(--accent); display: flex; align-items: center; gap: 8px; }
 .bucket-capacity { font-size: 13px; opacity: 0.75; color: var(--text-light); }
 
