@@ -15,23 +15,23 @@
 
   <!-- Reserved zones (see 기본 UI 영역 분류): tapping here never casts a line -->
   <header class="topbar">
-    <div class="location-pill">🌉 다리 밑</div>
+    <div class="location-pill"><img class="ui-icon" src="icons/location.svg" alt="">다리 밑</div>
     <div class="topbar-right">
-      <div class="shells-pill">🐚 <span id="shells-count">0</span></div>
-      <button id="menu-toggle-btn" class="icon-btn" title="메뉴">☰</button>
+      <div class="shells-pill"><img class="ui-icon" src="icons/shell.svg" alt=""> <span id="shells-count">0</span></div>
+      <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/menu.svg" alt="메뉴"></button>
 
       <!-- Grows straight down out of the hamburger button, same width and
            color, so it reads as one shape rather than a separate panel.
            Icon-only. Order: 상점, 보관함, 설정. -->
       <nav id="side-menu" class="side-menu">
         <button id="menu-shop-btn" class="side-menu-item" title="상점">
-          <span class="side-menu-icon">🏪</span>
+          <img class="side-menu-icon" src="icons/shop.svg" alt="상점">
         </button>
         <button id="menu-bucket-btn" class="side-menu-item" title="보관함">
-          <span class="side-menu-icon">🧺</span>
+          <img class="side-menu-icon" src="icons/bucket.svg" alt="보관함">
         </button>
         <button id="menu-settings-btn" class="side-menu-item" title="설정">
-          <span class="side-menu-icon">⚙️</span>
+          <img class="side-menu-icon" src="icons/settings.svg" alt="설정">
         </button>
       </nav>
     </div>
@@ -60,7 +60,7 @@
   </div>
 
   <footer class="bottombar">
-    <button id="bait-btn" class="bait-btn-main" title="미끼">🪱</button>
+    <button id="bait-btn" class="bait-btn-main" title="미끼"><img class="ui-icon-xl" src="icons/bait.svg" alt="미끼"></button>
   </footer>
 
   <!-- Invisible click-outside-to-close catcher for the slide-out menu. -->

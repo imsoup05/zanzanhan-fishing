@@ -484,7 +484,7 @@
   const TAP_ZONE_BOTTOM_FRAC = 0.82; // matches .reel-gauge's `top + height`
 
   const TEST_FISH = {
-    name: '테스트 물고기', icon: '🐟',
+    name: '테스트 물고기', icon: 'icons/fish.svg',
     period: 1.0, zoneHeight: 22, maxMisses: 3,
     periodShrink: 0.94, minPeriod: 0.6, timeLimit: 3.2,
     hitsRequired: 4,
@@ -519,8 +519,10 @@
 
   function updateShellsDisplay() { shellsCountEl.textContent = shells; }
 
-  function showStatus(text) {
-    statusTextEl.textContent = text;
+  function showStatus(text, iconSrc) {
+    statusTextEl.innerHTML = iconSrc
+      ? `<img class="status-icon" src="${iconSrc}" alt="">${text}`
+      : text;
     statusTextEl.classList.remove('hidden');
   }
   function hideStatus() { statusTextEl.classList.add('hidden'); }
@@ -564,7 +566,7 @@
     state = 'bite';
     bobberState = 'bite';
     bobberDipT = performance.now() / 1000;
-    showStatus('⚡ 입질이 왔어요!');
+    showStatus('입질이 왔어요!', 'icons/bite.svg');
     biteTimer = setTimeout(startReel, 500);
   }
 
@@ -720,11 +722,11 @@
     state = 'result';
     bobberState = 'hidden';
     reelGaugeEl.classList.add('hidden');
-    showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', '💨');
+    showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/miss.svg');
   }
 
   function showResult(isCatch, title, desc, icon) {
-    resultIcon.textContent = icon;
+    resultIcon.innerHTML = `<img src="${icon}" alt="">`;
     resultTierBadge.classList.add('hidden'); // no tier system yet
     resultTitle.textContent = title;
     resultDesc.textContent = desc;
