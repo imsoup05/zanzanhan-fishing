@@ -126,7 +126,7 @@ body {
    different art style) across platforms/fonts, images don't. */
 .ui-icon { width: 16px; height: 16px; display: block; }
 .ui-icon-lg { width: 26px; height: 26px; display: block; }
-.ui-icon-xl { width: 44px; height: 44px; display: block; }
+.ui-icon-xl { width: 38px; height: 38px; display: block; }
 
 /* The one action button left outside the drawer -- given its own visible
    circle (not the transparent icon-only style) since it's now the sole,
