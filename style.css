@@ -556,6 +556,11 @@ body {
   gap: 10px;
   padding-right: 4px;
 }
+/* Hidden (not just empty) when there's nothing to list -- otherwise this
+   flex:1 box still claims the panel's space even with zero rows, and the
+   "nothing here" placeholder's margin:auto centering has nothing left to
+   center within, so it reads as pinned to the top instead of screen-center. */
+.sell-list.hidden { display: none; }
 .sell-row {
   display: flex;
   align-items: center;

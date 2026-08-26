@@ -624,15 +624,16 @@ function __zzhInit() {
   // the hit zone and per-hit time limit. Both are folded into the tier's
   // base reel params here so startReel()/attemptHit() just consume one
   // effective set without knowing about the rod at all.
+  const MAX_MISSES_CAP = 5;
   function getEffectiveReel(tier) {
     const base = FishData.TIERS[tier].reel;
     const ease = FishData.rodEase(rod.level);
-    const missBonus = FishData.ROD_GRADES[rod.grade].missBonus;
+    const missBonus = FishData.rodMissBonus(rod.grade);
     return {
       hitsRequired: base.hitsRequired,
       zoneHeight: base.zoneHeight * (1 + ease),
       timeLimit: base.timeLimit * (1 + ease * 0.6),
-      maxMisses: base.maxMisses + missBonus,
+      maxMisses: Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus),
       hitTolerance: HIT_TOLERANCE * (1 + ease * 0.5)
     };
   }
@@ -688,9 +689,13 @@ function __zzhInit() {
 
   // Ordinal ladder for the hit-counter's rarity climb (junk sits at the
   // bottom so even a real fish's early hits can flash "might be nothing"
-  // gray before climbing into actual tiers) -- also used to size how many
-  // hits a catch demands (see startReel()).
+  // gray before climbing into actual tiers).
   const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
+
+  // How many hits a catch demands: base + random(0~1). Grouped in pairs
+  // rather than one-per-tier -- 꽝/일반 share the easy end, 특급/전설 share
+  // the hard end, 희귀 sits alone in the middle.
+  const HITS_BASE_BY_TIER = { junk: 2, common: 2, rare: 3, epic: 4, legendary: 4 };
 
   function triggerBite() {
     if (state !== 'waiting') return;
@@ -714,13 +719,8 @@ function __zzhInit() {
     state = 'reeling';
     bobberState = 'reeling';
     const f = getEffectiveReel(currentCatch.tier);
-    // Hit count is fully random per catch, not a fixed per-tier table: floor
-    // is how many tiers sit at-or-below the real one (junk=1 .. legendary=5),
-    // ceiling is one more than that -- so higher real tiers always demand
-    // more hits (legendary: 5~6) while staying random within that band.
-    const targetOrdinal = REEL_TIER_ORDER.indexOf(currentCatch.tier);
-    const tierCount = targetOrdinal + 1;
-    const hitsRequired = tierCount + Math.floor(Math.random() * 2);
+    // Hit count is random per catch: HITS_BASE_BY_TIER's floor, plus 0~1.
+    const hitsRequired = HITS_BASE_BY_TIER[currentCatch.tier] + Math.floor(Math.random() * 2);
     const colorSeq = buildClimbSequence(currentCatch.tier, hitsRequired);
     // The very first hit's speed already matches whatever tier colorSeq[0]
     // displays -- see attemptHit() for how it keeps following the climb.
@@ -940,9 +940,12 @@ function __zzhInit() {
     const icon = c.tier === 'junk' ? 'icons/junk.svg' : 'icons/fish.svg';
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
     let desc;
+    let isNewSpecies = false;
     if (c.tier === 'junk') {
       desc = c.desc;
     } else {
+      // Checked before recordCatch() creates/updates the entry.
+      isNewSpecies = !catches[c.id];
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
@@ -950,7 +953,7 @@ function __zzhInit() {
       persist();
       desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
-    showResult(true, title, desc, icon, c.tier);
+    showResult(true, title, desc, icon, c.tier, isNewSpecies);
   }
 
   function catchFail() {
@@ -962,7 +965,7 @@ function __zzhInit() {
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/miss.svg');
   }
 
-  function showResult(isCatch, title, desc, icon, tier) {
+  function showResult(isCatch, title, desc, icon, tier, isNewSpecies) {
     resultIcon.innerHTML = `<img src="${icon}" alt="">`;
     if (tier) {
       resultTierBadge.textContent = FishData.TIERS[tier].label;
@@ -972,7 +975,7 @@ function __zzhInit() {
     }
     resultTitle.textContent = title;
     resultDesc.innerHTML = desc;
-    newBadge.classList.add('hidden'); // no species-discovery tracking yet
+    newBadge.classList.toggle('hidden', !isNewSpecies);
     resultOverlay.classList.remove('hidden');
     resultCard.classList.remove('catch-reveal');
     splashFlash.classList.remove('active');
@@ -1026,6 +1029,7 @@ function __zzhInit() {
 
   function renderSellList() {
     sellListEl.innerHTML = '';
+    sellListEl.classList.toggle('hidden', caughtFish.length === 0);
     sellEmptyEl.classList.toggle('hidden', caughtFish.length > 0);
     caughtFish.forEach(item => {
       const row = document.createElement('div');
@@ -1121,6 +1125,7 @@ function __zzhInit() {
   // 보관함 is just a look at what's held, selling still happens in 상점.
   function renderBucketInventory() {
     bucketListEl.innerHTML = '';
+    bucketListEl.classList.toggle('hidden', caughtFish.length === 0);
     bucketEmptyEl.classList.toggle('hidden', caughtFish.length > 0);
     caughtFish.forEach(item => {
       const row = document.createElement('div');

@@ -19,12 +19,12 @@
     junk: {
       key: 'junk', label: '꽝', color: '#8a99a0', weight: 0.10,
       priceMin: 0, priceMax: 0,
-      reel: { period: 1.15, zoneHeight: 32, maxMisses: 5, timeLimit: 3.8, hitsRequired: 2 }
+      reel: { period: 1.15, zoneHeight: 32, maxMisses: 3, timeLimit: 3.8, hitsRequired: 2 }
     },
     common: {
       key: 'common', label: '일반', color: '#8fd9a8', weight: 0.52,
       priceMin: 8, priceMax: 45,
-      reel: { period: 1.0, zoneHeight: 24, maxMisses: 4, timeLimit: 3.4, hitsRequired: 3 }
+      reel: { period: 1.0, zoneHeight: 24, maxMisses: 3, timeLimit: 3.4, hitsRequired: 3 }
     },
     rare: {
       key: 'rare', label: '희귀', color: '#5cc9e8', weight: 0.27,
@@ -34,7 +34,7 @@
     epic: {
       key: 'epic', label: '특급', color: '#c98cf0', weight: 0.105,
       priceMin: 300, priceMax: 1100,
-      reel: { period: 0.82, zoneHeight: 15, maxMisses: 3, timeLimit: 2.8, hitsRequired: 5 }
+      reel: { period: 0.82, zoneHeight: 15, maxMisses: 2, timeLimit: 2.8, hitsRequired: 5 }
     },
     legendary: {
       key: 'legendary', label: '전설', color: '#ffcf4d', weight: 0.005,
@@ -148,12 +148,24 @@
   // zone / time limit -- both read by game.js when it builds a tier's
   // effective reel params. Grade-up past max level needs a material system
   // that doesn't exist yet, so epic-at-level-10 is a real ceiling for now.
+  const ROD_GRADE_ORDER = ['common', 'rare', 'epic'];
   const ROD_GRADES = {
-    common: { key: 'common', label: '일반 낚싯대', color: '#8fd9a8', missBonus: 0, next: 'rare' },
-    rare: { key: 'rare', label: '희귀 낚싯대', color: '#5cc9e8', missBonus: 1, next: 'epic' },
-    epic: { key: 'epic', label: '특급 낚싯대', color: '#c98cf0', missBonus: 2, next: null }
+    common: { key: 'common', label: '일반 낚싯대', color: '#8fd9a8', next: 'rare' },
+    rare: { key: 'rare', label: '희귀 낚싯대', color: '#5cc9e8', next: 'epic' },
+    epic: { key: 'epic', label: '특급 낚싯대', color: '#c98cf0', next: null }
   };
   const ROD_MAX_LEVEL = 10;
+
+  // +1 life once the rod's grade has reached (or passed) each of these
+  // milestones, rather than one fixed lookup per exact grade name -- the
+  // grade-up ladder isn't finalized yet, so this stays correct even if
+  // more grades get inserted later, as long as 희귀/특급 remain on it
+  // somewhere. Currently: common=+0, rare=+1, epic=+2.
+  const ROD_MISS_MILESTONES = ['rare', 'epic'];
+  function rodMissBonus(gradeKey) {
+    const idx = ROD_GRADE_ORDER.indexOf(gradeKey);
+    return ROD_MISS_MILESTONES.reduce((sum, m) => sum + (idx >= ROD_GRADE_ORDER.indexOf(m) ? 1 : 0), 0);
+  }
 
   // Cost to go from `level` to `level + 1`.
   function rodLevelCost(level) {
@@ -161,13 +173,13 @@
   }
 
   // Fraction the reel zone/time widen by, from rod level alone (0 at
-  // level 1, ~0.27 at level 10) -- grade contributes via missBonus instead.
+  // level 1, ~0.27 at level 10) -- grade contributes via rodMissBonus() instead.
   function rodEase(level) {
     return (level - 1) * 0.03;
   }
 
   window.FishData = {
     TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize,
-    ROD_GRADES, ROD_MAX_LEVEL, rodLevelCost, rodEase
+    ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, rodLevelCost, rodEase, rodMissBonus
   };
 })();
