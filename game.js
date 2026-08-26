@@ -671,23 +671,29 @@
   // can flash "might be nothing" gray before climbing into actual tiers.
   const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
 
-  // Random non-decreasing walk over tiers [floorOrdinal..targetOrdinal],
-  // capped to climb at most 2 tiers below the real one -- a legendary catch
-  // can open as low as epic, never as low as junk/common/rare. The last up
-  // to 3 hits are always locked to the real tier (so it reads as "settled"
-  // well before the catch actually lands), and the free hits before that
-  // are NOT anchored to the floor -- e.g. an epic catch might read
-  // 희귀,희귀,특급 instead of always starting at 일반.
+  // Stepwise climb: each hit can rise by at most MAX_STEP tiers over the
+  // previous hit (never more), so it reads as a staircase building
+  // anticipation -- not one single jump straight from junk to epic. The
+  // starting tier is otherwise unrestricted (can be anywhere from junk up
+  // to the real tier); it's only clamped low enough that there's still
+  // room to reach the real tier in the hits remaining. E.g. for an epic
+  // catch this can read 꽝,일반,일반,특급 -- three flat/small steps then a
+  // final +2 jump onto the real tier, never a +3 jump like 꽝,특급 would be.
   function buildClimbSequence(tierKey, n) {
-    const targetOrdinal = REEL_TIER_ORDER.indexOf(tierKey);
-    const floorOrdinal = Math.max(0, targetOrdinal - 2);
-    const span = targetOrdinal - floorOrdinal + 1;
-    const forcedFrom = Math.max(0, n - 3);
-    const picks = [];
-    for (let i = 0; i < forcedFrom; i++) picks.push(floorOrdinal + Math.floor(Math.random() * span));
-    picks.sort((a, b) => a - b);
-    while (picks.length < n) picks.push(targetOrdinal);
-    return picks.map(o => REEL_TIER_ORDER[o]);
+    const target = REEL_TIER_ORDER.indexOf(tierKey);
+    const MAX_STEP = 2;
+    const seq = [];
+    const minStart = Math.max(0, target - MAX_STEP * (n - 1));
+    let prev = minStart + Math.floor(Math.random() * (target - minStart + 1));
+    seq.push(prev);
+    for (let i = 1; i < n; i++) {
+      const remainingAfter = n - 1 - i;
+      const low = Math.max(prev, target - MAX_STEP * remainingAfter);
+      const high = Math.min(target, prev + MAX_STEP);
+      prev = low + Math.floor(Math.random() * (high - low + 1));
+      seq.push(prev);
+    }
+    return seq.map(o => REEL_TIER_ORDER[o]);
   }
 
   function applyHitColors() {
