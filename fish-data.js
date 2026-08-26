@@ -9,33 +9,37 @@
   // 비싸면 안 됨) -- guaranteed by construction since every fish in a tier
   // is priced within that same [priceMin, priceMax] band regardless of
   // species, only scaled by where its own size falls in its own sizeRange.
-  // reel.hitsRequired is a MINIMUM -- game.js adds a random 0~2 on top of
+  // reel.hitsRequired is a MINIMUM -- game.js adds a random 0~1 on top of
   // it per reel, so the exact hit count varies catch to catch.
+  // reel.period is also the per-hit casting speed for that tier's *color* --
+  // game.js's rarity-climb sequence picks a tier per hit, and the reel's
+  // speed follows whichever tier is currently displayed (see
+  // buildClimbSequence()/attemptHit() in game.js), not just the real tier.
   const TIERS = {
     junk: {
       key: 'junk', label: '꽝', color: '#8a99a0', weight: 0.10,
       priceMin: 0, priceMax: 0,
-      reel: { period: 1.15, zoneHeight: 32, maxMisses: 5, periodShrink: 0.97, minPeriod: 0.72, timeLimit: 3.8, hitsRequired: 2 }
+      reel: { period: 1.15, zoneHeight: 32, maxMisses: 5, timeLimit: 3.8, hitsRequired: 2 }
     },
     common: {
       key: 'common', label: '일반', color: '#8fd9a8', weight: 0.52,
       priceMin: 8, priceMax: 45,
-      reel: { period: 1.0, zoneHeight: 24, maxMisses: 4, periodShrink: 0.95, minPeriod: 0.62, timeLimit: 3.4, hitsRequired: 3 }
+      reel: { period: 1.0, zoneHeight: 24, maxMisses: 4, timeLimit: 3.4, hitsRequired: 3 }
     },
     rare: {
       key: 'rare', label: '희귀', color: '#5cc9e8', weight: 0.27,
       priceMin: 60, priceMax: 220,
-      reel: { period: 0.92, zoneHeight: 19, maxMisses: 3, periodShrink: 0.93, minPeriod: 0.55, timeLimit: 3.1, hitsRequired: 4 }
+      reel: { period: 0.92, zoneHeight: 19, maxMisses: 3, timeLimit: 3.1, hitsRequired: 4 }
     },
     epic: {
       key: 'epic', label: '특급', color: '#c98cf0', weight: 0.105,
       priceMin: 300, priceMax: 1100,
-      reel: { period: 0.82, zoneHeight: 15, maxMisses: 3, periodShrink: 0.91, minPeriod: 0.48, timeLimit: 2.8, hitsRequired: 5 }
+      reel: { period: 0.82, zoneHeight: 15, maxMisses: 3, timeLimit: 2.8, hitsRequired: 5 }
     },
     legendary: {
       key: 'legendary', label: '전설', color: '#ffcf4d', weight: 0.005,
       priceMin: 8000, priceMax: 15000,
-      reel: { period: 0.72, zoneHeight: 11, maxMisses: 2, periodShrink: 0.88, minPeriod: 0.42, timeLimit: 2.6, hitsRequired: 6 }
+      reel: { period: 0.72, zoneHeight: 11, maxMisses: 2, timeLimit: 2.6, hitsRequired: 6 }
     }
   };
   // junk(10%) + common(52%) + rare(27%) + epic(10.5%) + legendary(0.5%) = 100%.

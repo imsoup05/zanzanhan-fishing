@@ -515,8 +515,6 @@
   const resultTitle = document.getElementById('result-title');
   const resultDesc = document.getElementById('result-desc');
   const resultBtn = document.getElementById('result-btn');
-  const catchTierBadgeEl = document.getElementById('catch-tier-badge');
-
   const menuShopBtn = document.getElementById('menu-shop-btn');
   const shopOverlay = document.getElementById('shop-overlay');
   const shopPanel = document.getElementById('shop-panel');
@@ -547,9 +545,6 @@
     const ease = FishData.rodEase(rod.level);
     const missBonus = FishData.ROD_GRADES[rod.grade].missBonus;
     return {
-      period: base.period,
-      periodShrink: base.periodShrink,
-      minPeriod: base.minPeriod,
       hitsRequired: base.hitsRequired,
       zoneHeight: base.zoneHeight * (1 + ease),
       timeLimit: base.timeLimit * (1 + ease * 0.6),
@@ -595,7 +590,6 @@
     bobber = { x, y };
     state = 'waiting';
     bobberState = 'waiting';
-    catchTierBadgeEl.classList.add('hidden');
     showStatus('입질을 기다리는 중...');
     const delay = 1600 + Math.random() * 2600;
     waitingTimer = setTimeout(triggerBite, delay);
@@ -606,10 +600,9 @@
     state = 'bite';
     bobberState = 'bite';
     bobberDipT = performance.now() / 1000;
+    // Tier is chosen now but no longer announced up front -- the hit
+    // counter's rarity climb is the only reveal during casting/reeling.
     currentCatch = FishData.pickCatch();
-    const tier = FishData.TIERS[currentCatch.tier];
-    catchTierBadgeEl.textContent = tier.label;
-    catchTierBadgeEl.className = `tier-badge catch-tier-badge tier-${currentCatch.tier}`;
     showStatus('입질이 왔어요!', 'icons/bite.svg');
     biteTimer = setTimeout(startReel, 500);
   }
@@ -620,11 +613,15 @@
     state = 'reeling';
     bobberState = 'reeling';
     const f = getEffectiveReel(currentCatch.tier);
-    // f.hitsRequired is only the tier's minimum now -- each reel adds 0~2
+    // f.hitsRequired is only the tier's minimum now -- each reel adds 0~1
     // more so the exact count varies catch to catch.
-    const hitsRequired = f.hitsRequired + Math.floor(Math.random() * 3);
+    const hitsRequired = f.hitsRequired + Math.floor(Math.random() * 2);
+    const colorSeq = buildClimbSequence(currentCatch.tier, hitsRequired);
+    // The very first hit's speed already matches whatever tier colorSeq[0]
+    // displays -- see attemptHit() for how it keeps following the climb.
+    const initialTierKey = colorSeq ? colorSeq[0] : 'junk';
     reel = {
-      period: f.period,
+      period: FishData.TIERS[initialTierKey].reel.period,
       zoneHeight: f.zoneHeight,
       zoneTop: randomZoneTop(f.zoneHeight),
       hits: 0,
@@ -635,7 +632,7 @@
       timeLimit: f.timeLimit,
       timeStart: performance.now() / 1000,
       fromBottom: Math.random() < 0.5,
-      colorSeq: buildClimbSequence(currentCatch.tier, hitsRequired)
+      colorSeq
     };
     renderHitsCounter();
     renderChanceLights();
@@ -674,17 +671,20 @@
   // "climbing toward the real tier" tell rather than a static count.
   const REEL_TIER_ORDER = ['common', 'rare', 'epic', 'legendary'];
 
-  // Random non-decreasing walk over tiers [0..targetOrdinal], forced to
-  // land on the real tier by the last hit. Deliberately NOT a fixed
-  // one-tier-per-hit ramp -- e.g. an epic catch might read
-  // 희귀,희귀,특급 instead of 일반,희귀,특급, so the climb stays a surprise.
+  // Random non-decreasing walk over tiers [0..targetOrdinal]. The last up
+  // to 3 hits are always locked to the real tier (so it reads as "settled"
+  // well before the catch actually lands), and the free hits before that
+  // are NOT anchored to common -- a legendary catch can just as well open
+  // on rare as on common. Deliberately not a fixed one-tier-per-hit ramp --
+  // e.g. an epic catch might read 희귀,희귀,특급 instead of 일반,희귀,특급.
   function buildClimbSequence(tierKey, n) {
     const targetOrdinal = REEL_TIER_ORDER.indexOf(tierKey);
     if (targetOrdinal === -1) return null; // junk: no climb, flat color
+    const forcedFrom = Math.max(0, n - 3);
     const picks = [];
-    for (let i = 0; i < n; i++) picks.push(Math.floor(Math.random() * (targetOrdinal + 1)));
+    for (let i = 0; i < forcedFrom; i++) picks.push(Math.floor(Math.random() * (targetOrdinal + 1)));
     picks.sort((a, b) => a - b);
-    picks[n - 1] = targetOrdinal;
+    while (picks.length < n) picks.push(targetOrdinal);
     return picks.map(o => REEL_TIER_ORDER[o]);
   }
 
@@ -770,8 +770,10 @@
         catchSuccess();
         return;
       }
-      const f = FishData.TIERS[currentCatch.tier].reel;
-      reel.period = Math.max(f.minPeriod, reel.period * f.periodShrink);
+      // Speed for the upcoming hit follows whatever tier the climb shows
+      // next -- not a flat per-hit shrink, so it jumps in step with color.
+      const nextTierKey = reel.colorSeq ? reel.colorSeq[reel.hits] : 'junk';
+      reel.period = FishData.TIERS[nextTierKey].reel.period;
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
       reel.timeStart = performance.now() / 1000;
@@ -814,7 +816,6 @@
   }
 
   function showResult(isCatch, title, desc, icon, tier) {
-    catchTierBadgeEl.classList.add('hidden');
     resultIcon.innerHTML = `<img src="${icon}" alt="">`;
     if (tier) {
       resultTierBadge.textContent = FishData.TIERS[tier].label;

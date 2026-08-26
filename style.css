@@ -645,18 +645,6 @@ body {
   50% { box-shadow: 0 0 20px rgba(255, 207, 107, 1); }
 }
 
-/* Casting-stage tier badge: floats above the status text, visible from the
-   moment a bite happens through the whole reel (unlike #status-text, which
-   hides once reeling starts). */
-.catch-tier-badge {
-  position: absolute;
-  left: 50%;
-  top: 10%;
-  transform: translateX(-50%);
-  z-index: 4;
-  pointer-events: none;
-}
-
 .splash-flash {
   position: absolute;
   inset: 0;
