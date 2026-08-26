@@ -132,5 +132,31 @@
     return entry;
   }
 
-  window.FishData = { TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize };
+  // ================= Fishing rod (shop upgrade tab) =================
+  // Grade raises maxMisses (more forgiving), level smoothly widens the hit
+  // zone / time limit -- both read by game.js when it builds a tier's
+  // effective reel params. Grade-up past max level needs a material system
+  // that doesn't exist yet, so epic-at-level-10 is a real ceiling for now.
+  const ROD_GRADES = {
+    common: { key: 'common', label: '일반 낚싯대', color: '#8fd9a8', missBonus: 0, next: 'rare' },
+    rare: { key: 'rare', label: '희귀 낚싯대', color: '#5cc9e8', missBonus: 1, next: 'epic' },
+    epic: { key: 'epic', label: '특급 낚싯대', color: '#c98cf0', missBonus: 2, next: null }
+  };
+  const ROD_MAX_LEVEL = 10;
+
+  // Cost to go from `level` to `level + 1`.
+  function rodLevelCost(level) {
+    return Math.round(150 * Math.pow(1.6, level - 1));
+  }
+
+  // Fraction the reel zone/time widen by, from rod level alone (0 at
+  // level 1, ~0.27 at level 10) -- grade contributes via missBonus instead.
+  function rodEase(level) {
+    return (level - 1) * 0.03;
+  }
+
+  window.FishData = {
+    TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize,
+    ROD_GRADES, ROD_MAX_LEVEL, rodLevelCost, rodEase
+  };
 })();

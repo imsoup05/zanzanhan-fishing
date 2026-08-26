@@ -80,6 +80,49 @@
   <!-- Invisible click-outside-to-close catcher for the slide-out menu. -->
   <div id="menu-backdrop" class="menu-backdrop"></div>
 
+  <!-- Shop popup: opened from the side menu's 상점 button. Fixed size
+       (proportional to the screen, not to its content) so switching tabs
+       never resizes the panel. -->
+  <div id="shop-overlay" class="overlay hidden">
+    <div id="shop-panel" class="shop-panel">
+      <div class="shop-header">
+        <h2 class="shop-title">상점</h2>
+        <button id="shop-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+        </button>
+      </div>
+      <nav class="shop-tabs">
+        <button class="shop-tab active" data-tab="buy">구매</button>
+        <button class="shop-tab" data-tab="sell">판매</button>
+        <button class="shop-tab" data-tab="upgrade">업그레이드</button>
+      </nav>
+      <div class="shop-body">
+        <div id="shop-tab-buy" class="shop-tab-panel">
+          <p class="shop-placeholder">구매 기능은 아직 준비 중이에요.</p>
+        </div>
+        <div id="shop-tab-sell" class="shop-tab-panel hidden">
+          <div id="sell-list" class="sell-list"></div>
+          <p id="sell-empty" class="shop-placeholder hidden">아직 잡아서 보관 중인 물고기가 없어요.</p>
+        </div>
+        <div id="shop-tab-upgrade" class="shop-tab-panel hidden">
+          <div class="upgrade-rod">
+            <div id="upgrade-rod-icon" class="upgrade-rod-icon">
+              <img src="icons/rod.svg" alt="">
+            </div>
+            <div class="upgrade-rod-info">
+              <div id="rod-name" class="upgrade-rod-name"></div>
+              <div id="rod-level" class="upgrade-rod-level"></div>
+              <div class="upgrade-bar-track"><div id="upgrade-bar-fill" class="upgrade-bar-fill"></div></div>
+            </div>
+            <button id="rod-upgrade-btn" class="upgrade-btn">강화</button>
+          </div>
+          <p id="rod-upgrade-cost" class="upgrade-cost hidden"></p>
+          <p id="rod-max-note" class="upgrade-max-note hidden"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Result popup: same look as the old version's catch/miss card -->
   <div id="result-overlay" class="overlay hidden">
     <div id="result-card" class="result-card">

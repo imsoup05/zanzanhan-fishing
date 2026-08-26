@@ -12,9 +12,11 @@
 | `settings.svg` | 세로 메뉴 세 번째 항목 — 설정 | `index.html`의 `#menu-settings-btn` | 톱니바퀴(원형 기어, Feather 아이콘 스타일) |
 | `bait.svg` | 하단바 중앙, 미끼 선택 버튼(크게, 정중앙) | `index.html`의 `#bait-btn` (아이콘 크기는 `style.css`의 `.ui-icon-xl`) | 분홍색 꿈틀거리는 지렁이 곡선 |
 | `bite.svg` | 입질이 왔을 때 상태 텍스트("입질이 왔어요!") 앞에 붙는 아이콘 | `game.js`의 `triggerBite()` → `showStatus(..., 'icons/bite.svg')` | 노란 번개 모양 |
-| `fish.svg` | 낚시 성공 결과창 아이콘, 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개 파일(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`) | `game.js`의 `TEST_FISH.icon` → `catchSuccess()` → `showResult()` | 파란 옆모습 물고기 + 눈 |
+| `fish.svg` | 낚시 성공 결과창 아이콘(모든 실제 물고기 등급 공통, 종별 개별 아트는 아직 없음) — 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개 파일(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`) | `game.js`의 `catchSuccess()`가 `currentCatch.tier !== 'junk'`일 때 사용 | 파란 옆모습 물고기 + 눈 |
 | `miss.svg` | 낚시 실패("놓쳤어요...") 결과창 아이콘 — 릴링 타이밍을 놓쳐 아예 놓친 경우 | `game.js`의 `catchFail()` → `showResult(false, ..., 'icons/miss.svg')` | 선명한 붉은/코랄색 뭉게구름(원 5개 뭉친 형태) — 시간 게이지 위험(danger) 색과 같은 계열, "놓쳐서 흩어짐"을 표현 |
 | `junk.svg` | 낚시는 성공했지만 물고기가 아닌 꽝 아이템일 때 결과창 아이콘 — `miss.svg`(릴링 실패)와는 다른 개념 | `game.js`의 `catchSuccess()`가 `currentCatch.tier === 'junk'`일 때 사용 | 회색 낡은 장화 실루엣 |
+| `close.svg` | 상점 팝업 우측 상단 닫기 버튼 | `index.html`의 `#shop-close-btn` | 흰색 X자 |
+| `rod.svg` | 상점 "업그레이드" 탭, 낚싯대 아이콘 | `index.html`의 `#upgrade-rod-icon` | 대각선 낚싯대 + 릴 + 낚싯줄/바늘 |
 | `icon-180.png` / `icon-192.png` / `icon-512.png` | 인게임 UI가 아니라 홈 화면 추가 시 앱 아이콘(PWA). 낚시찌 모양을 딴 별도 이미지 | `manifest.json`, `index.html`의 `<link rel="apple-touch-icon">` 등 | 남색 배경 + 낚싯대/찌/물결 |
 
 ## 참고

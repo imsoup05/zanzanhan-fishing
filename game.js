@@ -493,6 +493,9 @@
   let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, timeLimit, timeStart, fromBottom }
   let currentCatch = null; // chosen in triggerBite(), consumed by startReel()/catchSuccess()
   let shells = 0;
+  let rod = { grade: 'common', level: 1 };
+  let caughtFish = []; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
+  let nextFishUid = 1;
 
   const shellsCountEl = document.getElementById('shells-count');
   const statusTextEl = document.getElementById('status-text');
@@ -514,7 +517,46 @@
   const resultBtn = document.getElementById('result-btn');
   const catchTierBadgeEl = document.getElementById('catch-tier-badge');
 
-  function updateShellsDisplay() { shellsCountEl.textContent = shells; }
+  const menuShopBtn = document.getElementById('menu-shop-btn');
+  const shopOverlay = document.getElementById('shop-overlay');
+  const shopPanel = document.getElementById('shop-panel');
+  const shopCloseBtn = document.getElementById('shop-close-btn');
+  const shopTabs = document.querySelectorAll('.shop-tab');
+  const shopTabPanels = {
+    buy: document.getElementById('shop-tab-buy'),
+    sell: document.getElementById('shop-tab-sell'),
+    upgrade: document.getElementById('shop-tab-upgrade')
+  };
+  const sellListEl = document.getElementById('sell-list');
+  const sellEmptyEl = document.getElementById('sell-empty');
+  const rodNameEl = document.getElementById('rod-name');
+  const rodLevelEl = document.getElementById('rod-level');
+  const upgradeBarFillEl = document.getElementById('upgrade-bar-fill');
+  const rodUpgradeCostEl = document.getElementById('rod-upgrade-cost');
+  const rodMaxNoteEl = document.getElementById('rod-max-note');
+  const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
+
+  function updateShellsDisplay() { shellsCountEl.textContent = shells.toLocaleString('ko-KR'); }
+
+  // Rod grade raises maxMisses (more forgiving); rod level smoothly widens
+  // the hit zone and per-hit time limit. Both are folded into the tier's
+  // base reel params here so startReel()/attemptHit() just consume one
+  // effective set without knowing about the rod at all.
+  function getEffectiveReel(tier) {
+    const base = FishData.TIERS[tier].reel;
+    const ease = FishData.rodEase(rod.level);
+    const missBonus = FishData.ROD_GRADES[rod.grade].missBonus;
+    return {
+      period: base.period,
+      periodShrink: base.periodShrink,
+      minPeriod: base.minPeriod,
+      hitsRequired: base.hitsRequired,
+      zoneHeight: base.zoneHeight * (1 + ease),
+      timeLimit: base.timeLimit * (1 + ease * 0.6),
+      maxMisses: base.maxMisses + missBonus,
+      hitTolerance: HIT_TOLERANCE * (1 + ease * 0.5)
+    };
+  }
 
   function showStatus(text, iconSrc) {
     statusTextEl.innerHTML = iconSrc
@@ -577,7 +619,7 @@
     hideStatus();
     state = 'reeling';
     bobberState = 'reeling';
-    const f = FishData.TIERS[currentCatch.tier].reel;
+    const f = getEffectiveReel(currentCatch.tier);
     reel = {
       period: f.period,
       zoneHeight: f.zoneHeight,
@@ -678,7 +720,8 @@
   function attemptHit() {
     if (state !== 'reeling' || !reel) return;
     const pos = currentIndicatorPos();
-    const inZone = pos >= reel.zoneTop - HIT_TOLERANCE && pos <= reel.zoneTop + reel.zoneHeight + HIT_TOLERANCE;
+    const tolerance = getEffectiveReel(currentCatch.tier).hitTolerance;
+    const inZone = pos >= reel.zoneTop - tolerance && pos <= reel.zoneTop + reel.zoneHeight + tolerance;
     if (inZone) {
       reel.hits++;
       bobberTugT = performance.now() / 1000;
@@ -710,11 +753,17 @@
     bobberState = 'hidden';
     reelGaugeEl.classList.add('hidden');
     const c = currentCatch;
-    shells += c.price;
-    updateShellsDisplay();
     const icon = c.tier === 'junk' ? 'icons/junk.svg' : 'icons/fish.svg';
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
-    const desc = c.tier === 'junk' ? c.desc : `${c.desc} (${c.size}cm · ${c.price}개)`;
+    let desc;
+    if (c.tier === 'junk') {
+      desc = c.desc;
+    } else {
+      // Not sold yet -- it goes to the bucket and gets sold from the
+      // shop's 판매 tab, so this price is a preview, not income.
+      caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
+      desc = `${c.desc} (${c.size}cm · 판매가 ${c.price.toLocaleString('ko-KR')}개)`;
+    }
     showResult(true, title, desc, icon, c.tier);
   }
 
@@ -759,7 +808,7 @@
   resultBtn.addEventListener('click', closeResult);
 
   // ================= Slide-out menu (상점 / 보관함 / 설정) =================
-  // No content behind these yet -- just the open/close mechanics for now.
+  // 보관함/설정 have no content behind them yet -- only 상점 opens anything.
   const menuToggleBtn = document.getElementById('menu-toggle-btn');
   const sideMenu = document.getElementById('side-menu');
   const menuBackdrop = document.getElementById('menu-backdrop');
@@ -770,6 +819,98 @@
   }
   menuToggleBtn.addEventListener('click', () => setMenuOpen(!sideMenu.classList.contains('open')));
   menuBackdrop.addEventListener('click', () => setMenuOpen(false));
+
+  // ================= Shop (구매 / 판매 / 업그레이드) =================
+  function openShop() {
+    setMenuOpen(false);
+    switchShopTab('buy');
+    shopOverlay.classList.remove('hidden');
+  }
+  function closeShop() { shopOverlay.classList.add('hidden'); }
+  menuShopBtn.addEventListener('click', openShop);
+  shopCloseBtn.addEventListener('click', closeShop);
+  shopOverlay.addEventListener('click', (e) => { if (e.target === shopOverlay) closeShop(); });
+
+  function switchShopTab(key) {
+    shopTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === key));
+    Object.entries(shopTabPanels).forEach(([k, el]) => el.classList.toggle('hidden', k !== key));
+    if (key === 'sell') renderSellList();
+    if (key === 'upgrade') renderUpgradeTab();
+  }
+  shopTabs.forEach(btn => btn.addEventListener('click', () => switchShopTab(btn.dataset.tab)));
+
+  function renderSellList() {
+    sellListEl.innerHTML = '';
+    sellEmptyEl.classList.toggle('hidden', caughtFish.length > 0);
+    caughtFish.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'sell-row';
+      row.innerHTML = `
+        <div class="sell-row-info">
+          <div class="sell-row-name">
+            <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
+            ${item.name} · ${item.size}cm
+          </div>
+          <div class="sell-row-meta">${item.desc}</div>
+        </div>
+        <div class="sell-row-price">${item.price.toLocaleString('ko-KR')}개</div>
+        <button class="sell-btn" data-uid="${item.uid}">판매</button>
+      `;
+      sellListEl.appendChild(row);
+    });
+  }
+  sellListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.sell-btn');
+    if (!btn) return;
+    sellFish(Number(btn.dataset.uid));
+  });
+
+  function sellFish(uid) {
+    const idx = caughtFish.findIndex(f => f.uid === uid);
+    if (idx === -1) return;
+    shells += caughtFish[idx].price;
+    caughtFish.splice(idx, 1);
+    updateShellsDisplay();
+    renderSellList();
+  }
+
+  function renderUpgradeTab() {
+    const gradeInfo = FishData.ROD_GRADES[rod.grade];
+    rodNameEl.textContent = gradeInfo.label;
+    rodNameEl.style.color = gradeInfo.color;
+    rodLevelEl.textContent = `Lv. ${rod.level} / ${FishData.ROD_MAX_LEVEL}`;
+    upgradeBarFillEl.style.width = `${(rod.level / FishData.ROD_MAX_LEVEL) * 100}%`;
+
+    if (rod.level < FishData.ROD_MAX_LEVEL) {
+      const cost = FishData.rodLevelCost(rod.level);
+      rodUpgradeCostEl.textContent = `강화 비용: ${cost.toLocaleString('ko-KR')}개`;
+      rodUpgradeCostEl.classList.remove('hidden');
+      rodMaxNoteEl.classList.add('hidden');
+      rodUpgradeBtn.textContent = '강화';
+      rodUpgradeBtn.disabled = shells < cost;
+    } else if (gradeInfo.next) {
+      rodUpgradeCostEl.classList.add('hidden');
+      rodMaxNoteEl.textContent = `최고 레벨이에요. 다음 등급(${FishData.ROD_GRADES[gradeInfo.next].label})으로 올리려면 강화재료가 필요한데, 아직 준비 중이에요.`;
+      rodMaxNoteEl.classList.remove('hidden');
+      rodUpgradeBtn.textContent = '등급업';
+      rodUpgradeBtn.disabled = true;
+    } else {
+      rodUpgradeCostEl.classList.add('hidden');
+      rodMaxNoteEl.textContent = '이미 가장 높은 등급, 가장 높은 레벨이에요!';
+      rodMaxNoteEl.classList.remove('hidden');
+      rodUpgradeBtn.textContent = '강화';
+      rodUpgradeBtn.disabled = true;
+    }
+  }
+  rodUpgradeBtn.addEventListener('click', () => {
+    if (rod.level >= FishData.ROD_MAX_LEVEL) return; // grade-up needs materials that don't exist yet
+    const cost = FishData.rodLevelCost(rod.level);
+    if (shells < cost) return;
+    shells -= cost;
+    rod.level += 1;
+    updateShellsDisplay();
+    renderUpgradeTab();
+  });
 
   updateShellsDisplay();
 })();
