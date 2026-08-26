@@ -12,7 +12,14 @@ html, body {
   height: 100%;
   height: 100dvh;
   overflow: hidden;
-  background: #05141a;
+  /* Matches the deepest water tone in-game (THEME.water[3] in game.js) --
+     iOS reserves a bit of screen below the webview on installed home-screen
+     apps that no CSS trick here can actually paint into (confirmed: even
+     window.innerHeight itself is short by that amount, so it's not a
+     layout bug, it's outside the render surface). This can't be closed,
+     only made to look intentional instead of a stray black/mismatched
+     strip -- deep water reads as "the bottom of the scene", not a bug. */
+  background: #0f4b5c;
   font-family: 'Gowun Dodum', 'Jua', sans-serif;
   color: var(--text-light);
 }
