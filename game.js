@@ -530,7 +530,6 @@
   const rodNameEl = document.getElementById('rod-name');
   const rodLevelEl = document.getElementById('rod-level');
   const upgradeBarFillEl = document.getElementById('upgrade-bar-fill');
-  const rodUpgradeCostEl = document.getElementById('rod-upgrade-cost');
   const rodMaxNoteEl = document.getElementById('rod-max-note');
   const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
 
@@ -619,9 +618,8 @@
     const colorSeq = buildClimbSequence(currentCatch.tier, hitsRequired);
     // The very first hit's speed already matches whatever tier colorSeq[0]
     // displays -- see attemptHit() for how it keeps following the climb.
-    const initialTierKey = colorSeq ? colorSeq[0] : 'junk';
     reel = {
-      period: FishData.TIERS[initialTierKey].reel.period,
+      period: FishData.TIERS[colorSeq[0]].reel.period,
       zoneHeight: f.zoneHeight,
       zoneTop: randomZoneTop(f.zoneHeight),
       hits: 0,
@@ -669,17 +667,20 @@
   // the most recent hit. Landing a hit can bump that shared color up (never
   // down), so earlier fish visibly re-color along with the new one -- a
   // "climbing toward the real tier" tell rather than a static count.
-  const REEL_TIER_ORDER = ['common', 'rare', 'epic', 'legendary'];
+  // junk sits at the bottom (ordinal 0) so even a real fish's early hits
+  // can flash "might be nothing" gray before climbing into actual tiers.
+  const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
 
-  // Random non-decreasing walk over tiers [0..targetOrdinal]. The last up
-  // to 3 hits are always locked to the real tier (so it reads as "settled"
-  // well before the catch actually lands), and the free hits before that
-  // are NOT anchored to common -- a legendary catch can just as well open
-  // on rare as on common. Deliberately not a fixed one-tier-per-hit ramp --
-  // e.g. an epic catch might read 희귀,희귀,특급 instead of 일반,희귀,특급.
+  // Random non-decreasing walk over tiers [0..targetOrdinal] (junk itself
+  // just has targetOrdinal 0, so its sequence is trivially all-junk). The
+  // last up to 3 hits are always locked to the real tier (so it reads as
+  // "settled" well before the catch actually lands), and the free hits
+  // before that are NOT anchored to common -- a legendary catch can open
+  // on junk, common, or rare just as well. Deliberately not a fixed
+  // one-tier-per-hit ramp -- e.g. an epic catch might read 희귀,희귀,특급
+  // instead of 일반,희귀,특급.
   function buildClimbSequence(tierKey, n) {
     const targetOrdinal = REEL_TIER_ORDER.indexOf(tierKey);
-    if (targetOrdinal === -1) return null; // junk: no climb, flat color
     const forcedFrom = Math.max(0, n - 3);
     const picks = [];
     for (let i = 0; i < forcedFrom; i++) picks.push(Math.floor(Math.random() * (targetOrdinal + 1)));
@@ -689,9 +690,7 @@
   }
 
   function applyHitColors() {
-    const color = reel.colorSeq
-      ? FishData.TIERS[reel.colorSeq[reel.hits - 1]].color
-      : FishData.TIERS.junk.color;
+    const color = FishData.TIERS[reel.colorSeq[reel.hits - 1]].color;
     for (let i = 0; i < reel.hits; i++) {
       const fish = hitsCounterEl.children[i];
       if (fish) fish.style.color = color;
@@ -772,8 +771,7 @@
       }
       // Speed for the upcoming hit follows whatever tier the climb shows
       // next -- not a flat per-hit shrink, so it jumps in step with color.
-      const nextTierKey = reel.colorSeq ? reel.colorSeq[reel.hits] : 'junk';
-      reel.period = FishData.TIERS[nextTierKey].reel.period;
+      reel.period = FishData.TIERS[reel.colorSeq[reel.hits]].reel.period;
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
       reel.timeStart = performance.now() / 1000;
@@ -923,22 +921,18 @@
 
     if (rod.level < FishData.ROD_MAX_LEVEL) {
       const cost = FishData.rodLevelCost(rod.level);
-      rodUpgradeCostEl.textContent = `강화 비용: ${cost.toLocaleString('ko-KR')}개`;
-      rodUpgradeCostEl.classList.remove('hidden');
       rodMaxNoteEl.classList.add('hidden');
-      rodUpgradeBtn.textContent = '강화';
+      rodUpgradeBtn.textContent = `${cost.toLocaleString('ko-KR')}개`;
       rodUpgradeBtn.disabled = shells < cost;
     } else if (gradeInfo.next) {
-      rodUpgradeCostEl.classList.add('hidden');
       rodMaxNoteEl.textContent = `최고 레벨이에요. 다음 등급(${FishData.ROD_GRADES[gradeInfo.next].label})으로 올리려면 강화재료가 필요한데, 아직 준비 중이에요.`;
       rodMaxNoteEl.classList.remove('hidden');
       rodUpgradeBtn.textContent = '등급업';
       rodUpgradeBtn.disabled = true;
     } else {
-      rodUpgradeCostEl.classList.add('hidden');
       rodMaxNoteEl.textContent = '이미 가장 높은 등급, 가장 높은 레벨이에요!';
       rodMaxNoteEl.classList.remove('hidden');
-      rodUpgradeBtn.textContent = '강화';
+      rodUpgradeBtn.textContent = 'MAX';
       rodUpgradeBtn.disabled = true;
     }
   }

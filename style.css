@@ -562,8 +562,6 @@ body {
   border-radius: 999px;
   transition: width 0.25s ease;
 }
-.upgrade-cost { margin-top: 16px; font-size: 14px; text-align: center; opacity: 0.9; }
-.upgrade-cost.hidden { display: none; }
 .upgrade-max-note {
   margin-top: 16px;
   font-size: 13.5px;
