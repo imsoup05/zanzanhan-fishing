@@ -671,19 +671,20 @@
   // can flash "might be nothing" gray before climbing into actual tiers.
   const REEL_TIER_ORDER = ['junk', 'common', 'rare', 'epic', 'legendary'];
 
-  // Random non-decreasing walk over tiers [0..targetOrdinal] (junk itself
-  // just has targetOrdinal 0, so its sequence is trivially all-junk). The
-  // last up to 3 hits are always locked to the real tier (so it reads as
-  // "settled" well before the catch actually lands), and the free hits
-  // before that are NOT anchored to common -- a legendary catch can open
-  // on junk, common, or rare just as well. Deliberately not a fixed
-  // one-tier-per-hit ramp -- e.g. an epic catch might read 희귀,희귀,특급
-  // instead of 일반,희귀,특급.
+  // Random non-decreasing walk over tiers [floorOrdinal..targetOrdinal],
+  // capped to climb at most 2 tiers below the real one -- a legendary catch
+  // can open as low as epic, never as low as junk/common/rare. The last up
+  // to 3 hits are always locked to the real tier (so it reads as "settled"
+  // well before the catch actually lands), and the free hits before that
+  // are NOT anchored to the floor -- e.g. an epic catch might read
+  // 희귀,희귀,특급 instead of always starting at 일반.
   function buildClimbSequence(tierKey, n) {
     const targetOrdinal = REEL_TIER_ORDER.indexOf(tierKey);
+    const floorOrdinal = Math.max(0, targetOrdinal - 2);
+    const span = targetOrdinal - floorOrdinal + 1;
     const forcedFrom = Math.max(0, n - 3);
     const picks = [];
-    for (let i = 0; i < forcedFrom; i++) picks.push(Math.floor(Math.random() * (targetOrdinal + 1)));
+    for (let i = 0; i < forcedFrom; i++) picks.push(floorOrdinal + Math.floor(Math.random() * span));
     picks.sort((a, b) => a - b);
     while (picks.length < n) picks.push(targetOrdinal);
     return picks.map(o => REEL_TIER_ORDER[o]);
