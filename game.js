@@ -483,19 +483,15 @@
   const TAP_ZONE_TOP_FRAC = 0.38;    // matches .reel-gauge's `top` in style.css
   const TAP_ZONE_BOTTOM_FRAC = 0.82; // matches .reel-gauge's `top + height`
 
-  const TEST_FISH = {
-    name: '테스트 물고기', icon: 'icons/fish.svg',
-    period: 1.0, zoneHeight: 22, maxMisses: 3,
-    periodShrink: 0.94, minPeriod: 0.6, timeLimit: 3.2,
-    hitsRequired: 4,
-    sizeRange: [20, 45], unit: 'cm',
-    desc: '작동 확인용 테스트 물고기.'
-  };
+  // Real species/tier data lives in fish-data.js (loaded before this file)
+  // as window.FishData -- FishData.DUMMY_TEST_FISH is kept only as an
+  // unused reference now that the live loop picks from FishData.pickCatch().
   const HIT_TOLERANCE = 7.5;
 
   let state = 'idle'; // idle | waiting | bite | reeling | result
   let waitingTimer = null, biteTimer = null;
   let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, timeLimit, timeStart, fromBottom }
+  let currentCatch = null; // chosen in triggerBite(), consumed by startReel()/catchSuccess()
   let shells = 0;
 
   const shellsCountEl = document.getElementById('shells-count');
@@ -516,6 +512,7 @@
   const resultTitle = document.getElementById('result-title');
   const resultDesc = document.getElementById('result-desc');
   const resultBtn = document.getElementById('result-btn');
+  const catchTierBadgeEl = document.getElementById('catch-tier-badge');
 
   function updateShellsDisplay() { shellsCountEl.textContent = shells; }
 
@@ -556,6 +553,7 @@
     bobber = { x, y };
     state = 'waiting';
     bobberState = 'waiting';
+    catchTierBadgeEl.classList.add('hidden');
     showStatus('입질을 기다리는 중...');
     const delay = 1600 + Math.random() * 2600;
     waitingTimer = setTimeout(triggerBite, delay);
@@ -566,6 +564,10 @@
     state = 'bite';
     bobberState = 'bite';
     bobberDipT = performance.now() / 1000;
+    currentCatch = FishData.pickCatch();
+    const tier = FishData.TIERS[currentCatch.tier];
+    catchTierBadgeEl.textContent = tier.label;
+    catchTierBadgeEl.className = `tier-badge catch-tier-badge tier-${currentCatch.tier}`;
     showStatus('입질이 왔어요!', 'icons/bite.svg');
     biteTimer = setTimeout(startReel, 500);
   }
@@ -575,7 +577,7 @@
     hideStatus();
     state = 'reeling';
     bobberState = 'reeling';
-    const f = TEST_FISH;
+    const f = FishData.TIERS[currentCatch.tier].reel;
     reel = {
       period: f.period,
       zoneHeight: f.zoneHeight,
@@ -687,7 +689,8 @@
         catchSuccess();
         return;
       }
-      reel.period = Math.max(TEST_FISH.minPeriod, reel.period * TEST_FISH.periodShrink);
+      const f = FishData.TIERS[currentCatch.tier].reel;
+      reel.period = Math.max(f.minPeriod, reel.period * f.periodShrink);
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
       reel.timeStart = performance.now() / 1000;
@@ -702,19 +705,17 @@
     }
   }
 
-  function randSize() {
-    const [a, b] = TEST_FISH.sizeRange;
-    return (a + Math.random() * (b - a)).toFixed(1);
-  }
-
   function catchSuccess() {
     state = 'result';
     bobberState = 'hidden';
     reelGaugeEl.classList.add('hidden');
-    shells += 10;
+    const c = currentCatch;
+    shells += c.price;
     updateShellsDisplay();
-    const size = randSize();
-    showResult(true, `${TEST_FISH.name}를 낚았어요!`, `${TEST_FISH.desc} (${size}${TEST_FISH.unit})`, TEST_FISH.icon);
+    const icon = c.tier === 'junk' ? 'icons/junk.svg' : 'icons/fish.svg';
+    const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
+    const desc = c.tier === 'junk' ? c.desc : `${c.desc} (${c.size}cm · ${c.price}개)`;
+    showResult(true, title, desc, icon, c.tier);
   }
 
   function catchFail() {
@@ -725,9 +726,15 @@
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/miss.svg');
   }
 
-  function showResult(isCatch, title, desc, icon) {
+  function showResult(isCatch, title, desc, icon, tier) {
+    catchTierBadgeEl.classList.add('hidden');
     resultIcon.innerHTML = `<img src="${icon}" alt="">`;
-    resultTierBadge.classList.add('hidden'); // no tier system yet
+    if (tier) {
+      resultTierBadge.textContent = FishData.TIERS[tier].label;
+      resultTierBadge.className = `tier-badge tier-${tier}`;
+    } else {
+      resultTierBadge.classList.add('hidden');
+    }
     resultTitle.textContent = title;
     resultDesc.textContent = desc;
     newBadge.classList.add('hidden'); // no species-discovery tracking yet
@@ -746,6 +753,7 @@
     state = 'idle';
     bobber = null;
     reel = null;
+    currentCatch = null;
     hideStatus();
   }
   resultBtn.addEventListener('click', closeResult);

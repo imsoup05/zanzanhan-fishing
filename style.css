@@ -433,6 +433,35 @@ body {
 }
 .tier-badge.hidden { display: none; }
 
+/* Tier colors -- kept in one place so the casting-stage badge and the
+   result-card badge always agree (see FishData.TIERS[key].color in
+   fish-data.js, which these values are hand-kept in sync with). */
+.tier-badge.tier-junk { background: #8a99a0; }
+.tier-badge.tier-common { background: #8fd9a8; }
+.tier-badge.tier-rare { background: #5cc9e8; }
+.tier-badge.tier-epic { background: #c98cf0; color: #fff; }
+.tier-badge.tier-legendary {
+  background: linear-gradient(120deg, #ffcf6b, #ffe1a8, #ffcf6b);
+  box-shadow: 0 0 14px rgba(255, 207, 107, 0.85);
+  animation: legendaryGlow 1.1s ease-in-out infinite;
+}
+@keyframes legendaryGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 207, 107, 0.6); }
+  50% { box-shadow: 0 0 20px rgba(255, 207, 107, 1); }
+}
+
+/* Casting-stage tier badge: floats above the status text, visible from the
+   moment a bite happens through the whole reel (unlike #status-text, which
+   hides once reeling starts). */
+.catch-tier-badge {
+  position: absolute;
+  left: 50%;
+  top: 10%;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+}
+
 .splash-flash {
   position: absolute;
   inset: 0;
