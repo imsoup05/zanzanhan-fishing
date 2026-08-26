@@ -486,7 +486,7 @@
   const TEST_FISH = {
     name: '테스트 물고기', icon: '🐟',
     period: 1.0, zoneHeight: 22, maxMisses: 3,
-    periodShrink: 0.94, minPeriod: 0.6,
+    periodShrink: 0.94, minPeriod: 0.6, timeLimit: 3.2,
     hitsRequired: 4,
     sizeRange: [20, 45], unit: 'cm',
     desc: '작동 확인용 테스트 물고기.'
@@ -495,7 +495,7 @@
 
   let state = 'idle'; // idle | waiting | bite | reeling | result
   let waitingTimer = null, biteTimer = null;
-  let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, fromBottom }
+  let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, timeLimit, timeStart, fromBottom }
   let shells = 0;
 
   const shellsCountEl = document.getElementById('shells-count');
@@ -504,6 +504,7 @@
   const gaugeTrackEl = document.getElementById('gauge-track-v');
   const gaugeZoneEl = document.getElementById('gauge-zone-v');
   const gaugeIndicatorEl = document.getElementById('gauge-indicator-v');
+  const timeFillEl = document.getElementById('time-fill-v');
   const hitsCounterEl = document.getElementById('hits-counter-v');
   const chanceLightsEl = document.getElementById('chance-lights');
   const resultOverlay = document.getElementById('result-overlay');
@@ -582,11 +583,18 @@
       hitsRequired: f.hitsRequired,
       maxMisses: f.maxMisses,
       startT: performance.now() / 1000,
+      timeLimit: f.timeLimit,
+      timeStart: performance.now() / 1000,
       fromBottom: Math.random() < 0.5
     };
     renderHitsCounter();
     renderChanceLights();
     positionZone();
+    timeFillEl.style.transition = 'none';
+    timeFillEl.style.height = '100%';
+    timeFillEl.classList.remove('warn', 'danger');
+    void timeFillEl.offsetHeight;
+    timeFillEl.style.transition = '';
     reelGaugeEl.classList.remove('hidden');
   }
 
@@ -641,6 +649,17 @@
       const elapsed = now - reel.startT;
       const pos = indicatorPercent(elapsed, reel.period, reel.fromBottom);
       gaugeIndicatorEl.style.top = pos + '%';
+
+      const remaining = reel.timeLimit - (now - reel.timeStart);
+      if (remaining <= 0) {
+        timeFillEl.style.height = '0%';
+        catchFail();
+      } else {
+        const frac = remaining / reel.timeLimit;
+        timeFillEl.style.height = (frac * 100) + '%';
+        timeFillEl.classList.toggle('danger', frac < 0.3);
+        timeFillEl.classList.toggle('warn', frac >= 0.3 && frac < 0.6);
+      }
     }
     requestAnimationFrame(reelTick);
   }
@@ -669,6 +688,7 @@
       reel.period = Math.max(TEST_FISH.minPeriod, reel.period * TEST_FISH.periodShrink);
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
+      reel.timeStart = performance.now() / 1000;
       reel.fromBottom = !reel.fromBottom;
       positionZone();
     } else {

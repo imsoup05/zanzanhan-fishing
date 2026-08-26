@@ -166,9 +166,9 @@ body {
 .status-text.hidden { display: none; }
 
 /* ================= Reeling gauge: vertical, left side =================
-   Left to right: position gauge (aim here, made slimmer), then a single
-   status column with the fish (hits) and chance lights (misses) stacked
-   together -- all vertical, reading as one cluster. */
+   Left to right: position gauge (aim here, made slimmer), a per-hit time
+   limit bar, then a status column with the fish (hits) and chance lights
+   (misses) stacked together -- all vertical, reading as one cluster. */
 .reel-gauge {
   position: absolute;
   left: 20px;
@@ -209,6 +209,35 @@ body {
   border-radius: 3px;
   top: 0%;
   transform: translateY(-50%);
+}
+
+/* Per-hit time limit, right next to the casting bar -- drains top-down so
+   "running out" reads as the same kind of motion as an emptying gauge. */
+.time-track-v {
+  position: relative;
+  width: 10px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.time-fill-v {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(0deg, #8fe3b0, #5cc98a);
+  border-radius: 999px;
+  transition: height 0.1s linear, background 0.3s ease;
+}
+.time-fill-v.warn { background: linear-gradient(0deg, #ffd97a, #ffb84d); }
+.time-fill-v.danger {
+  background: linear-gradient(0deg, #ff8a70, #ff5a4a);
+  animation: timeDangerV 0.5s ease-in-out infinite;
+}
+@keyframes timeDangerV {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 .gauge-track-v.flash-good { animation: flashGoodV 0.25s ease; }

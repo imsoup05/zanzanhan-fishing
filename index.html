@@ -40,12 +40,15 @@
   <p id="status-text" class="status-text hidden"></p>
 
   <!-- Reeling gauge: vertical, left side, thumb sweeps top-bottom.
-       Left-to-right: position gauge, then fish (hits) + chances (misses)
-       stacked together in one column. -->
+       Left-to-right: position gauge, per-hit time limit, then fish (hits)
+       + chances (misses) stacked together in one column. -->
   <div id="reel-gauge" class="reel-gauge hidden">
     <div id="gauge-track-v" class="gauge-track-v">
       <div id="gauge-zone-v" class="gauge-zone-v"></div>
       <div id="gauge-indicator-v" class="gauge-indicator-v"></div>
+    </div>
+    <div id="time-track-v" class="time-track-v">
+      <div id="time-fill-v" class="time-fill-v"></div>
     </div>
     <div class="status-column">
       <div id="hits-counter-v" class="hits-counter-v"></div>
