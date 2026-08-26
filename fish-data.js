@@ -9,6 +9,8 @@
   // 비싸면 안 됨) -- guaranteed by construction since every fish in a tier
   // is priced within that same [priceMin, priceMax] band regardless of
   // species, only scaled by where its own size falls in its own sizeRange.
+  // reel.hitsRequired is a MINIMUM -- game.js adds a random 0~2 on top of
+  // it per reel, so the exact hit count varies catch to catch.
   const TIERS = {
     junk: {
       key: 'junk', label: '꽝', color: '#8a99a0', weight: 0.10,

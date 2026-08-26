@@ -620,18 +620,22 @@
     state = 'reeling';
     bobberState = 'reeling';
     const f = getEffectiveReel(currentCatch.tier);
+    // f.hitsRequired is only the tier's minimum now -- each reel adds 0~2
+    // more so the exact count varies catch to catch.
+    const hitsRequired = f.hitsRequired + Math.floor(Math.random() * 3);
     reel = {
       period: f.period,
       zoneHeight: f.zoneHeight,
       zoneTop: randomZoneTop(f.zoneHeight),
       hits: 0,
       misses: 0,
-      hitsRequired: f.hitsRequired,
+      hitsRequired,
       maxMisses: f.maxMisses,
       startT: performance.now() / 1000,
       timeLimit: f.timeLimit,
       timeStart: performance.now() / 1000,
-      fromBottom: Math.random() < 0.5
+      fromBottom: Math.random() < 0.5,
+      colorSeq: buildClimbSequence(currentCatch.tier, hitsRequired)
     };
     renderHitsCounter();
     renderChanceLights();
@@ -649,7 +653,9 @@
     return margin + Math.random() * (100 - height - margin * 2);
   }
 
-  // One fish icon per hit still needed, gray until landed.
+  // One fish icon per hit still needed, gray until landed. Column is
+  // flex-direction:column-reverse (see style.css) so index 0 renders at the
+  // bottom -- filling low-to-high index reads as reeling bottom-to-top.
   const FISH_ICON_SVG = '<svg class="fish" viewBox="0 0 32 20" width="20" height="13">'
     + '<path fill="currentColor" d="M2 10c4-7 20-7 24 0-4 7-20 7-24 0z"/>'
     + '<path fill="currentColor" d="M24 10l7-6v12l-7-6z"/>'
@@ -658,6 +664,37 @@
     hitsCounterEl.innerHTML = '';
     for (let i = 0; i < reel.hitsRequired; i++) {
       hitsCounterEl.insertAdjacentHTML('beforeend', FISH_ICON_SVG);
+    }
+  }
+
+  // ---- Hit-counter rarity climb ----
+  // Every filled fish icon always shows the SAME color: the tier reached by
+  // the most recent hit. Landing a hit can bump that shared color up (never
+  // down), so earlier fish visibly re-color along with the new one -- a
+  // "climbing toward the real tier" tell rather than a static count.
+  const REEL_TIER_ORDER = ['common', 'rare', 'epic', 'legendary'];
+
+  // Random non-decreasing walk over tiers [0..targetOrdinal], forced to
+  // land on the real tier by the last hit. Deliberately NOT a fixed
+  // one-tier-per-hit ramp -- e.g. an epic catch might read
+  // 희귀,희귀,특급 instead of 일반,희귀,특급, so the climb stays a surprise.
+  function buildClimbSequence(tierKey, n) {
+    const targetOrdinal = REEL_TIER_ORDER.indexOf(tierKey);
+    if (targetOrdinal === -1) return null; // junk: no climb, flat color
+    const picks = [];
+    for (let i = 0; i < n; i++) picks.push(Math.floor(Math.random() * (targetOrdinal + 1)));
+    picks.sort((a, b) => a - b);
+    picks[n - 1] = targetOrdinal;
+    return picks.map(o => REEL_TIER_ORDER[o]);
+  }
+
+  function applyHitColors() {
+    const color = reel.colorSeq
+      ? FishData.TIERS[reel.colorSeq[reel.hits - 1]].color
+      : FishData.TIERS.junk.color;
+    for (let i = 0; i < reel.hits; i++) {
+      const fish = hitsCounterEl.children[i];
+      if (fish) fish.style.color = color;
     }
   }
 
@@ -728,6 +765,7 @@
       gaugeTrackEl.classList.remove('flash-good'); void gaugeTrackEl.offsetWidth; gaugeTrackEl.classList.add('flash-good');
       const fish = hitsCounterEl.children[reel.hits - 1];
       if (fish) fish.classList.add('filled');
+      applyHitColors();
       if (reel.hits >= reel.hitsRequired) {
         catchSuccess();
         return;
@@ -846,6 +884,7 @@
       const row = document.createElement('div');
       row.className = 'sell-row';
       row.innerHTML = `
+        <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
         <div class="sell-row-info">
           <div class="sell-row-name">
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
