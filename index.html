@@ -28,13 +28,13 @@
     </div>
     <div class="topbar-btns">
       <button id="settings-btn" class="icon-btn icon-only" title="설정">
-        <span class="topbar-icon">⚙️</span><span class="topbar-label">설정</span>
+        <span class="topbar-icon">⚙️</span>
       </button>
       <button id="bucket-btn" class="icon-btn icon-only" title="보관함">
-        <span class="topbar-icon">🧺<span id="log-new-dot" class="new-dot hidden"></span></span><span class="topbar-label">보관함</span>
+        <span class="topbar-icon">🧺<span id="log-new-dot" class="new-dot hidden"></span></span>
       </button>
       <button id="shop-btn" class="icon-btn icon-only" title="바다사자상점">
-        <span class="topbar-icon">🏪</span><span class="topbar-label">상점</span>
+        <span class="topbar-icon">🏪</span>
       </button>
     </div>
   </header>
@@ -56,20 +56,18 @@
 
   <!-- Idle / cast prompt -->
   <div id="idle-panel" class="bottom-panel">
+    <button id="cast-btn" class="main-btn">🎣 낚싯대 던지기</button>
+    <div id="bait-selector" class="bait-selector collapsed">
+      <button class="bait-btn hidden" data-bait="legend">전설<span class="bait-count">x0</span></button>
+      <button class="bait-btn hidden" data-bait="super">특급<span class="bait-count">x0</span></button>
+      <button class="bait-btn hidden" data-bait="high">고급<span class="bait-count">x0</span></button>
+      <button class="bait-btn hidden" data-bait="mid">중급<span class="bait-count">x0</span></button>
+      <button class="bait-btn selected" data-bait="basic">기본<span class="bait-count"></span></button>
+    </div>
     <button id="bait-toggle-btn" class="bait-toggle-btn">
       <span id="bait-toggle-label">🪱 기본 미끼</span>
       <span id="bait-toggle-chevron" class="bait-toggle-chevron">▾</span>
     </button>
-    <div id="bait-selector" class="bait-selector collapsed">
-      <button class="bait-btn selected" data-bait="basic">기본<span class="bait-count"></span></button>
-      <button class="bait-btn hidden" data-bait="mid">중급<span class="bait-count">x0</span></button>
-      <button class="bait-btn hidden" data-bait="high">고급<span class="bait-count">x0</span></button>
-      <button class="bait-btn hidden" data-bait="super">특급<span class="bait-count">x0</span></button>
-      <button class="bait-btn hidden" data-bait="legend">전설<span class="bait-count">x0</span></button>
-    </div>
-    <p id="bait-info-text" class="hint-text small bait-info-text"></p>
-    <p id="idle-text" class="hint-text">다리 밑, 잔잔한 물결 위로 낚싯대를 드리워보세요.</p>
-    <button id="cast-btn" class="main-btn">🎣 낚싯대 던지기</button>
   </div>
 
   <!-- Waiting for bite -->

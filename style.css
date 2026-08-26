@@ -85,13 +85,16 @@ body {
   min-width: 0;
   flex: 1 1 auto;
 }
-/* Full-width tab bar instead of small squeezed pills -- wide, easy to see
-   and tap, each button sharing the screen width equally. */
+/* Floating icon stack, pinned top-right over the background art rather than
+   a full-width bar under the title -- keeps the title row uncluttered and
+   puts the buttons within easy thumb reach. */
 .topbar-btns {
+  position: absolute;
+  top: 58px;
+  right: 14px;
   display: flex;
-  width: 100%;
-  gap: 5px;
-  padding: 0 10px 10px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .icon-btn {
@@ -110,24 +113,24 @@ body {
 }
 .icon-btn:hover { transform: translateY(-1px); background: rgba(20,40,45,0.75); }
 .icon-btn:active { transform: translateY(0) scale(0.96); background: rgba(20,40,45,0.85); }
+/* Icon-only, no pill/border/blur -- floats transparently over whatever the
+   canvas is drawing underneath. */
 .icon-btn.icon-only {
-  flex: 1 1 0;
-  min-width: 0;
-  height: auto;
-  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  padding: 6px;
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  border-radius: 13px;
-  background: rgba(255,255,255,0.09);
+  border-radius: 50%;
 }
-.topbar-icon { font-size: 19px; line-height: 1; position: relative; flex: 0 0 auto; }
-.topbar-label {
-  font-size: 11px; line-height: 1; opacity: 0.9;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+.icon-btn.icon-only:hover { background: transparent; }
+.icon-btn.icon-only:active { background: transparent; }
+.icon-btn.icon-only .topbar-icon {
+  font-size: 25px;
 }
+.topbar-icon { line-height: 1; position: relative; }
 .icon-btn.muted { opacity: 0.45; }
 
 .shells-pill {
@@ -174,7 +177,6 @@ body {
   padding: 34px 26px calc(30px + env(safe-area-inset-bottom, 0px));
   text-align: center;
   backdrop-filter: blur(10px);
-  box-shadow: 0 -12px 40px rgba(0,0,0,0.35);
   z-index: 5;
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
@@ -188,7 +190,6 @@ body {
 }
 .hint-text.small { font-size: 15px; margin-bottom: 12px; }
 .hint-text.bite-text { color: var(--accent); font-size: 22px; }
-.hint-text.bait-info-text { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
 
 .main-btn {
   background: linear-gradient(180deg, #ffe1a8, #ffb85c);
@@ -199,11 +200,11 @@ body {
   font-family: inherit;
   font-size: 19px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(255, 184, 92, 0.35);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease;
 }
-.main-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(255, 184, 92, 0.45); }
+.main-btn:hover { transform: translateY(-2px); }
 .main-btn:active { transform: translateY(0); }
+#cast-btn { width: 100%; font-size: 24px; padding: 22px 34px; margin-bottom: 14px; }
 .main-btn.small { padding: 9px 18px; font-size: 13px; width: 100%; margin-bottom: 4px; }
 .main-btn:disabled, .release-btn:disabled {
   opacity: 0.4;
@@ -255,9 +256,27 @@ body {
 .bait-toggle-chevron { transition: transform 0.2s ease; font-size: 12px; opacity: 0.75; }
 .bait-toggle-btn.expanded .bait-toggle-chevron { transform: rotate(180deg); }
 
-.bait-selector { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+/* Vertical list, highest tier first -- rises above the toggle bar it opens
+   from, with 기본 sitting in the row closest to the toggle. Styled as its
+   own card (distinct background + border) rather than blending into the
+   panel, so it reads as a separate menu popping up over the cast button
+   rather than just another row in the same panel. */
+.bait-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: rgba(8,20,24,0.92);
+  border: 1px solid var(--panel-border);
+  border-radius: 22px;
+  padding: 14px;
+}
 .bait-selector.collapsed { display: none; }
 .bait-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   background: rgba(255,255,255,0.08);
   border: 1px solid var(--panel-border);
   color: var(--text-light);
@@ -268,7 +287,7 @@ body {
   cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.bait-btn .bait-count { font-size: 12px; opacity: 0.75; margin-left: 3px; }
+.bait-btn .bait-count { font-size: 12px; opacity: 0.75; }
 .bait-btn.selected {
   background: linear-gradient(180deg, #ffe1a8, #ffb85c);
   color: #3a2a10;

@@ -1174,15 +1174,6 @@
     super: document.querySelector('.bait-btn[data-bait="super"]'),
     legend: document.querySelector('.bait-btn[data-bait="legend"]')
   };
-  const baitInfoEl = document.getElementById('bait-info-text');
-  // One-line plain-language summary of what the currently selected bait
-  // actually does -- the tier names alone (기본/중급/고급...) don't explain
-  // that each one is a *guaranteed floor*, not just a rarity-odds boost.
-  function baitInfoText(key) {
-    const minTier = BAIT_MIN_TIER[key];
-    if (!minTier) return '미끼: 어떤 물고기든 낚일 수 있어요 (꽝 포함, 무료).';
-    return `미끼: 최소 ${TIER_LABEL[minTier]} 등급 이상 물고기가 보장돼요.`;
-  }
   const BAIT_DISPLAY_NAME = { basic: '기본', mid: '중급', high: '고급', super: '특급', legend: '전설' };
 
   const baitToggleBtn = document.getElementById('bait-toggle-btn');
@@ -1191,6 +1182,7 @@
   function setBaitSelectorExpanded(expanded) {
     baitSelectorEl.classList.toggle('collapsed', !expanded);
     baitToggleBtn.classList.toggle('expanded', expanded);
+    castBtn.classList.toggle('hidden', expanded);
   }
   baitToggleBtn.addEventListener('click', () => {
     setBaitSelectorExpanded(baitSelectorEl.classList.contains('collapsed'));
@@ -1209,7 +1201,6 @@
       const countEl = btn.querySelector('.bait-count');
       countEl.textContent = key === 'basic' ? '' : `x${save.baitStock[key] || 0}`;
     });
-    baitInfoEl.textContent = baitInfoText(save.selectedBait);
     baitToggleLabel.textContent = `🪱 ${BAIT_DISPLAY_NAME[save.selectedBait]} 미끼`;
   }
 
