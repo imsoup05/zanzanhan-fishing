@@ -4,13 +4,17 @@ function __zzhInit() {
   // ================= Audio (WebAudio, no assets) =================
   let actx = null;
   function ensureAudio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }
+  // sfxVolume (set up in the settings section below) is a 0~1 master
+  // multiplier from the volume knob. exponentialRampToValueAtTime throws if
+  // it ever ramps from exactly 0, hence the floor -- not audible at that level.
+  let sfxVolume = 0.8;
   function blip(freq, dur, type, vol) {
     if (!actx) return;
     const osc = actx.createOscillator();
     const gain = actx.createGain();
     osc.type = type || 'sine';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol || 0.15, actx.currentTime);
+    gain.gain.setValueAtTime(Math.max(0.0001, (vol || 0.15) * sfxVolume), actx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
     osc.connect(gain).connect(actx.destination);
     osc.start();
@@ -526,7 +530,7 @@ function __zzhInit() {
   // every mutation (not on page-unload, which mobile browsers can skip).
   const SAVE_KEY = 'zanzanhan-fishing-save-v1';
   function defaultSave() {
-    return { shells: 0, rod: { grade: 'common', level: 1 }, caughtFish: [], nextFishUid: 1 };
+    return { shells: 0, rod: { grade: 'common', level: 1 }, caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false };
   }
   function loadSave() {
     try {
@@ -536,7 +540,7 @@ function __zzhInit() {
     return defaultSave();
   }
   function persist() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, caughtFish, nextFishUid })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, caughtFish, nextFishUid, catches, hasCastBefore })); } catch (e) { /* ignore */ }
   }
 
   const initialSave = loadSave();
@@ -544,9 +548,17 @@ function __zzhInit() {
   let rod = initialSave.rod;
   let caughtFish = initialSave.caughtFish; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
   let nextFishUid = initialSave.nextFishUid;
+  // Per-species log for 보관함's 도감 tab -- { [speciesId]: { count, best } }.
+  // Kept independent of caughtFish, which only holds still-unsold catches
+  // and loses the record the moment a fish is sold.
+  let catches = initialSave.catches;
+  // Gates the first-cast onboarding hint (#tutorial-hint) -- flips true and
+  // stays true forever once the player's very first cast() actually fires.
+  let hasCastBefore = initialSave.hasCastBefore;
 
   const shellsCountEl = document.getElementById('shells-count');
   const statusTextEl = document.getElementById('status-text');
+  const tutorialHintEl = document.getElementById('tutorial-hint');
   const reelGaugeEl = document.getElementById('reel-gauge');
   const gaugeTrackEl = document.getElementById('gauge-track-v');
   const gaugeZoneEl = document.getElementById('gauge-zone-v');
@@ -567,7 +579,9 @@ function __zzhInit() {
   const shopOverlay = document.getElementById('shop-overlay');
   const shopPanel = document.getElementById('shop-panel');
   const shopCloseBtn = document.getElementById('shop-close-btn');
-  const shopTabs = document.querySelectorAll('.shop-tab');
+  // Scoped to shopPanel -- .shop-tab is a shared visual style, also reused
+  // by the bucket overlay's own tabs (which wire up separately below).
+  const shopTabs = shopPanel.querySelectorAll('.shop-tab');
   const shopTabPanels = {
     buy: document.getElementById('shop-tab-buy'),
     sell: document.getElementById('shop-tab-sell'),
@@ -580,6 +594,29 @@ function __zzhInit() {
   const upgradeBarFillEl = document.getElementById('upgrade-bar-fill');
   const rodMaxNoteEl = document.getElementById('rod-max-note');
   const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
+
+  const menuBucketBtn = document.getElementById('menu-bucket-btn');
+  const bucketOverlay = document.getElementById('bucket-overlay');
+  const bucketPanel = document.getElementById('bucket-panel');
+  const bucketCloseBtn = document.getElementById('bucket-close-btn');
+  const bucketTabs = bucketPanel.querySelectorAll('.shop-tab');
+  const bucketTabPanels = {
+    inventory: document.getElementById('bucket-tab-inventory'),
+    log: document.getElementById('bucket-tab-log')
+  };
+  const bucketListEl = document.getElementById('bucket-list');
+  const bucketEmptyEl = document.getElementById('bucket-empty');
+  const logListEl = document.getElementById('log-list');
+
+  const menuSettingsBtn = document.getElementById('menu-settings-btn');
+  const settingsOverlay = document.getElementById('settings-overlay');
+  const settingsCloseBtn = document.getElementById('settings-close-btn');
+  const leftyToggleBtn = document.getElementById('lefty-toggle');
+  const volumeSliderEl = document.getElementById('volume-slider');
+  const resetDataBtn = document.getElementById('reset-data-btn');
+  const resetConfirmOverlay = document.getElementById('reset-confirm-overlay');
+  const resetConfirmBtn = document.getElementById('reset-confirm-btn');
+  const resetCancelBtn = document.getElementById('reset-cancel-btn');
 
   function updateShellsDisplay() { shellsCountEl.textContent = shells.toLocaleString('ko-KR'); }
 
@@ -635,6 +672,11 @@ function __zzhInit() {
   });
 
   function cast(x, y) {
+    if (!hasCastBefore) {
+      hasCastBefore = true;
+      tutorialHintEl.classList.add('hidden');
+      persist();
+    }
     sfx.cast();
     bobber = { x, y };
     state = 'waiting';
@@ -880,6 +922,14 @@ function __zzhInit() {
     }
   }
 
+  // Persistent per-species stats for 보관함's 도감 tab -- unlike caughtFish,
+  // this survives selling (it's never removed, only added to).
+  function recordCatch(c) {
+    const rec = catches[c.id] || (catches[c.id] = { count: 0, best: 0 });
+    rec.count++;
+    if (c.size > rec.best) rec.best = c.size;
+  }
+
   function catchSuccess() {
     state = 'result';
     bobberState = 'hidden';
@@ -896,6 +946,7 @@ function __zzhInit() {
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
+      recordCatch(c);
       persist();
       desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
@@ -943,7 +994,6 @@ function __zzhInit() {
   resultBtn.addEventListener('click', closeResult);
 
   // ================= Slide-out menu (상점 / 보관함 / 설정) =================
-  // 보관함/설정 have no content behind them yet -- only 상점 opens anything.
   const menuToggleBtn = document.getElementById('menu-toggle-btn');
   const sideMenu = document.getElementById('side-menu');
   const menuBackdrop = document.getElementById('menu-backdrop');
@@ -1048,6 +1098,152 @@ function __zzhInit() {
     renderUpgradeTab();
   });
 
+  // ================= Bucket (보관함 / 도감) =================
+  function openBucket() {
+    setMenuOpen(false);
+    switchBucketTab('inventory');
+    bucketOverlay.classList.remove('hidden');
+  }
+  function closeBucket() { bucketOverlay.classList.add('hidden'); }
+  menuBucketBtn.addEventListener('click', openBucket);
+  bucketCloseBtn.addEventListener('click', closeBucket);
+  bucketOverlay.addEventListener('click', (e) => { if (e.target === bucketOverlay) closeBucket(); });
+
+  function switchBucketTab(key) {
+    bucketTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.btab === key));
+    Object.entries(bucketTabPanels).forEach(([k, el]) => el.classList.toggle('hidden', k !== key));
+    if (key === 'inventory') renderBucketInventory();
+    if (key === 'log') renderLog();
+  }
+  bucketTabs.forEach(btn => btn.addEventListener('click', () => switchBucketTab(btn.dataset.btab)));
+
+  // Same row markup as the shop's sell list, minus the price/판매 button --
+  // 보관함 is just a look at what's held, selling still happens in 상점.
+  function renderBucketInventory() {
+    bucketListEl.innerHTML = '';
+    bucketEmptyEl.classList.toggle('hidden', caughtFish.length > 0);
+    caughtFish.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'sell-row';
+      row.innerHTML = `
+        <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
+        <div class="sell-row-info">
+          <div class="sell-row-name">
+            <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
+            ${item.name} · ${item.size}cm
+          </div>
+          <div class="sell-row-meta">${item.desc}</div>
+        </div>
+      `;
+      bucketListEl.appendChild(row);
+    });
+  }
+
+  // Highest tier first, junk excluded -- 도감 is a fish species log, and
+  // junk drops (FishData.JUNK_ITEMS) aren't species.
+  const LOG_TIER_ORDER = ['legendary', 'epic', 'rare', 'common'];
+
+  function renderLog() {
+    logListEl.innerHTML = '';
+    LOG_TIER_ORDER.forEach(tier => {
+      const species = FishData.FISH_BY_TIER[tier];
+      if (!species || !species.length) return;
+      const header = document.createElement('div');
+      header.className = 'log-section-title';
+      header.textContent = FishData.TIERS[tier].label;
+      logListEl.appendChild(header);
+
+      species.forEach(sp => {
+        const record = catches[sp.id];
+        const row = document.createElement('div');
+        row.className = 'sell-row log-row' + (record ? '' : ' undiscovered');
+        row.innerHTML = `
+          <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
+          <div class="sell-row-info">
+            <div class="sell-row-name">
+              <span class="tier-badge tier-${tier}">${FishData.TIERS[tier].label}</span>
+              ${record ? sp.name : '???'}
+            </div>
+            <div class="sell-row-meta">${record ? `${record.count}회 낚음 · 최고 ${record.best}cm` : '아직 낚지 못했어요'}</div>
+          </div>
+        `;
+        logListEl.appendChild(row);
+      });
+    });
+  }
+
+  // ================= Settings (왼손 모드 / 볼륨 / 데이터 삭제) =================
+  function openSettings() {
+    setMenuOpen(false);
+    settingsOverlay.classList.remove('hidden');
+  }
+  function closeSettings() { settingsOverlay.classList.add('hidden'); }
+  menuSettingsBtn.addEventListener('click', openSettings);
+  settingsCloseBtn.addEventListener('click', closeSettings);
+  settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) closeSettings(); });
+
+  // ---- Left-hand mode: mirrors the reeling HUD only (menu stays put) ----
+  const LEFTY_KEY = 'zanzanhan-lefty-mode-v1';
+  let leftyMode = false;
+  try { leftyMode = localStorage.getItem(LEFTY_KEY) === '1'; } catch (e) { /* ignore */ }
+  function applyLeftyMode() {
+    gameEl.classList.toggle('lefty-mode', leftyMode);
+    leftyToggleBtn.setAttribute('aria-checked', String(leftyMode));
+  }
+  leftyToggleBtn.addEventListener('click', () => {
+    leftyMode = !leftyMode;
+    try { localStorage.setItem(LEFTY_KEY, leftyMode ? '1' : '0'); } catch (e) { /* ignore */ }
+    applyLeftyMode();
+  });
+  applyLeftyMode();
+
+  // ---- SFX volume slider ----
+  const VOLUME_KEY = 'zanzanhan-sfx-volume-v1';
+  // sfxVolume itself is declared up in the audio section, right next to
+  // blip() (the only other thing that reads it).
+  try {
+    const storedVol = parseFloat(localStorage.getItem(VOLUME_KEY));
+    if (!isNaN(storedVol) && storedVol >= 0 && storedVol <= 1) sfxVolume = storedVol;
+  } catch (e) { /* ignore */ }
+  volumeSliderEl.value = String(Math.round(sfxVolume * 100));
+  volumeSliderEl.addEventListener('input', () => {
+    sfxVolume = Math.max(0, Math.min(1, volumeSliderEl.value / 100));
+    try { localStorage.setItem(VOLUME_KEY, String(sfxVolume)); } catch (e) { /* ignore */ }
+  });
+
+  // ---- Reset all progress -- in-game confirm (not window.confirm), with
+  // the delete button disabled for 3s so it can't be reflex-clicked. ----
+  let resetCountdownTimer = null;
+  function openResetConfirm() {
+    let remaining = 3;
+    resetConfirmBtn.disabled = true;
+    resetConfirmBtn.textContent = `삭제합니다 (${remaining})`;
+    resetConfirmOverlay.classList.remove('hidden');
+    clearInterval(resetCountdownTimer);
+    resetCountdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(resetCountdownTimer);
+        resetConfirmBtn.disabled = false;
+        resetConfirmBtn.textContent = '삭제합니다';
+      } else {
+        resetConfirmBtn.textContent = `삭제합니다 (${remaining})`;
+      }
+    }, 1000);
+  }
+  function closeResetConfirm() {
+    resetConfirmOverlay.classList.add('hidden');
+    clearInterval(resetCountdownTimer);
+  }
+  resetDataBtn.addEventListener('click', openResetConfirm);
+  resetCancelBtn.addEventListener('click', closeResetConfirm);
+  resetConfirmOverlay.addEventListener('click', (e) => { if (e.target === resetConfirmOverlay) closeResetConfirm(); });
+  resetConfirmBtn.addEventListener('click', () => {
+    if (resetConfirmBtn.disabled) return;
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+    location.reload();
+  });
+
   // ================= Dev hook (inert without dev-mode.js) =================
   // dev-mode.js is gitignored -- it never leaves this machine on push. This
   // hook does nothing unless that file has already set the flag below, so
@@ -1065,6 +1261,7 @@ function __zzhInit() {
   };
 
   updateShellsDisplay();
+  if (!hasCastBefore) tutorialHintEl.classList.remove('hidden');
 }
 
 try {

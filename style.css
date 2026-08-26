@@ -199,6 +199,56 @@ body {
 .status-text.hidden { display: none; }
 .status-icon { width: 18px; height: 18px; }
 
+/* First-cast onboarding hint -- centered on roughly where the bobber lands
+   (see cast()'s default point in game.js), a fixed spot chosen to sit
+   inside the fishable tap zone regardless of where the player ends up
+   tapping. Text is anchored to the ring's own box (bottom:100%) so it
+   stays a fixed distance above it no matter how long the text is. */
+.tutorial-hint {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  pointer-events: none;
+}
+.tutorial-hint.hidden { display: none; }
+.tutorial-hint-text {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  margin-bottom: 14px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 16px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.65);
+}
+.tutorial-hint-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  animation: tutorialPulse 1.6s ease-out infinite;
+}
+.tutorial-hint-ring2 { animation-delay: 0.8s; }
+.tutorial-hint-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.9);
+}
+@keyframes tutorialPulse {
+  0% { transform: scale(0.55); opacity: 0.9; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
 /* Currency icon dropped inline into plain text/buttons (price labels,
    costs) -- shell.svg in place of a trailing "개". vertical-align nudges it
    up onto the text baseline since these sit in non-flex containers. */
@@ -607,6 +657,93 @@ body {
 .upgrade-btn:active { transform: scale(0.94); }
 .upgrade-btn:disabled { opacity: 0.4; cursor: default; }
 .upgrade-btn:disabled:active { transform: none; }
+
+/* Log rows reuse .sell-row's icon+info layout but drop the price/button --
+   pure viewing, no action. .undiscovered dims a not-yet-caught species. */
+.log-row.undiscovered { opacity: 0.5; }
+.log-section-title {
+  font-size: 13px;
+  opacity: 0.65;
+  letter-spacing: 0.5px;
+  margin: 10px 0 2px;
+}
+.log-section-title:first-child { margin-top: 0; }
+
+/* ================= Settings popup ================= */
+/* Content here is short and fixed -- no scrolling tab body needed, so the
+   panel sizes to its content instead of matching the shop's fixed height. */
+.settings-panel { height: auto; max-height: calc(var(--vh-px, 100dvh) * 0.7); }
+.settings-body { gap: 22px; padding-top: 20px; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.settings-row-label { font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
+.settings-row-note { font-size: 12px; opacity: 0.6; font-weight: normal; }
+
+/* Left-hand mode: a true mirror of the reeling HUD (the one asymmetric,
+   thumb-reach cluster in the playing screen), not just a relocation --
+   flips it to the right edge AND reverses its internal left-to-right
+   order (gauge, time bar, status column -> status column, time bar,
+   gauge), so it reads as an actual mirror image. Menu stays put. */
+#game.lefty-mode .reel-gauge { left: auto; right: 20px; flex-direction: row-reverse; }
+
+.toggle-switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255,255,255,0.12);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s ease;
+}
+.toggle-switch[aria-checked="true"] { background: linear-gradient(90deg, #7fd7ff, #3aa0d8); }
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  transition: transform 0.18s ease;
+}
+.toggle-switch[aria-checked="true"] .toggle-knob { transform: translateX(20px); }
+
+.volume-slider {
+  width: 130px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.danger-btn {
+  background: linear-gradient(180deg, #ff8a70, #e8493a);
+  color: #fff;
+  border: none;
+  padding: 13px 16px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.danger-btn:active { transform: scale(0.97); }
+.danger-btn:disabled { opacity: 0.4; cursor: default; }
+.danger-btn:disabled:active { transform: none; }
+
+/* In-game confirmation for 데이터 삭제 -- sits above the settings panel it
+   was opened from, which stays open (dimmed by this overlay's own
+   backdrop) behind it. */
+#reset-confirm-overlay { z-index: 11; }
+.reset-confirm-card { padding: 32px 28px; }
+.reset-confirm-actions { display: flex; gap: 10px; justify-content: center; }
+.reset-confirm-actions .main-btn { flex: 1; padding: 13px 0; font-size: 15px; }
+.reset-confirm-actions .danger-btn { flex: 1; }
 
 /* ================= Result popup (ported as-is from the old version) ================= */
 .overlay {

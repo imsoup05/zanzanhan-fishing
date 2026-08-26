@@ -47,6 +47,16 @@
 
   <p id="status-text" class="status-text hidden"></p>
 
+  <!-- First-time-only onboarding hint: shown until the player's very first
+       cast, then hidden forever (see game.js's hasCastBefore). Purely
+       visual -- pointer-events:none so it never blocks the tap itself. -->
+  <div id="tutorial-hint" class="tutorial-hint hidden">
+    <p class="tutorial-hint-text">화면 중앙을 클릭해보세요</p>
+    <span class="tutorial-hint-ring"></span>
+    <span class="tutorial-hint-ring tutorial-hint-ring2"></span>
+    <span class="tutorial-hint-dot"></span>
+  </div>
+
   <!-- Reeling gauge: vertical, left side, thumb sweeps top-bottom.
        Left-to-right: position gauge, per-hit time limit, then fish (hits)
        + chances (misses) stacked together in one column. -->
@@ -112,6 +122,72 @@
           </div>
           <p id="rod-max-note" class="upgrade-max-note hidden"></p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bucket popup: opened from the side menu's 보관함 button. Same panel
+       chrome as the shop -- 보관함 tab is the held (unsold) catch list,
+       도감 tab is the per-species log (tier, best size, catch count). -->
+  <div id="bucket-overlay" class="overlay hidden">
+    <div id="bucket-panel" class="shop-panel">
+      <div class="shop-header">
+        <h2 class="shop-title">보관함</h2>
+        <button id="bucket-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+        </button>
+      </div>
+      <nav class="shop-tabs">
+        <button class="shop-tab active" data-btab="inventory">보관함</button>
+        <button class="shop-tab" data-btab="log">도감</button>
+      </nav>
+      <div class="shop-body">
+        <div id="bucket-tab-inventory" class="shop-tab-panel">
+          <div id="bucket-list" class="sell-list"></div>
+          <p id="bucket-empty" class="shop-placeholder hidden">아직 보관 중인 물고기가 없어요.</p>
+        </div>
+        <div id="bucket-tab-log" class="shop-tab-panel hidden">
+          <div id="log-list" class="sell-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings popup: opened from the side menu's 설정 button. -->
+  <div id="settings-overlay" class="overlay hidden">
+    <div id="settings-panel" class="shop-panel settings-panel">
+      <div class="shop-header">
+        <h2 class="shop-title">설정</h2>
+        <button id="settings-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+        </button>
+      </div>
+      <div class="shop-body settings-body">
+        <div class="settings-row">
+          <div class="settings-row-label">왼손 모드<span class="settings-row-note">캐스팅바 등 플레이 HUD를 오른쪽으로</span></div>
+          <button id="lefty-toggle" class="toggle-switch" role="switch" aria-checked="false">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">효과음 볼륨</div>
+          <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="80">
+        </div>
+        <button id="reset-data-btn" class="danger-btn">진행 데이터 전체 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset-data confirmation: in-game modal, not a native confirm() --
+       opened from 설정's 삭제 button. Delete button starts disabled and
+       counts down 3s before it can actually be pressed. -->
+  <div id="reset-confirm-overlay" class="overlay hidden">
+    <div class="result-card reset-confirm-card">
+      <h2 class="result-title">정말 삭제할까요?</h2>
+      <p class="result-desc">지금까지 잡은 물고기, 조개, 낚싯대 강화 진행 상황이 전부 사라지고 되돌릴 수 없어요.</p>
+      <div class="reset-confirm-actions">
+        <button id="reset-cancel-btn" class="main-btn">취소</button>
+        <button id="reset-confirm-btn" class="danger-btn" disabled>삭제합니다</button>
       </div>
     </div>
   </div>
