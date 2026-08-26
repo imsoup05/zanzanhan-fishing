@@ -44,16 +44,21 @@ body {
    the same way as desktop left visible bars on the side/bottom, reading as
    "a phone screen inside the phone screen." Below the phone-width
    breakpoint, drop the aspect-ratio clamp entirely and just fill the
-   actual viewport edge to edge. position:fixed + inset:0 is used instead
-   of the --vw-px/--vh-px JS measurement here -- those come from
-   visualViewport, which on iOS (especially once added to the home screen)
-   can under-report versus the true screen size and leave a dead strip at
-   the bottom; a fixed element sized by inset:0 is pinned to the actual
-   viewport by the browser itself, safe-area included, no JS involved. */
+   actual viewport edge to edge.
+
+   Plain inset:0 still left a gap exactly the height of the home-indicator
+   safe area on an installed (standalone) iOS app -- WebKit's own notion of
+   "the viewport" for position:fixed apparently already excludes that strip
+   even with viewport-fit=cover, so 0 doesn't mean the true physical edge.
+   Pushing the bottom edge out by env(safe-area-inset-bottom) (negative
+   inset = extend past the measured viewport) compensates for that. */
 @media (max-width: 600px) {
   #game {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
     width: auto;
     height: auto;
   }
