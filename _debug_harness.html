@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>debug</title></head>
+<body style="margin:0">
+<iframe id="f" src="http://localhost:8940/index.html" style="width:393px;height:852px;border:2px solid red;"></iframe>
+<pre id="out" style="white-space:pre-wrap;font-family:monospace;font-size:12px;"></pre>
+<script>
+const out = document.getElementById('out');
+function log(s) { out.textContent += s + "\n"; }
+
+function seedSave(win) {
+  const save = {
+    shells: 5000,
+    bucket: [
+      { id: 1, key: 'bridge_common_1', size: 10 },
+      { id: 2, key: 'bridge_common_2', size: 12 },
+      { id: 3, key: 'bridge_rare_1', size: 20 },
+      { id: 4, key: 'bridge_common_1', size: 15 },
+      { id: 5, key: 'bridge_common_2', size: 8 },
+      { id: 6, key: 'bridge_rare_1', size: 25 }
+    ],
+    containerTier: 0,
+    currentRegion: 'bridge',
+    unlockedRegions: ['bridge'],
+    rodLevel: 1,
+    rodGrade: 0,
+    skipEnabled: false,
+    bait: { basic: 999, mid: 5, high: 2, super: 1, legend: 0 },
+    selectedBait: 'basic',
+    discovered: [],
+    newSpecies: [],
+    catchCounts: {}
+  };
+  win.localStorage.setItem('quiet-fishing-save-v1', JSON.stringify(save));
+}
+
+const iframe = document.getElementById('f');
+iframe.addEventListener('load', () => {
+  try {
+    seedSave(iframe.contentWindow);
+  } catch(e) { log('seed error: ' + e); }
+  iframe.src = iframe.src; // reload to pick up seeded save
+  iframe.onload = runTest;
+});
+
+function rectOf(doc, sel) {
+  const el = doc.getElementById(sel) || doc.querySelector(sel);
+  if (!el) return sel + ': NOT FOUND';
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  return `${sel}: rect(w=${r.width.toFixed(0)},h=${r.height.toFixed(0)}) display=${cs.display} overflow-y=${cs.overflowY} scrollHeight=${el.scrollHeight}`;
+}
+
+function runTest() {
+  setTimeout(() => {
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+
+    // Open shop
+    doc.getElementById('shop-btn').click();
+    log('--- After opening shop (default sell tab) ---');
+    log(rectOf(doc, 'shop-overlay'));
+    log(rectOf(doc, 'shop-view-sell'));
+    log(rectOf(doc, 'shop-sell-list'));
+    log(rectOf(doc, 'shop-view-upgrade'));
+    log('sell rows count: ' + doc.querySelectorAll('#shop-sell-list .log-row').length);
+
+    // Switch to upgrade tab
+    doc.getElementById('shop-subtab-upgrade').click();
+    log('\n--- After clicking 강화(upgrade) tab ---');
+    log(rectOf(doc, 'shop-view-upgrade'));
+    log(rectOf(doc, 'rod-levelup-btn'));
+    const rodBtn = doc.getElementById('rod-levelup-btn');
+    log('rod-levelup-btn text: ' + (rodBtn ? rodBtn.textContent : 'MISSING'));
+    log('rod-levelup-btn visible(offsetParent!=null): ' + (rodBtn && rodBtn.offsetParent !== null));
+    log(rectOf(doc, 'shop-container-btn'));
+
+    // Switch to gacha tab
+    doc.getElementById('shop-subtab-gacha').click();
+    log('\n--- After clicking 뽑기(gacha) tab ---');
+    log(rectOf(doc, 'shop-view-gacha'));
+    log(rectOf(doc, 'roulette-pull1-btn'));
+    log(rectOf(doc, 'roulette-odds'));
+
+    // Close shop, open bucket -> log subtab
+    doc.getElementById('shop-close').click();
+    doc.getElementById('bucket-btn').click();
+    log('\n--- After opening bucket (default inventory tab) ---');
+    log(rectOf(doc, 'bucket-view'));
+    log(rectOf(doc, 'bucket-list'));
+
+    doc.getElementById('bucket-subtab-log').click();
+    log('\n--- After clicking 도감(log) tab ---');
+    log(rectOf(doc, 'log-view'));
+    log(rectOf(doc, 'log-list'));
+    log('log rows count: ' + doc.querySelectorAll('#log-list .log-row, #log-list .shop-section-title').length);
+    log('log-view scrollHeight vs clientHeight: ' + doc.getElementById('log-view').scrollHeight + ' vs ' + doc.getElementById('log-view').clientHeight);
+
+    log('\nDONE');
+  }, 400);
+}
+</script>
+</body>
+</html>

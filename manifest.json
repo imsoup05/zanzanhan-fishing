@@ -1,0 +1,15 @@
+{
+  "name": "잔잔한 낚시터",
+  "short_name": "낚시터",
+  "description": "잔잔한 물결 위에서 즐기는 힐링 낚시 게임",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05141a",
+  "theme_color": "#14586b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
