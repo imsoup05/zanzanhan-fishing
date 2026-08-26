@@ -1,6 +1,32 @@
 (() => {
   'use strict';
 
+  // ================= Audio (WebAudio, no assets) =================
+  let actx = null;
+  function ensureAudio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } }
+  function blip(freq, dur, type, vol) {
+    if (!actx) return;
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol || 0.15, actx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    osc.connect(gain).connect(actx.destination);
+    osc.start();
+    osc.stop(actx.currentTime + dur);
+  }
+  const sfx = {
+    cast: () => blip(220, 0.18, 'sine', 0.12),
+    bite: () => { blip(500, 0.1, 'triangle', 0.15); setTimeout(() => blip(650, 0.12, 'triangle', 0.12), 90); },
+    hit: () => blip(700, 0.09, 'sine', 0.14),
+    miss: () => blip(120, 0.2, 'square', 0.12),
+    success: () => { blip(523, 0.12, 'sine', 0.15); setTimeout(() => blip(659, 0.12, 'sine', 0.15), 110); setTimeout(() => blip(784, 0.18, 'sine', 0.16), 220); },
+    fail: () => { blip(300, 0.15, 'sawtooth', 0.12); setTimeout(() => blip(200, 0.25, 'sawtooth', 0.12), 130); },
+    splash: () => { blip(90, 0.22, 'sine', 0.2); blip(180, 0.15, 'triangle', 0.1); },
+    coin: () => { blip(880, 0.08, 'square', 0.1); setTimeout(() => blip(1180, 0.1, 'square', 0.1), 70); }
+  };
+
   // ================= Canvas background =================
   const gameEl = document.getElementById('game');
   const canvas = document.getElementById('bg-canvas');
@@ -492,10 +518,31 @@
   let waitingTimer = null, biteTimer = null;
   let reel = null; // { period, zoneTop, zoneHeight, hits, misses, hitsRequired, maxMisses, startT, timeLimit, timeStart, fromBottom }
   let currentCatch = null; // chosen in triggerBite(), consumed by startReel()/catchSuccess()
-  let shells = 0;
-  let rod = { grade: 'common', level: 1 };
-  let caughtFish = []; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
-  let nextFishUid = 1;
+
+  // ================= Persistence (localStorage, no account needed) =================
+  // Everything the player would be upset to lose -- shells, rod, unsold
+  // catches -- lives in one localStorage blob and is rewritten right after
+  // every mutation (not on page-unload, which mobile browsers can skip).
+  const SAVE_KEY = 'zanzanhan-fishing-save-v1';
+  function defaultSave() {
+    return { shells: 0, rod: { grade: 'common', level: 1 }, caughtFish: [], nextFishUid: 1 };
+  }
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) return { ...defaultSave(), ...JSON.parse(raw) };
+    } catch (e) { /* ignore -- corrupt save, fall back to default */ }
+    return defaultSave();
+  }
+  function persist() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, caughtFish, nextFishUid })); } catch (e) { /* ignore */ }
+  }
+
+  const initialSave = loadSave();
+  let shells = initialSave.shells;
+  let rod = initialSave.rod;
+  let caughtFish = initialSave.caughtFish; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
+  let nextFishUid = initialSave.nextFishUid;
 
   const shellsCountEl = document.getElementById('shells-count');
   const statusTextEl = document.getElementById('status-text');
@@ -574,6 +621,7 @@
   }
 
   canvas.addEventListener('click', (e) => {
+    ensureAudio();
     const p = canvasPointFromEvent(e);
     if (state === 'idle') {
       const topBound = H * TAP_ZONE_TOP_FRAC;
@@ -586,6 +634,7 @@
   });
 
   function cast(x, y) {
+    sfx.cast();
     bobber = { x, y };
     state = 'waiting';
     bobberState = 'waiting';
@@ -602,6 +651,7 @@
     // Tier is chosen now but no longer announced up front -- the hit
     // counter's rarity climb is the only reveal during casting/reeling.
     currentCatch = FishData.pickCatch();
+    sfx.bite();
     showStatus('입질이 왔어요!', 'icons/bite.svg');
     biteTimer = setTimeout(startReel, 500);
   }
@@ -767,6 +817,7 @@
     const inZone = pos >= reel.zoneTop - tolerance && pos <= reel.zoneTop + reel.zoneHeight + tolerance;
     if (inZone) {
       reel.hits++;
+      sfx.hit();
       bobberTugT = performance.now() / 1000;
       gaugeTrackEl.classList.remove('flash-good'); void gaugeTrackEl.offsetWidth; gaugeTrackEl.classList.add('flash-good');
       const fish = hitsCounterEl.children[reel.hits - 1];
@@ -786,6 +837,7 @@
       positionZone();
     } else {
       reel.misses++;
+      sfx.miss();
       gaugeTrackEl.classList.remove('flash-bad'); void gaugeTrackEl.offsetWidth; gaugeTrackEl.classList.add('flash-bad');
       const dot = chanceLightsEl.children[reel.misses - 1];
       if (dot) dot.classList.add('off');
@@ -796,6 +848,8 @@
   function catchSuccess() {
     state = 'result';
     bobberState = 'hidden';
+    sfx.splash();
+    sfx.success();
     reelGaugeEl.classList.add('hidden');
     const c = currentCatch;
     const icon = c.tier === 'junk' ? 'icons/junk.svg' : 'icons/fish.svg';
@@ -807,6 +861,7 @@
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
+      persist();
       desc = `${c.desc} (${c.size}cm · 판매가 ${c.price.toLocaleString('ko-KR')}개)`;
     }
     showResult(true, title, desc, icon, c.tier);
@@ -816,6 +871,7 @@
     if (state !== 'reeling') return;
     state = 'result';
     bobberState = 'hidden';
+    sfx.fail();
     reelGaugeEl.classList.add('hidden');
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/miss.svg');
   }
@@ -913,8 +969,10 @@
   function sellFish(uid) {
     const idx = caughtFish.findIndex(f => f.uid === uid);
     if (idx === -1) return;
+    sfx.coin();
     shells += caughtFish[idx].price;
     caughtFish.splice(idx, 1);
+    persist();
     updateShellsDisplay();
     renderSellList();
   }
@@ -947,8 +1005,10 @@
     if (rod.level >= FishData.ROD_MAX_LEVEL) return; // grade-up needs materials that don't exist yet
     const cost = FishData.rodLevelCost(rod.level);
     if (shells < cost) return;
+    sfx.coin();
     shells -= cost;
     rod.level += 1;
+    persist();
     updateShellsDisplay();
     renderUpgradeTab();
   });
