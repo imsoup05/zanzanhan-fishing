@@ -44,11 +44,18 @@ body {
    the same way as desktop left visible bars on the side/bottom, reading as
    "a phone screen inside the phone screen." Below the phone-width
    breakpoint, drop the aspect-ratio clamp entirely and just fill the
-   actual viewport edge to edge. */
+   actual viewport edge to edge. position:fixed + inset:0 is used instead
+   of the --vw-px/--vh-px JS measurement here -- those come from
+   visualViewport, which on iOS (especially once added to the home screen)
+   can under-report versus the true screen size and leave a dead strip at
+   the bottom; a fixed element sized by inset:0 is pinned to the actual
+   viewport by the browser itself, safe-area included, no JS involved. */
 @media (max-width: 600px) {
   #game {
-    width: var(--vw-px, 100vw);
-    height: var(--vh-px, 100dvh);
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
   }
 }
 
@@ -67,7 +74,10 @@ body {
 .topbar {
   position: absolute;
   top: 0; left: 0; right: 0;
-  padding: 16px 16px 0;
+  /* env(safe-area-inset-top) clears the notch/Dynamic Island/status bar --
+     without it (and viewport-fit=cover in the meta tag) this row renders
+     underneath the iOS status bar instead of below it. */
+  padding: calc(16px + env(safe-area-inset-top)) 16px 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -78,7 +88,8 @@ body {
 .bottombar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  padding: 0 16px 22px;
+  /* env(safe-area-inset-bottom) clears the home-indicator bar on iOS. */
+  padding: 0 16px calc(22px + env(safe-area-inset-bottom));
   display: flex;
   align-items: flex-end;
   justify-content: center;
