@@ -263,13 +263,6 @@ body {
   left: 20px;
   top: 38%;
   height: 44%;
-  /* Caps how tall the sweep track gets on a big/tall desktop viewport --
-     without this, the same time-based sweep period covers more pixels (and
-     so reads as visibly faster) on a large monitor than on a small window,
-     purely because 44% of a taller #game is a taller track, not because the
-     underlying timing actually differs. Rarely engages on phones (#game's
-     height there is already well under this). */
-  max-height: 380px;
   z-index: 6;
   display: flex;
   flex-direction: row;
