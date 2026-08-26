@@ -1,4 +1,4 @@
-(() => {
+function __zzhInit() {
   'use strict';
 
   // ================= Audio (WebAudio, no assets) =================
@@ -897,7 +897,7 @@
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
       persist();
-      desc = `${c.desc} (${c.size}cm · 판매가 ${c.price.toLocaleString('ko-KR')}개)`;
+      desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
     showResult(true, title, desc, icon, c.tier);
   }
@@ -920,7 +920,7 @@
       resultTierBadge.classList.add('hidden');
     }
     resultTitle.textContent = title;
-    resultDesc.textContent = desc;
+    resultDesc.innerHTML = desc;
     newBadge.classList.add('hidden'); // no species-discovery tracking yet
     resultOverlay.classList.remove('hidden');
     resultCard.classList.remove('catch-reveal');
@@ -989,7 +989,7 @@
           </div>
           <div class="sell-row-meta">${item.desc}</div>
         </div>
-        <div class="sell-row-price">${item.price.toLocaleString('ko-KR')}개</div>
+        <div class="sell-row-price"><img class="price-icon" src="icons/shell.svg" alt="">${item.price.toLocaleString('ko-KR')}</div>
         <button class="sell-btn" data-uid="${item.uid}">판매</button>
       `;
       sellListEl.appendChild(row);
@@ -1022,7 +1022,7 @@
     if (rod.level < FishData.ROD_MAX_LEVEL) {
       const cost = FishData.rodLevelCost(rod.level);
       rodMaxNoteEl.classList.add('hidden');
-      rodUpgradeBtn.textContent = `${cost.toLocaleString('ko-KR')}개`;
+      rodUpgradeBtn.innerHTML = `<img class="price-icon" src="icons/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
       rodUpgradeBtn.disabled = shells < cost;
     } else if (gradeInfo.next) {
       rodMaxNoteEl.textContent = `최고 레벨이에요. 다음 등급(${FishData.ROD_GRADES[gradeInfo.next].label})으로 올리려면 강화재료가 필요한데, 아직 준비 중이에요.`;
@@ -1065,4 +1065,20 @@
   };
 
   updateShellsDisplay();
-})();
+}
+
+try {
+  __zzhInit();
+} catch (err) {
+  // A silent failure here means NOTHING works -- no cast, no buttons -- with
+  // no clue why, since the canvas still renders (it's on its own rAF loop
+  // started before whatever threw). Surface it visibly instead of just
+  // logging, so whoever hits this can screenshot the actual error.
+  console.error('[잔잔한 낚시터] 초기화 실패:', err);
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#1a0f0f;color:#ffb3b3;'
+    + 'font:13px/1.5 monospace;padding:18px;overflow:auto;white-space:pre-wrap;';
+  banner.textContent = '게임 초기화 중 오류가 발생했습니다. 이 화면을 스크린샷해서 알려주세요:\n\n'
+    + (err && (err.stack || err.message) || String(err));
+  document.body.appendChild(banner);
+}

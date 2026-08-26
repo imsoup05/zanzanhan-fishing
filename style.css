@@ -199,6 +199,11 @@ body {
 .status-text.hidden { display: none; }
 .status-icon { width: 18px; height: 18px; }
 
+/* Currency icon dropped inline into plain text/buttons (price labels,
+   costs) -- shell.svg in place of a trailing "개". vertical-align nudges it
+   up onto the text baseline since these sit in non-flex containers. */
+.price-icon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 1px; }
+
 /* ================= Reeling gauge: vertical, left side =================
    Left to right: position gauge (aim here, made slimmer), a per-hit time
    limit bar, then a status column with the fish (hits) and chance lights
