@@ -1,0 +1,431 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --panel-bg: rgba(20, 40, 45, 0.55);
+  --panel-border: rgba(255, 255, 255, 0.18);
+  --accent: #ffcf6b;
+  --text-light: #f4f8f6;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #05141a;
+  font-family: 'Gowun Dodum', 'Jua', sans-serif;
+  color: var(--text-light);
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Desktop preview: a letterboxed phone-shaped frame (iPhone 16's logical
+   viewport, 393x852) centered in the browser window, so the game is easy
+   to eyeball while developing on a wide screen. Sizing is driven by
+   --vw-px/--vh-px (set from window.visualViewport in game.js), not vw/vh
+   units -- iOS Safari's 100vh (and even 100dvh in some toolbar states) can
+   disagree with the *actual* visible area, leaving a dead gap on the side
+   or bottom; visualViewport is the one API built specifically to report
+   the true visible size. The 100dvh values are just the pre-JS
+   first-paint fallback.
+*/
+#game {
+  position: relative;
+  width: min(var(--vw-px, 100vw), calc(var(--vh-px, 100dvh) * 393 / 852));
+  height: min(var(--vh-px, 100dvh), calc(var(--vw-px, 100vw) * 852 / 393));
+  overflow: hidden;
+}
+
+/* Real phones rarely match that exact 393:852 ratio -- letterboxing them
+   the same way as desktop left visible bars on the side/bottom, reading as
+   "a phone screen inside the phone screen." Below the phone-width
+   breakpoint, drop the aspect-ratio clamp entirely and just fill the
+   actual viewport edge to edge. */
+@media (max-width: 600px) {
+  #game {
+    width: var(--vw-px, 100vw);
+    height: var(--vh-px, 100dvh);
+  }
+}
+
+#bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ================= Reserved chrome (top/bottom -- never casts) =================
+   These bands mirror 기본 UI 영역 분류: only the middle water band between
+   them is tap-to-fish. Kept deliberately bare (icon-only, no panel behind
+   them) since the canvas art is the background, not these controls. */
+.topbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 16px 16px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  z-index: 5;
+}
+.topbar-right { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.bottombar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 0 16px 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 5;
+}
+
+.location-pill, .shells-pill {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+/* The one action button left outside the drawer -- given its own visible
+   circle (not the transparent icon-only style) since it's now the sole,
+   primary bottom control rather than one of a row of equals. */
+.bait-btn-main {
+  width: 68px;
+  height: 68px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+  backdrop-filter: blur(6px);
+  color: var(--text-light);
+  font-size: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s ease;
+}
+.bait-btn-main:hover { transform: translateY(-1px); }
+.bait-btn-main:active { transform: scale(0.94); }
+
+/* Sized for thumbs, not cursors -- these are the only touch targets outside
+   the fishing area, so bigger beats tidy here. */
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  font-size: 38px;
+  line-height: 1;
+  padding: 10px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s ease;
+}
+.icon-btn:hover { transform: translateY(-1px); }
+.icon-btn:active { transform: scale(0.94); }
+
+/* Menu toggle carries the same panel color as .side-menu below it, sized
+   to match its width -- so opening the menu reads as this button growing
+   downward into a pill, not a separate box appearing under it. */
+#menu-toggle-btn {
+  position: relative;
+  z-index: 5;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
+  border: 1px solid var(--panel-border);
+  font-size: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-text {
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 17px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  z-index: 4;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.status-text.hidden { display: none; }
+
+/* ================= Reeling gauge: vertical, left side =================
+   Left to right: position gauge (aim here, made slimmer), then a single
+   status column with the fish (hits) and chance lights (misses) stacked
+   together -- all vertical, reading as one cluster. */
+.reel-gauge {
+  position: absolute;
+  left: 20px;
+  top: 38%;
+  height: 44%;
+  z-index: 6;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  pointer-events: none;
+}
+.reel-gauge.hidden { display: none; }
+
+.gauge-track-v {
+  position: relative;
+  width: 18px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.gauge-zone-v {
+  position: absolute;
+  left: 0; right: 0;
+  background: linear-gradient(180deg, #7fd7ff, #3aa0d8);
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.4);
+  border-radius: 6px;
+}
+
+.gauge-indicator-v {
+  position: absolute;
+  left: -2px; right: -2px;
+  height: 6px;
+  background: #fffef0;
+  box-shadow: 0 0 10px rgba(255,255,255,0.9), 0 0 2px rgba(0,0,0,0.5);
+  border-radius: 3px;
+  top: 0%;
+  transform: translateY(-50%);
+}
+
+.gauge-track-v.flash-good { animation: flashGoodV 0.25s ease; }
+.gauge-track-v.flash-bad { animation: flashBadV 0.25s ease; }
+@keyframes flashGoodV {
+  0% { box-shadow: 0 0 0 0 rgba(120,255,180,0.9) inset; }
+  100% { box-shadow: 0 0 0 12px rgba(120,255,180,0) inset; }
+}
+@keyframes flashBadV {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-6px); }
+  75% { transform: translateY(6px); }
+}
+
+/* Fish (hits still needed) and chances (misses left) share one column --
+   two stacked groups instead of two side-by-side ones. */
+.status-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* One fish per hit still needed -- gray and dim until landed, then blue
+   and popped. 물고기 모양으로 남은 캐스팅 횟수 표시. */
+.hits-counter-v {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #5c6a6d;
+}
+.hits-counter-v .fish {
+  display: block;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.hits-counter-v .fish.filled {
+  color: #3aa0d8;
+  transform: scale(1.2);
+}
+
+/* 신호등 "모양"만 -- 실제 색은 빨/노/초가 아니라 파란 불이 실패할 때마다
+   하나씩 꺼지는 방식. Dot count follows reel.maxMisses, not fixed at 3. */
+.chance-lights {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgba(10,14,16,0.5);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 10px 7px;
+}
+.chance-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #3aa0d8;
+  box-shadow: 0 0 8px rgba(58,160,216,0.75);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.chance-dot.off {
+  background: rgba(255,255,255,0.15);
+  box-shadow: none;
+}
+
+/* ================= Slide-out menu (상점/보관함/설정) =================
+   Grows straight down out of the hamburger button as one rounded capsule,
+   not a full drawer panel -- no backdrop dimming, just an invisible
+   click-outside catcher so tapping elsewhere still closes it. */
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background: transparent;
+  pointer-events: none;
+}
+.menu-backdrop.open { pointer-events: auto; }
+
+.side-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: -14px; /* tucks under the button so the seam disappears */
+  width: 60px;
+  background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
+  border: 1px solid var(--panel-border);
+  border-radius: 30px;
+  padding: 22px 0 8px;
+  display: flex;
+  flex-direction: column;
+  z-index: 4; /* sits behind the button (z-index 5) so it visibly grows out from under it */
+  transform-origin: top center;
+  transform: scaleY(0);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.16s ease;
+}
+.side-menu.open { transform: scaleY(1); opacity: 1; pointer-events: auto; }
+
+.side-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 13px 0;
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease;
+}
+.side-menu-item:hover { background: rgba(255,255,255,0.08); }
+.side-menu-item:active { background: rgba(255,255,255,0.14); }
+.side-menu-icon { font-size: 24px; line-height: 1; }
+
+/* ================= Result popup (ported as-is from the old version) ================= */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 15, 20, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.overlay.hidden { display: none; }
+
+.result-card {
+  position: relative;
+  background: linear-gradient(160deg, rgba(24,54,60,0.95), rgba(15,38,44,0.95));
+  border: 1px solid var(--panel-border);
+  border-radius: 22px;
+  padding: 38px 32px;
+  text-align: center;
+  width: min(480px, 94%);
+  overflow: hidden;
+}
+.result-icon { font-size: 76px; margin-bottom: 10px; }
+.result-title { font-size: 29px; margin-bottom: 10px; color: var(--accent); }
+.result-desc { font-size: 17px; opacity: 0.85; margin-bottom: 24px; line-height: 1.6; }
+
+.tier-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #1a1a1a;
+}
+.tier-badge.hidden { display: none; }
+
+.splash-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.splash-flash.active { animation: splashFlash 0.5s ease-out; }
+@keyframes splashFlash {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+.result-card.catch-reveal {
+  animation: catchReveal 0.5s cubic-bezier(.25,.9,.3,1.15) both;
+}
+@keyframes catchReveal {
+  0% { clip-path: polygon(48% 42%, 52% 42%, 54% 58%, 46% 58%); transform: scale(0.92); }
+  55% { clip-path: polygon(8% 2%, 92% 6%, 100% 58%, 88% 100%, 12% 94%, 0% 42%); transform: scale(1.03); }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transform: scale(1); }
+}
+
+.new-badge {
+  position: absolute;
+  top: 18px;
+  left: -38px;
+  width: 160px;
+  padding: 7px 0;
+  background: linear-gradient(180deg, #ff8a70, #ff5a4a);
+  color: #fff;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-align: center;
+  transform: rotate(-38deg);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  z-index: 2;
+  animation: newBadgePop 0.4s cubic-bezier(.3,1.5,.4,1) both;
+  animation-delay: 0.35s;
+}
+.new-badge.hidden { display: none; }
+@keyframes newBadgePop {
+  0% { transform: rotate(-38deg) scale(0); opacity: 0; }
+  100% { transform: rotate(-38deg) scale(1); opacity: 1; }
+}
+
+.main-btn {
+  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  color: #3a2a10;
+  border: none;
+  padding: 17px 34px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 19px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.main-btn:hover { transform: translateY(-2px); }
+.main-btn:active { transform: translateY(0); }
