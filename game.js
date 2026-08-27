@@ -533,8 +533,15 @@ function __zzhInit() {
   // catches -- lives in one localStorage blob and is rewritten right after
   // every mutation (not on page-unload, which mobile browsers can skip).
   const SAVE_KEY = 'zanzanhan-fishing-save-v1';
+  // Bump this whenever the save shape changes in a way old saves can't just
+  // merge cleanly into (new required fields, changed meaning of an existing
+  // one, etc.). A save tagged with any other version is treated as stale --
+  // rather than risk half-migrated/undefined-shaped data, it's discarded
+  // and the player starts fresh under the current version.
+  const SAVE_VERSION = '0.2.1';
   function defaultSave() {
     return {
+      version: SAVE_VERSION,
       shells: 0, rod: { grade: 'common', level: 1 }, materials: {},
       stats: { strength: 0, luck: 0, precision: 0 },
       caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false
@@ -543,12 +550,21 @@ function __zzhInit() {
   function loadSave() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      if (raw) return { ...defaultSave(), ...JSON.parse(raw) };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.version === SAVE_VERSION) return { ...defaultSave(), ...parsed };
+        // Old (or missing, pre-versioning) save version -- don't trust its
+        // shape against the current code, load the latest defaults instead.
+      }
     } catch (e) { /* ignore -- corrupt save, fall back to default */ }
     return defaultSave();
   }
   function persist() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore })); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        version: SAVE_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore
+      }));
+    } catch (e) { /* ignore */ }
   }
 
   const initialSave = loadSave();
