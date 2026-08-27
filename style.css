@@ -79,6 +79,39 @@ body {
   display: block;
 }
 
+/* Deploy-update notice -- sits above literally everything else (even the
+   shop/result popups) since it's a whole-app-level notice, not part of any
+   one screen. Hidden by default; only shown once a genuinely new service
+   worker takes over this tab (see the registration script). */
+.update-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: linear-gradient(180deg, rgba(24,54,60,0.97), rgba(15,38,44,0.92));
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 13.5px;
+}
+.update-banner.hidden { display: none; }
+.update-refresh-btn {
+  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  color: #3a2a10;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s ease;
+}
+.update-refresh-btn:active { transform: scale(0.94); }
+
 /* ================= Reserved chrome (top/bottom -- never casts) =================
    These bands mirror 기본 UI 영역 분류: only the middle water band between
    them is tap-to-fish. Kept deliberately bare (icon-only, no panel behind
@@ -691,7 +724,6 @@ body {
 .upgrade-stat-info { flex: 1; min-width: 0; }
 .upgrade-stat-name { font-size: 15px; margin-bottom: 2px; }
 .upgrade-stat-desc { font-size: 12.5px; opacity: 0.65; margin-bottom: 8px; }
-
 .upgrade-btn {
   background: linear-gradient(180deg, #ffe1a8, #ffb85c);
   color: #3a2a10;

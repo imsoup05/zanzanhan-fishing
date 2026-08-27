@@ -122,27 +122,36 @@
   }
 
   const ALL_TIER_KEYS = ['junk', 'common', 'rare', 'epic', 'legendary'];
+  // 행운 pulls weight only from 꽝/일반 (never from 희귀 -- see below) and
+  // hands it to 희귀/특급/전설 in FIXED proportions that heavily favor 특급,
+  // rather than proportional to their own base share (that barely moves
+  // 특급 at all, since 희귀's much bigger base absorbs most of it). 전설
+  // still gets a small cut so it isn't completely frozen out, but nowhere
+  // near enough to threaten 특급.
+  //
+  // Every tier in the "받는 쪽" group only ever goes UP as luck rises, from
+  // bases that already satisfy 일반 > 희귀 > 특급 > 전설 -- so as long as no
+  // single tier's share of the moved weight is large enough to leapfrog
+  // the tier above it, that ordering holds at every luck level, not just
+  // the endpoints. Checked at all 6 levels (0~5) below.
   const LUCK_LOW_TIERS = ['junk', 'common'];
-  const LUCK_HIGH_TIERS = ['rare', 'epic', 'legendary'];
+  const LUCK_HIGH_ALLOC = { rare: 0.27, epic: 0.71, legendary: 0.02 };
 
-  // 행운 stat: shifts a fraction of 꽝+일반's combined weight over into
-  // 희귀/특급/전설, proportional to each's existing share among the three --
-  // so luck makes the good tiers more likely without touching their
-  // relative odds against each other. Only touches whichever of those tiers
-  // are still in `order` (already-excluded tiers contribute nothing either
-  // direction).
   function applyLuck(weights, order, luckLevel) {
     if (!luckLevel) return weights;
-    const shiftFrac = luckLevel * 0.05; // 5%p per level, 25% at max (level 5)
+    const shiftFrac = luckLevel * PLAYER_STATS.luck.effectPerLevel;
     const lowKeys = order.filter(k => LUCK_LOW_TIERS.includes(k));
-    const highKeys = order.filter(k => LUCK_HIGH_TIERS.includes(k));
+    const highKeys = order.filter(k => k in LUCK_HIGH_ALLOC);
     if (!lowKeys.length || !highKeys.length) return weights;
     const lowTotal = lowKeys.reduce((sum, k) => sum + weights[k], 0);
-    const highTotal = highKeys.reduce((sum, k) => sum + weights[k], 0);
     const moved = lowTotal * shiftFrac;
+    // Renormalize over whichever high tiers are actually present, in case
+    // a rod's low-tier skip has excluded one (skip only ever drops
+    // 꽝/일반 in practice, but this stays correct either way).
+    const allocTotal = highKeys.reduce((sum, k) => sum + LUCK_HIGH_ALLOC[k], 0);
     const out = { ...weights };
     lowKeys.forEach(k => { out[k] = weights[k] * (1 - shiftFrac); });
-    highKeys.forEach(k => { out[k] = weights[k] + moved * (weights[k] / highTotal); });
+    highKeys.forEach(k => { out[k] = weights[k] + moved * (LUCK_HIGH_ALLOC[k] / allocTotal); });
     return out;
   }
 
@@ -151,7 +160,8 @@
   // dev-mode panel to test a specific tier on demand. excludeTierKeys drops
   // those tiers from the roll and renormalizes the rest (see the rod's
   // low-tier skip in game.js); luckLevel (행운 stat, 0~5) shifts weight from
-  // 꽝/일반 toward 희귀/특급/전설. Neither applies when forceTierKey is set.
+  // 꽝/일반 toward 희귀/특급/전설, weighted heavily toward 특급. Neither
+  // applies when forceTierKey is set.
   function pickCatch(forceTierKey, excludeTierKeys, luckLevel) {
     let tierKey = forceTierKey;
     if (!tierKey || !TIERS[tierKey]) {
@@ -214,9 +224,9 @@
   }
 
   // Fraction the reel zone widens by, from rod level alone (0 at level 1,
-  // ~0.27 at level 10).
+  // 0.20 at level 10 -- 9 even steps of 0.20/9 each).
   function rodEase(level) {
-    return (level - 1) * 0.03;
+    return (level - 1) * (0.20 / 9);
   }
 
   // ---- Grade-up materials ----
@@ -229,13 +239,12 @@
     epic: { materialLabel: '특급 낚싯대 강화재료', needed: 5 }
   };
 
-  // Drop chance climbs with rod level so grinding a low-level rod barely
-  // ever drops materials, but it gets noticeably more generous as you
-  // approach level 10 -- nudging the player toward the grade-up rather
-  // than handing it out at a flat rate the whole way. 5% at level 1 up to
-  // 23% at level 10.
+  // Flat 2% through level 6, then climbs 2%p per level from level 7 on,
+  // reaching 10% at level 10 -- keeps early/mid grinding slow and only
+  // meaningfully speeds up the material hunt once you're nearly maxed.
   function rodMaterialDropChance(level) {
-    return 0.05 + (level - 1) * 0.02;
+    if (level <= 6) return 0.02;
+    return 0.02 + (level - 6) * 0.02;
   }
 
   // ================= Player stats (별도 강화, 상점 업그레이드 탭 하단) =================
@@ -246,8 +255,8 @@
   // play rather than replacing them.
   const PLAYER_STAT_ORDER = ['strength', 'luck', 'precision'];
   const PLAYER_STATS = {
-    strength: { key: 'strength', label: '근력', desc: '캐스팅의 제한시간이 늘어난다.', effectPerLevel: 0.08 },
-    luck: { key: 'luck', label: '행운', desc: '높은 등급의 물고기 출현확률이 늘어난다.', effectPerLevel: 0.05 },
+    strength: { key: 'strength', label: '근력', desc: '캐스팅의 제한시간이 늘어난다.', effectPerLevel: 0.03 },
+    luck: { key: 'luck', label: '행운', desc: '희귀·특급(과 약간의 전설) 물고기 출현확률이 늘어난다.', effectPerLevel: 0.06 },
     precision: { key: 'precision', label: '정밀함', desc: '캐스팅의 속도가 느려진다.', effectPerLevel: 0.08 }
   };
   const PLAYER_STAT_MAX_LEVEL = 5;

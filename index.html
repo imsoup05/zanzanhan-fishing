@@ -19,6 +19,14 @@
 </head>
 <body>
 <div id="game">
+  <!-- Shown mid-play once a new deployed version has actually taken over
+       this tab's service worker (see the registration script at the
+       bottom) -- never blocks the game, just offers a manual refresh. -->
+  <div id="update-banner" class="update-banner hidden">
+    <span class="update-banner-text">새 버전이 있어요</span>
+    <button id="update-refresh-btn" class="update-refresh-btn">새로고침</button>
+  </div>
+
   <canvas id="bg-canvas"></canvas>
 
   <!-- Reserved zones (see 기본 UI 영역 분류): tapping here never casts a line -->
@@ -240,7 +248,39 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is a nice-to-have, not required */ });
+      // Snapshot BEFORE registering -- clients.claim() in sw.js makes even
+      // a first-ever install claim this already-open tab, which fires
+      // 'controllerchange' too. Only a controllerchange AFTER this tab
+      // already had a controller is a genuine "new version took over"
+      // event; the very first one is just this tab getting its first
+      // controller and shouldn't show the banner.
+      let hadController = !!navigator.serviceWorker.controller;
+
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        if (!reg) return;
+        const banner = document.getElementById('update-banner');
+        const refreshBtn = document.getElementById('update-refresh-btn');
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!hadController) { hadController = true; return; }
+          banner.classList.remove('hidden');
+        });
+        refreshBtn.addEventListener('click', () => location.reload());
+
+        // The browser only re-checks the SW script for changes around
+        // navigation events by default -- someone who just leaves the tab
+        // open and keeps playing would never trigger that on its own. Poll
+        // manually (interval picked to balance battery/network cost
+        // against how soon an update should be noticed), and also check
+        // immediately whenever the tab/app comes back to the foreground,
+        // which is free and catches the common background-then-resume
+        // case right away regardless of the interval.
+        const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+        setInterval(() => reg.update().catch(() => {}), UPDATE_CHECK_INTERVAL_MS);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+      }).catch(() => { /* offline support is a nice-to-have, not required */ });
     });
   }
 </script>
