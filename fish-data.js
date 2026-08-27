@@ -246,7 +246,7 @@
   // play rather than replacing them.
   const PLAYER_STAT_ORDER = ['strength', 'luck', 'precision'];
   const PLAYER_STATS = {
-    strength: { key: 'strength', label: '근력', desc: '캐스팅의 시간이 늘어난다.', effectPerLevel: 0.08 },
+    strength: { key: 'strength', label: '근력', desc: '캐스팅의 제한시간이 늘어난다.', effectPerLevel: 0.08 },
     luck: { key: 'luck', label: '행운', desc: '높은 등급의 물고기 출현확률이 늘어난다.', effectPerLevel: 0.05 },
     precision: { key: 'precision', label: '정밀함', desc: '캐스팅의 속도가 느려진다.', effectPerLevel: 0.08 }
   };
