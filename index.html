@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>잔잔한 낚시터</title>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/app/icon-192.png">
+<link rel="apple-touch-icon" href="icons/app/icon-180.png">
 <meta name="theme-color" content="#0f4b5c">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -31,23 +31,23 @@
 
   <!-- Reserved zones (see 기본 UI 영역 분류): tapping here never casts a line -->
   <header class="topbar">
-    <div class="location-pill"><img class="ui-icon" src="icons/location.svg" alt="">다리 밑</div>
+    <div class="location-pill"><img class="ui-icon" src="icons/ui/location.svg" alt="">다리 밑</div>
     <div class="topbar-right">
-      <div class="shells-pill"><img class="ui-icon" src="icons/shell.svg" alt=""> <span id="shells-count">0</span></div>
-      <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/menu.svg" alt="메뉴"></button>
+      <div class="shells-pill"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></div>
+      <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/ui/menu.svg" alt="메뉴"></button>
 
       <!-- Grows straight down out of the hamburger button, same width and
            color, so it reads as one shape rather than a separate panel.
            Icon-only. Order: 상점, 보관함, 설정. -->
       <nav id="side-menu" class="side-menu">
         <button id="menu-shop-btn" class="side-menu-item" title="상점">
-          <img class="side-menu-icon" src="icons/shop.svg" alt="상점">
+          <img class="side-menu-icon" src="icons/ui/shop.svg" alt="상점">
         </button>
         <button id="menu-bucket-btn" class="side-menu-item" title="보관함">
-          <img class="side-menu-icon" src="icons/bucket.svg" alt="보관함">
+          <img class="side-menu-icon" src="icons/ui/bucket.svg" alt="보관함">
         </button>
         <button id="menu-settings-btn" class="side-menu-item" title="설정">
-          <img class="side-menu-icon" src="icons/settings.svg" alt="설정">
+          <img class="side-menu-icon" src="icons/ui/settings.svg" alt="설정">
         </button>
       </nav>
     </div>
@@ -86,7 +86,7 @@
   </div>
 
   <footer class="bottombar">
-    <button id="bait-btn" class="bait-btn-main" title="미끼"><img class="ui-icon-xl" src="icons/bait.svg" alt="미끼"></button>
+    <button id="bait-btn" class="bait-btn-main" title="미끼"><img class="ui-icon-xl" src="icons/ui/bait.svg" alt="미끼"></button>
   </footer>
 
   <!-- Invisible click-outside-to-close catcher for the slide-out menu. -->
@@ -100,7 +100,7 @@
       <div class="shop-header">
         <h2 class="shop-title">상점</h2>
         <button id="shop-close-btn" class="shop-close-btn" title="닫기">
-          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
         </button>
       </div>
       <nav class="shop-tabs">
@@ -120,7 +120,7 @@
           <div class="upgrade-list">
             <div class="upgrade-rod">
               <div id="upgrade-rod-icon" class="upgrade-rod-icon">
-                <img src="icons/rod.svg" alt="">
+                <img src="icons/shop/rod.svg" alt="">
               </div>
               <div class="upgrade-rod-info">
                 <div id="rod-name" class="upgrade-rod-name"></div>
@@ -153,7 +153,7 @@
       <div class="shop-header">
         <h2 class="shop-title">보관함</h2>
         <button id="bucket-close-btn" class="shop-close-btn" title="닫기">
-          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
         </button>
       </div>
       <nav class="shop-tabs">
@@ -178,7 +178,7 @@
       <div class="shop-header">
         <h2 class="shop-title">설정</h2>
         <button id="settings-close-btn" class="shop-close-btn" title="닫기">
-          <img class="shop-close-icon" src="icons/close.svg" alt="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
         </button>
       </div>
       <div class="shop-body settings-body">
@@ -234,7 +234,7 @@
        closes, only when a material actually dropped this catch. -->
   <div id="material-overlay" class="overlay hidden">
     <div class="result-card">
-      <div class="result-icon"><img id="material-icon" src="icons/material-rare.svg" alt=""></div>
+      <div class="result-icon"><img id="material-icon" src="icons/shop/material-rare.svg" alt=""></div>
       <h2 id="material-title" class="result-title"></h2>
       <p id="material-desc" class="result-desc"></p>
       <p id="material-count" class="material-count"></p>

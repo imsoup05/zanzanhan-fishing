@@ -820,7 +820,7 @@ function __zzhInit() {
     currentCatch = FishData.pickCatch(devForceTier, excludeTiers, stats.luck);
     devForceTier = null;
     sfx.bite();
-    showStatus('입질이 왔어요!', 'icons/bite.svg');
+    showStatus('입질이 왔어요!', 'icons/result/bite.svg');
     biteTimer = setTimeout(startReel, 500);
   }
 
@@ -1063,7 +1063,7 @@ function __zzhInit() {
     sfx.success();
     reelGaugeEl.classList.add('hidden');
     const c = currentCatch;
-    const icon = c.tier === 'junk' ? 'icons/junk.svg' : 'icons/fish.svg';
+    const icon = c.tier === 'junk' ? 'icons/result/junk.svg' : 'icons/fish/fish.svg';
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
     let desc;
     let isNewSpecies = false;
@@ -1078,7 +1078,7 @@ function __zzhInit() {
       recordCatch(c);
       pendingMaterial = rollRodMaterial();
       persist();
-      desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
+      desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/ui/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
     showResult(true, title, desc, icon, c.tier, isNewSpecies);
   }
@@ -1089,7 +1089,7 @@ function __zzhInit() {
     bobberState = 'hidden';
     sfx.fail();
     reelGaugeEl.classList.add('hidden');
-    showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/miss.svg');
+    showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/result/miss.svg');
   }
 
   function showResult(isCatch, title, desc, icon, tier, isNewSpecies) {
@@ -1135,7 +1135,7 @@ function __zzhInit() {
     // Colored per-file rather than tinted via CSS -- an <img src="*.svg">
     // loads as its own document, so currentColor inside it can't pick up
     // a color set on the <img> element itself.
-    materialIcon.src = `icons/material-${mat.gradeKey}.svg`;
+    materialIcon.src = `icons/shop/material-${mat.gradeKey}.svg`;
     materialTitle.textContent = info.materialLabel;
     materialDesc.textContent = `낚싯대를 강화하는 재료이다. ${info.needed}개를 모아서 등급을 올리자.`;
     materialCountEl.textContent = `보유: ${mat.count} / ${info.needed}개`;
@@ -1183,7 +1183,7 @@ function __zzhInit() {
       const row = document.createElement('div');
       row.className = 'sell-row';
       row.innerHTML = `
-        <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
+        <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
         <div class="sell-row-info">
           <div class="sell-row-name">
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
@@ -1191,7 +1191,7 @@ function __zzhInit() {
           </div>
           <div class="sell-row-meta">${item.desc}</div>
         </div>
-        <div class="sell-row-price"><img class="price-icon" src="icons/shell.svg" alt="">${item.price.toLocaleString('ko-KR')}</div>
+        <div class="sell-row-price"><img class="price-icon" src="icons/ui/shell.svg" alt="">${item.price.toLocaleString('ko-KR')}</div>
         <button class="sell-btn" data-uid="${item.uid}">판매</button>
       `;
       sellListEl.appendChild(row);
@@ -1238,7 +1238,7 @@ function __zzhInit() {
     if (gradeInfo.next) {
       const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
       const have = materials[gradeInfo.next] || 0;
-      rodMaterialIconEl.src = `icons/material-${gradeInfo.next}.svg`;
+      rodMaterialIconEl.src = `icons/shop/material-${gradeInfo.next}.svg`;
       rodMaterialCountEl.textContent = `${have} / ${upInfo.needed}`;
       rodMaterialEl.classList.remove('hidden');
     } else {
@@ -1247,7 +1247,7 @@ function __zzhInit() {
 
     if (rod.level < FishData.ROD_MAX_LEVEL) {
       const cost = FishData.rodLevelCost(rod.grade, rod.level);
-      rodUpgradeBtn.innerHTML = `<img class="price-icon" src="icons/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
+      rodUpgradeBtn.innerHTML = `<img class="price-icon" src="icons/ui/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
       rodUpgradeBtn.disabled = shells < cost;
     } else if (gradeInfo.next) {
       const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
@@ -1312,7 +1312,7 @@ function __zzhInit() {
         btn.disabled = true;
       } else {
         const cost = FishData.statLevelCost(level);
-        btn.innerHTML = `<img class="price-icon" src="icons/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
+        btn.innerHTML = `<img class="price-icon" src="icons/ui/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
         btn.disabled = shells < cost;
       }
     });
@@ -1362,7 +1362,7 @@ function __zzhInit() {
       const row = document.createElement('div');
       row.className = 'sell-row';
       row.innerHTML = `
-        <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
+        <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
         <div class="sell-row-info">
           <div class="sell-row-name">
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
@@ -1394,7 +1394,7 @@ function __zzhInit() {
         const row = document.createElement('div');
         row.className = 'sell-row log-row' + (record ? '' : ' undiscovered');
         row.innerHTML = `
-          <div class="sell-row-icon"><img src="icons/fish.svg" alt=""></div>
+          <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
           <div class="sell-row-info">
             <div class="sell-row-name">
               <span class="tier-badge tier-${tier}">${FishData.TIERS[tier].label}</span>

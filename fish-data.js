@@ -100,7 +100,7 @@
   // live pick pool. See old startReel()/catchSuccess() history for how it
   // used to drive the whole loop before species/tiers existed. ----
   const DUMMY_TEST_FISH = {
-    name: '테스트 물고기', icon: 'icons/fish.svg',
+    name: '테스트 물고기', icon: 'icons/fish/fish.svg',
     period: 1.0, zoneHeight: 22, maxMisses: 3,
     periodShrink: 0.94, minPeriod: 0.6, timeLimit: 3.2,
     hitsRequired: 4,
