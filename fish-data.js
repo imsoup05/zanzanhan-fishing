@@ -190,6 +190,85 @@
     return entry;
   }
 
+  // ================= Bait (하단 미끼 버튼 / 상점 뽑기 탭) =================
+  // A bait's only effect: fish below its own tier stop appearing at all.
+  // 일반(기본) bait excludes nothing (꽝 included, same as no bait). Reuses
+  // ALL_TIER_KEYS + pickCatch's existing excludeTierKeys renormalization --
+  // no separate probability-rebalancing code needed.
+  const BAIT_ORDER = ['common', 'rare', 'epic', 'legendary'];
+  const BAITS = {
+    common: { key: 'common', label: '일반 미끼', color: TIERS.common.color, desc: '효과 없음 (기본 미끼, 무한정 사용 가능).' },
+    rare: { key: 'rare', label: '희귀 미끼', color: TIERS.rare.color, desc: '희귀 등급 이상의 물고기만 낚인다.' },
+    epic: { key: 'epic', label: '특급 미끼', color: TIERS.epic.color, desc: '특급 등급 이상의 물고기만 낚인다.' },
+    legendary: { key: 'legendary', label: '전설 미끼', color: TIERS.legendary.color, desc: '전설 등급만 낚인다 (100% 확정).' }
+  };
+  // common -> 'junk' floor (excludes nothing); rare/epic/legendary floor at
+  // their own key -- everything strictly below that floor gets excluded.
+  function baitExcludeTiers(baitKey) {
+    const floorKey = baitKey === 'common' ? 'junk' : baitKey;
+    const floorIdx = ALL_TIER_KEYS.indexOf(floorKey);
+    return floorIdx > 0 ? ALL_TIER_KEYS.slice(0, floorIdx) : [];
+  }
+
+  // ================= Bait gacha (상점 뽑기 탭) =================
+  // legendary fixed at 1%; 일반/희귀/특급 split the remaining 99% in the
+  // same relative proportions as their fish-tier weights (52:27:10.5).
+  const GACHA_TABLE = [
+    { key: 'common', weight: 57.5 },
+    { key: 'rare', weight: 29.9 },
+    { key: 'epic', weight: 11.6 },
+    { key: 'legendary', weight: 1.0 }
+  ];
+  const GACHA_PULL_COST = 150;       // 1뽑
+  const GACHA_TEN_PULL_COST = 1500;  // 10뽑 -- guarantees an 특급+ among the 10
+  // Legendary pity: the 80th pull since the last legendary (natural or
+  // pity-forced) is forced legendary and the counter resets. Persisted as
+  // `gachaPity` in the save so it survives across separate pull sessions.
+  const LEGENDARY_PITY = 80;
+
+  function pickWeighted(table) {
+    const total = table.reduce((sum, e) => sum + e.weight, 0);
+    const roll = Math.random() * total;
+    let acc = 0;
+    for (const entry of table) {
+      acc += entry.weight;
+      if (roll < acc) return entry.key;
+    }
+    return table[table.length - 1].key;
+  }
+  function rollGacha() { return pickWeighted(GACHA_TABLE); }
+
+  // Rolls `count` pulls in sequence starting from `startPity` pulls-since-
+  // last-legendary, forcing a legendary the moment that counter would hit
+  // LEGENDARY_PITY (mid-batch, not just at the batch's end). Returns both
+  // the results and the pity value to persist afterward.
+  function pullGachaWithPity(count, startPity) {
+    const results = [];
+    let pity = startPity || 0;
+    for (let i = 0; i < count; i++) {
+      pity++;
+      let tier;
+      if (pity >= LEGENDARY_PITY) {
+        tier = 'legendary';
+      } else {
+        tier = rollGacha();
+      }
+      if (tier === 'legendary') pity = 0;
+      results.push(tier);
+    }
+    return { results, pity };
+  }
+  // 10뽑 전용: 10개 중 특급 이상(특급/전설)이 하나도 없으면 무작위 한 자리를
+  // 특급으로 강제 교체 -- "10뽑엔 특급 하나 보장" 요구사항. 천장으로 이미 전설이
+  // 강제됐다면(= 이미 특급 이상 포함) 이 보정은 자연히 건너뛴다.
+  function pullGachaTen(startPity) {
+    const { results, pity } = pullGachaWithPity(10, startPity);
+    if (!results.some((k) => k === 'epic' || k === 'legendary')) {
+      results[Math.floor(Math.random() * results.length)] = 'epic';
+    }
+    return { results, pity };
+  }
+
   // ================= Fishing rod (shop upgrade tab) =================
   // Grade raises maxMisses (more forgiving) and skips the lowest tier(s) of
   // catch entirely once you've outgrown them (rare skips 꽝, epic also
@@ -275,6 +354,9 @@
     TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize,
     ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
     rodMaterialDropChance,
-    PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost
+    PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,
+    BAIT_ORDER, BAITS, baitExcludeTiers,
+    GACHA_TABLE, GACHA_PULL_COST, GACHA_TEN_PULL_COST, LEGENDARY_PITY,
+    rollGacha, pullGachaWithPity, pullGachaTen
   };
 })();

@@ -86,11 +86,40 @@
   </div>
 
   <footer class="bottombar">
-    <button id="bait-btn" class="bait-btn-main" title="미끼"><img class="ui-icon-xl" src="icons/ui/bait.svg" alt="미끼"></button>
+    <div class="bait-btn-wrap">
+      <!-- Grows straight up out of this button, same shape/idea as the
+           topbar's #side-menu but upward (see .bait-menu in style.css). -->
+      <div id="bait-menu" class="bait-menu">
+        <button class="bait-menu-item" data-bait="legendary">
+          <img class="bait-menu-icon" src="icons/ui/bait-legendary.svg" alt="">
+          <span class="bait-menu-name">전설 미끼</span>
+          <span class="bait-menu-count" data-bait-count="legendary"></span>
+        </button>
+        <button class="bait-menu-item" data-bait="epic">
+          <img class="bait-menu-icon" src="icons/ui/bait-epic.svg" alt="">
+          <span class="bait-menu-name">특급 미끼</span>
+          <span class="bait-menu-count" data-bait-count="epic"></span>
+        </button>
+        <button class="bait-menu-item" data-bait="rare">
+          <img class="bait-menu-icon" src="icons/ui/bait-rare.svg" alt="">
+          <span class="bait-menu-name">희귀 미끼</span>
+          <span class="bait-menu-count" data-bait-count="rare"></span>
+        </button>
+        <button class="bait-menu-item" data-bait="common">
+          <img class="bait-menu-icon" src="icons/ui/bait-common.svg" alt="">
+          <span class="bait-menu-name">일반 미끼</span>
+        </button>
+      </div>
+      <button id="bait-btn" class="bait-btn-main" title="미끼">
+        <img id="bait-btn-icon" class="ui-icon-xl" src="icons/ui/bait-common.svg" alt="미끼">
+        <span id="bait-btn-badge" class="bait-btn-badge hidden"></span>
+      </button>
+    </div>
   </footer>
 
-  <!-- Invisible click-outside-to-close catcher for the slide-out menu. -->
+  <!-- Invisible click-outside-to-close catchers for the two slide-out menus. -->
   <div id="menu-backdrop" class="menu-backdrop"></div>
+  <div id="bait-menu-backdrop" class="menu-backdrop"></div>
 
   <!-- Shop popup: opened from the side menu's 상점 button. Fixed size
        (proportional to the screen, not to its content) so switching tabs
@@ -104,13 +133,26 @@
         </button>
       </div>
       <nav class="shop-tabs">
-        <button class="shop-tab active" data-tab="buy">구매</button>
+        <button class="shop-tab active" data-tab="gacha">뽑기</button>
         <button class="shop-tab" data-tab="sell">판매</button>
         <button class="shop-tab" data-tab="upgrade">업그레이드</button>
       </nav>
       <div class="shop-body">
-        <div id="shop-tab-buy" class="shop-tab-panel">
-          <p class="shop-placeholder">구매 기능은 아직 준비 중이에요.</p>
+        <div id="shop-tab-gacha" class="shop-tab-panel">
+          <div class="gacha-hero">
+            <img class="gacha-hero-img" src="icons/shop/gacha-chest.svg" alt="">
+          </div>
+          <div class="gacha-pull-buttons">
+            <button id="gacha-pull1-btn" class="gacha-pull-btn">
+              <span class="gacha-pull-label">1뽑</span>
+              <span class="gacha-pull-cost"><img class="price-icon" src="icons/ui/shell.svg" alt="">150</span>
+            </button>
+            <button id="gacha-pull10-btn" class="gacha-pull-btn">
+              <span class="gacha-pull-label">10뽑</span>
+              <span class="gacha-pull-cost"><img class="price-icon" src="icons/ui/shell.svg" alt="">1,500</span>
+            </button>
+          </div>
+          <p class="gacha-rates">확률: 전설 1% · 특급 11.6% · 희귀 29.9% · 일반 57.5%<br>10뽑은 특급 이상 1개 이상 확정 · 80뽑 안에 전설 확정(천장)</p>
         </div>
         <div id="shop-tab-sell" class="shop-tab-panel hidden">
           <div id="sell-list" class="sell-list"></div>
@@ -239,6 +281,21 @@
       <p id="material-desc" class="result-desc"></p>
       <p id="material-count" class="material-count"></p>
       <button id="material-btn" class="main-btn">계속하기</button>
+    </div>
+  </div>
+
+  <!-- Bait gacha reveal: opened by runGacha() in game.js right after shells
+       are spent. Cards start face-down and flip in one by one (best tier
+       last), or all at once if the player taps to skip. -->
+  <div id="gacha-overlay" class="overlay hidden">
+    <div id="gacha-reveal-panel" class="gacha-reveal-panel">
+      <div id="gacha-flash" class="splash-flash"></div>
+      <h2 class="result-title">뽑기 결과</h2>
+      <p class="gacha-reveal-hint">카드를 눌러서 하나씩 확인하세요</p>
+      <div id="gacha-card-grid" class="gacha-card-grid"></div>
+      <div class="gacha-reveal-actions">
+        <button id="gacha-action-btn" class="main-btn gacha-secondary-btn">전체 공개</button>
+      </div>
     </div>
   </div>
 </div>

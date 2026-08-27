@@ -14,7 +14,7 @@
 | `ui/shop.svg` | 햄버거 메뉴에서 아래로 펼쳐지는 세로 메뉴의 첫 항목 — 상점 | `index.html`의 `#menu-shop-btn` | 상점 차양(줄무늬 지붕) + 진열대 |
 | `ui/bucket.svg` | 세로 메뉴 두 번째 항목 — 보관함(잡은 물고기 보관) | `index.html`의 `#menu-bucket-btn` | 백팩(좌우 어깨끈 + 본체 + 앞주머니) |
 | `ui/settings.svg` | 세로 메뉴 세 번째 항목 — 설정 | `index.html`의 `#menu-settings-btn` | 톱니바퀴(원형 기어, Feather 아이콘 스타일) |
-| `ui/bait.svg` | 하단바 중앙, 미끼 선택 버튼(크게, 정중앙) | `index.html`의 `#bait-btn` (아이콘 크기는 `style.css`의 `.ui-icon-xl`) | 분홍색 꿈틀거리는 지렁이 곡선 |
+| `ui/bait-common.svg` / `ui/bait-rare.svg` / `ui/bait-epic.svg` / `ui/bait-legendary.svg` | 하단바 중앙 미끼 버튼(`#bait-btn-icon`, 장착한 미끼 등급에 따라 4개 중 하나로 교체)과 그 위 미끼 선택 팝업(`#bait-menu`)의 각 항목 아이콘, 상점 뽑기 탭의 보유 미끼 목록·뽑기 리빌 카드에서도 재사용 | `game.js`의 `updateBaitButton()`/`renderGachaTab()`/`openGachaReveal()` | 같은 웜(지렁이) 곡선 모양을 등급 색(`FishData.TIERS[key].color`)으로만 다르게 채색 — `material-rare.svg`/`material-epic.svg`와 같은 이유(등급별 색상 분리 파일)로 4개로 나뉨 |
 | `ui/close.svg` | 상점/보관함/설정 팝업 우측 상단 닫기 버튼 | `index.html`의 `#shop-close-btn`, `#bucket-close-btn`, `#settings-close-btn` | 흰색 X자 |
 
 ## result/ — 낚시 결과/상태

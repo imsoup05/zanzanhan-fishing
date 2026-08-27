@@ -28,7 +28,20 @@ function __zzhInit() {
     success: () => { blip(523, 0.12, 'sine', 0.15); setTimeout(() => blip(659, 0.12, 'sine', 0.15), 110); setTimeout(() => blip(784, 0.18, 'sine', 0.16), 220); },
     fail: () => { blip(300, 0.15, 'sawtooth', 0.12); setTimeout(() => blip(200, 0.25, 'sawtooth', 0.12), 130); },
     splash: () => { blip(90, 0.22, 'sine', 0.2); blip(180, 0.15, 'triangle', 0.1); },
-    coin: () => { blip(880, 0.08, 'square', 0.1); setTimeout(() => blip(1180, 0.1, 'square', 0.1), 70); }
+    coin: () => { blip(880, 0.08, 'square', 0.1); setTimeout(() => blip(1180, 0.1, 'square', 0.1), 70); },
+    // One flip-reveal blip per gacha tier, escalating in richness/length so
+    // a legendary pull is unmistakably the biggest moment in the sequence.
+    gachaReveal: (tier) => {
+      if (tier === 'rare') { blip(523, 0.09, 'triangle', 0.13); setTimeout(() => blip(659, 0.1, 'triangle', 0.12), 80); }
+      else if (tier === 'epic') { blip(587, 0.1, 'triangle', 0.15); setTimeout(() => blip(740, 0.1, 'triangle', 0.14), 90); setTimeout(() => blip(880, 0.12, 'triangle', 0.13), 180); }
+      else if (tier === 'legendary') {
+        blip(523, 0.1, 'sine', 0.17); setTimeout(() => blip(659, 0.1, 'sine', 0.17), 100);
+        setTimeout(() => blip(784, 0.12, 'sine', 0.18), 200); setTimeout(() => blip(1046, 0.22, 'sine', 0.19), 320);
+      } else { blip(392, 0.08, 'sine', 0.1); }
+    },
+    // Plays when the reeling hit-counter's LAST window opens -- i.e. every
+    // fish icon is now filled, one more landed hit completes the catch.
+    finalStretch: () => { setTimeout(() => { blip(880, 0.07, 'triangle', 0.13); setTimeout(() => blip(1174, 0.1, 'triangle', 0.14), 70); }, 60); }
   };
 
   // ================= Canvas background =================
@@ -562,13 +575,15 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 1;
+  const SAVE_SCHEMA_VERSION = 3;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
       shells: 0, rod: { grade: 'common', level: 1 }, materials: {},
       stats: { strength: 0, luck: 0, precision: 0 },
-      caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false
+      caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false,
+      baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
+      gachaPity: 0
     };
   }
   // Each step upgrades a save from exactly one schema to the next, so a
@@ -584,7 +599,21 @@ function __zzhInit() {
     (save) => {
       const { version, ...rest } = save;
       return { ...rest, schemaVersion: 1 };
-    }
+    },
+    // schema 1 -> 2: added the bait system. Nothing existing changed shape --
+    // just fill in the two new fields if this save predates them.
+    (save) => ({
+      ...save,
+      baits: save.baits || { rare: 0, epic: 0, legendary: 0 },
+      equippedBait: save.equippedBait || 'common',
+      schemaVersion: 2
+    }),
+    // schema 2 -> 3: added the legendary gacha pity counter.
+    (save) => ({
+      ...save,
+      gachaPity: typeof save.gachaPity === 'number' ? save.gachaPity : 0,
+      schemaVersion: 3
+    })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -612,7 +641,8 @@ function __zzhInit() {
   function persist() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore
+        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore,
+        baits, equippedBait, gachaPity
       }));
     } catch (e) { /* ignore */ }
   }
@@ -632,6 +662,16 @@ function __zzhInit() {
   // Kept independent of caughtFish, which only holds still-unsold catches
   // and loses the record the moment a fish is sold.
   let catches = initialSave.catches;
+  // Held bait counts by tier -- { rare, epic, legendary }. 일반 is the free
+  // default and isn't tracked here (never runs out).
+  let baits = initialSave.baits;
+  // Currently equipped bait tier -- filters the catch pool in triggerBite()
+  // and gets consumed by 1 per cast() (see there). Falls back to 'common'
+  // automatically once its count hits 0.
+  let equippedBait = initialSave.equippedBait;
+  // Pulls since the last legendary (natural or pity-forced) -- see
+  // FishData.LEGENDARY_PITY / pullGachaWithPity().
+  let gachaPity = initialSave.gachaPity;
   // Gates the first-cast onboarding hint (#tutorial-hint) -- flips true and
   // stays true forever once the player's very first cast() actually fires.
   let hasCastBefore = initialSave.hasCastBefore;
@@ -672,7 +712,7 @@ function __zzhInit() {
   // by the bucket overlay's own tabs (which wire up separately below).
   const shopTabs = shopPanel.querySelectorAll('.shop-tab');
   const shopTabPanels = {
-    buy: document.getElementById('shop-tab-buy'),
+    gacha: document.getElementById('shop-tab-gacha'),
     sell: document.getElementById('shop-tab-sell'),
     upgrade: document.getElementById('shop-tab-upgrade')
   };
@@ -686,6 +726,22 @@ function __zzhInit() {
   const rodMaterialCountEl = document.getElementById('rod-material-count');
   const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
   const statsListEl = document.getElementById('stats-list');
+
+  const gachaPull1Btn = document.getElementById('gacha-pull1-btn');
+  const gachaPull10Btn = document.getElementById('gacha-pull10-btn');
+
+  const gachaOverlay = document.getElementById('gacha-overlay');
+  const gachaRevealPanel = document.getElementById('gacha-reveal-panel');
+  const gachaFlashEl = document.getElementById('gacha-flash');
+  const gachaCardGridEl = document.getElementById('gacha-card-grid');
+  const gachaActionBtn = document.getElementById('gacha-action-btn');
+
+  const baitBtn = document.getElementById('bait-btn');
+  const baitBtnIcon = document.getElementById('bait-btn-icon');
+  const baitBtnBadge = document.getElementById('bait-btn-badge');
+  const baitMenu = document.getElementById('bait-menu');
+  const baitMenuBackdrop = document.getElementById('bait-menu-backdrop');
+  const baitMenuItems = baitMenu.querySelectorAll('.bait-menu-item');
 
   const menuBucketBtn = document.getElementById('menu-bucket-btn');
   const bucketOverlay = document.getElementById('bucket-overlay');
@@ -815,10 +871,30 @@ function __zzhInit() {
     // Tier is chosen now but no longer announced up front -- the hit
     // counter's rarity climb is the only reveal during casting/reeling.
     // devForceTier (set only by the gitignored dev-mode.js panel) overrides
-    // the random pick for one catch, then clears itself.
-    const excludeTiers = skipLowTier ? SKIP_TIERS_BY_GRADE[rod.grade] : null;
+    // the random pick for one catch, then clears itself. Rod's low-tier
+    // skip and the equipped bait's own floor both just exclude tiers --
+    // pickCatch renormalizes over whatever's left, so a union of the two
+    // exclusion lists is all that's needed here.
+    const rodExclude = skipLowTier ? SKIP_TIERS_BY_GRADE[rod.grade] : [];
+    const baitExclude = FishData.baitExcludeTiers(equippedBait);
+    const excludeTiers = [...new Set([...rodExclude, ...baitExclude])];
     currentCatch = FishData.pickCatch(devForceTier, excludeTiers, stats.luck);
     devForceTier = null;
+    // Bait is spent here, once the fish has actually taken it -- NOT back
+    // in cast(). Consuming it at the tap meant the auto-revert-to-common
+    // (on the last unit) could land before this async pick ever ran, so
+    // the very last cast on a tier silently rolled against the unfiltered
+    // 일반 pool instead of the tier the player thought they'd just used.
+    // The bottom-bar button itself deliberately does NOT refresh here --
+    // it keeps showing whatever bait was equipped for this cast all the
+    // way through bite+reeling, and only catches up to the (possibly now
+    // auto-reverted) equippedBait once the result is shown (showResult()),
+    // so the player can see what they were fishing with for the whole cast.
+    if (equippedBait !== 'common') {
+      baits[equippedBait] = Math.max(0, (baits[equippedBait] || 0) - 1);
+      if (baits[equippedBait] <= 0) equippedBait = 'common';
+      persist();
+    }
     sfx.bite();
     showStatus('입질이 왔어요!', 'icons/result/bite.svg');
     biteTimer = setTimeout(startReel, 500);
@@ -937,6 +1013,9 @@ function __zzhInit() {
     // legendary for the rest of this reel -- true regardless of whether the
     // real catch actually is legendary, which is the point: it's a tease.
     if (shownTier === 'legendary') hitsCounterEl.classList.add('legendary-glow');
+    // Every fish icon is lit the instant the LAST window opens (idx is the
+    // final index) -- that's the "land just one more hit" moment.
+    if (idx === reel.hitsRequired - 1) sfx.finalStretch();
   }
 
   // 신호등 모양만 빌려온 것 -- 실제로는 그냥 파란 불 N개(N = maxMisses),
@@ -1093,6 +1172,9 @@ function __zzhInit() {
   }
 
   function showResult(isCatch, title, desc, icon, tier, isNewSpecies) {
+    // See triggerBite()'s bait-consumption comment -- this is the "casting
+    // has ended" moment the bottom bait button waits for before it refreshes.
+    updateBaitButton();
     resultIcon.innerHTML = `<img src="${icon}" alt="">`;
     if (tier) {
       resultTierBadge.textContent = FishData.TIERS[tier].label;
@@ -1144,6 +1226,150 @@ function __zzhInit() {
   function closeMaterialPopup() { materialOverlay.classList.add('hidden'); }
   materialBtn.addEventListener('click', closeMaterialPopup);
 
+  // ================= Bait (하단바 버튼 + 선택 팝업) =================
+  // Called from the bottom-bar picker's menu items. Refuses to equip a
+  // non-일반 bait with zero left -- callers only ever reach here from UI
+  // that's already hidden/disabled that option.
+  function equipBait(key) {
+    if (key !== 'common' && (baits[key] || 0) <= 0) return;
+    equippedBait = key;
+    persist();
+    updateBaitButton();
+  }
+
+  function updateBaitButton() {
+    baitBtnIcon.src = `icons/ui/bait-${equippedBait}.svg`;
+    baitBtn.classList.toggle('legendary-equipped', equippedBait === 'legendary');
+    const heldCount = equippedBait === 'common' ? 0 : (baits[equippedBait] || 0);
+    baitBtnBadge.textContent = heldCount;
+    baitBtnBadge.classList.toggle('hidden', equippedBait === 'common');
+    baitMenuItems.forEach(item => {
+      const key = item.dataset.bait;
+      item.classList.toggle('active', key === equippedBait);
+      if (key === 'common') return;
+      const count = baits[key] || 0;
+      item.disabled = count <= 0;
+      const countEl = item.querySelector('[data-bait-count]');
+      if (countEl) countEl.textContent = count;
+    });
+  }
+
+  function setBaitMenuOpen(open) {
+    baitMenu.classList.toggle('open', open);
+    baitMenuBackdrop.classList.toggle('open', open);
+  }
+  baitBtn.addEventListener('click', () => setBaitMenuOpen(!baitMenu.classList.contains('open')));
+  baitMenuBackdrop.addEventListener('click', () => setBaitMenuOpen(false));
+  baitMenuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      if (item.disabled) return;
+      equipBait(item.dataset.bait);
+      setBaitMenuOpen(false);
+    });
+  });
+
+  // ================= Bait gacha (상점 뽑기 탭) =================
+  // Equipping happens from the bottom-bar bait picker (#bait-menu), not
+  // here -- this just keeps the two pull buttons' disabled state in sync
+  // with the current shell count.
+  function renderGachaTab() {
+    gachaPull1Btn.disabled = shells < FishData.GACHA_PULL_COST;
+    gachaPull10Btn.disabled = shells < FishData.GACHA_TEN_PULL_COST;
+  }
+
+  // Card grid order is always worst -> best regardless of roll order, so
+  // the best pull in the batch sits in the last slot -- the "dopamine"
+  // payoff beat lands wherever the player's eye ends up scanning to.
+  const GACHA_REVEAL_ORDER = ['common', 'rare', 'epic', 'legendary'];
+
+  function runGacha(kind) {
+    const isTen = kind === 'ten';
+    const cost = isTen ? FishData.GACHA_TEN_PULL_COST : FishData.GACHA_PULL_COST;
+    if (shells < cost) return;
+    // Casting is the only other place this fires -- a player who opens the
+    // shop and pulls before ever casting a line would otherwise get total
+    // silence, since every blip() is a no-op until the AudioContext exists.
+    ensureAudio();
+    sfx.coin();
+    shells -= cost;
+    const pulled = isTen
+      ? FishData.pullGachaTen(gachaPity)
+      : FishData.pullGachaWithPity(1, gachaPity);
+    const results = pulled.results;
+    gachaPity = pulled.pity;
+    // 일반 결과는 이미 무한정 사용 가능한 기본 미끼라 인벤토리에 쌓지 않음 --
+    // 카드 연출에서는 그대로 보여주되 보유 개수만 늘지 않는다.
+    results.forEach(key => { if (key !== 'common') baits[key] = (baits[key] || 0) + 1; });
+    persist();
+    updateShellsDisplay();
+    renderGachaTab();
+    updateBaitButton();
+    const sorted = results.slice().sort((a, b) => GACHA_REVEAL_ORDER.indexOf(a) - GACHA_REVEAL_ORDER.indexOf(b));
+    openGachaReveal(sorted);
+  }
+  gachaPull1Btn.addEventListener('click', () => runGacha('single'));
+  gachaPull10Btn.addEventListener('click', () => runGacha('ten'));
+
+  // Player-paced reveal: every card starts face-down in the same grid (the
+  // "한 화면에 다 보이는" result screen), and stays on screen once flipped --
+  // tapping a card reveals just that one. The single action button starts
+  // as "전체 공개"; once every card is revealed (via that button or by
+  // tapping through them all by hand), it turns into "닫기" -- so the
+  // overlay can never be dismissed without the results having been seen.
+  function openGachaReveal(results) {
+    gachaCardGridEl.innerHTML = '';
+    gachaFlashEl.classList.remove('active');
+    gachaRevealPanel.classList.remove('shake');
+    gachaActionBtn.textContent = '전체 공개';
+    gachaActionBtn.classList.add('gacha-secondary-btn');
+
+    function closeReveal() { gachaOverlay.classList.add('hidden'); }
+
+    function updateActionButton() {
+      const allRevealed = cards.every((card) => card.classList.contains('revealed'));
+      if (!allRevealed) return;
+      gachaActionBtn.textContent = '닫기';
+      gachaActionBtn.classList.remove('gacha-secondary-btn');
+      gachaActionBtn.onclick = closeReveal;
+    }
+
+    function revealCard(card, tier) {
+      if (card.classList.contains('revealed')) return;
+      card.classList.add('revealed', 'pop');
+      sfx.gachaReveal(tier);
+      if (tier === 'legendary') {
+        gachaFlashEl.classList.remove('active');
+        void gachaFlashEl.offsetWidth;
+        gachaFlashEl.classList.add('active');
+        gachaRevealPanel.classList.remove('shake');
+        void gachaRevealPanel.offsetWidth;
+        gachaRevealPanel.classList.add('shake');
+      }
+      updateActionButton();
+    }
+
+    const cards = results.map((tier) => {
+      const bait = FishData.BAITS[tier];
+      const card = document.createElement('div');
+      card.className = 'gacha-card';
+      card.innerHTML = `
+        <div class="gacha-card-inner">
+          <div class="gacha-card-face gacha-card-back">?</div>
+          <div class="gacha-card-face gacha-card-front tier-${tier}">
+            <img src="icons/ui/bait-${tier}.svg" alt="">
+            <span>${bait.label}</span>
+          </div>
+        </div>
+      `;
+      card.addEventListener('click', () => revealCard(card, tier));
+      gachaCardGridEl.appendChild(card);
+      return card;
+    });
+    gachaOverlay.classList.remove('hidden');
+
+    gachaActionBtn.onclick = () => cards.forEach((card, i) => revealCard(card, results[i]));
+  }
+
   // ================= Slide-out menu (상점 / 보관함 / 설정) =================
   const menuToggleBtn = document.getElementById('menu-toggle-btn');
   const sideMenu = document.getElementById('side-menu');
@@ -1159,7 +1385,7 @@ function __zzhInit() {
   // ================= Shop (구매 / 판매 / 업그레이드) =================
   function openShop() {
     setMenuOpen(false);
-    switchShopTab('buy');
+    switchShopTab('gacha');
     shopOverlay.classList.remove('hidden');
   }
   function closeShop() { shopOverlay.classList.add('hidden'); }
@@ -1170,6 +1396,7 @@ function __zzhInit() {
   function switchShopTab(key) {
     shopTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === key));
     Object.entries(shopTabPanels).forEach(([k, el]) => el.classList.toggle('hidden', k !== key));
+    if (key === 'gacha') renderGachaTab();
     if (key === 'sell') renderSellList();
     if (key === 'upgrade') renderUpgradeTab();
   }
@@ -1512,8 +1739,29 @@ function __zzhInit() {
     clearTimeout(waitingTimer);
     triggerBite();
   };
+  window.__zzhDevGiveBait = function (tierKey, amount) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    if (!FishData.BAITS[tierKey] || tierKey === 'common') return;
+    baits[tierKey] = (baits[tierKey] || 0) + (amount || 1);
+    persist();
+    updateBaitButton();
+    if (!shopOverlay.classList.contains('hidden')) renderGachaTab();
+  };
+  window.__zzhDevSetGachaPity = function (value) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    gachaPity = Math.max(0, value || 0);
+    persist();
+  };
+  window.__zzhDevGiveShells = function (amount) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    shells += amount || 1000;
+    persist();
+    updateShellsDisplay();
+    if (!shopOverlay.classList.contains('hidden')) { renderGachaTab(); renderUpgradeTab(); }
+  };
 
   updateShellsDisplay();
+  updateBaitButton();
   if (!hasCastBefore) tutorialHintEl.classList.remove('hidden');
 }
 
