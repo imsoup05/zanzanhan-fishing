@@ -15,31 +15,34 @@
   // game.js's rarity-climb sequence picks a tier per hit, and the reel's
   // speed follows whichever tier is currently displayed (see
   // buildClimbSequence()/attemptHit() in game.js), not just the real tier.
+  // Spaced 0.15s apart, evenly, tier to tier (1.20 -> 1.05 -> 0.90 -> 0.75
+  // -> 0.60) so each grade's speed reads as clearly distinct rather than
+  // blurring into its neighbors.
   const TIERS = {
     junk: {
       key: 'junk', label: '꽝', color: '#8a99a0', weight: 0.10,
       priceMin: 0, priceMax: 0,
-      reel: { period: 1.15, zoneHeight: 32, maxMisses: 3, timeLimit: 3.8, hitsRequired: 2 }
+      reel: { period: 1.20, zoneHeight: 32, maxMisses: 3, timeLimit: 3.8, hitsRequired: 2 }
     },
     common: {
       key: 'common', label: '일반', color: '#8fd9a8', weight: 0.52,
       priceMin: 8, priceMax: 45,
-      reel: { period: 1.0, zoneHeight: 24, maxMisses: 3, timeLimit: 3.4, hitsRequired: 3 }
+      reel: { period: 1.05, zoneHeight: 24, maxMisses: 3, timeLimit: 3.4, hitsRequired: 3 }
     },
     rare: {
       key: 'rare', label: '희귀', color: '#5cc9e8', weight: 0.27,
       priceMin: 60, priceMax: 220,
-      reel: { period: 0.92, zoneHeight: 19, maxMisses: 3, timeLimit: 3.1, hitsRequired: 4 }
+      reel: { period: 0.90, zoneHeight: 19, maxMisses: 3, timeLimit: 3.1, hitsRequired: 4 }
     },
     epic: {
       key: 'epic', label: '특급', color: '#c98cf0', weight: 0.105,
       priceMin: 300, priceMax: 1100,
-      reel: { period: 0.82, zoneHeight: 15, maxMisses: 2, timeLimit: 2.8, hitsRequired: 5 }
+      reel: { period: 0.75, zoneHeight: 15, maxMisses: 2, timeLimit: 2.8, hitsRequired: 5 }
     },
     legendary: {
       key: 'legendary', label: '전설', color: '#ffcf4d', weight: 0.005,
       priceMin: 8000, priceMax: 15000,
-      reel: { period: 0.72, zoneHeight: 11, maxMisses: 2, timeLimit: 2.6, hitsRequired: 6 }
+      reel: { period: 0.60, zoneHeight: 11, maxMisses: 2, timeLimit: 2.6, hitsRequired: 6 }
     }
   };
   // junk(10%) + common(52%) + rare(27%) + epic(10.5%) + legendary(0.5%) = 100%.
@@ -257,7 +260,7 @@
   const PLAYER_STATS = {
     strength: { key: 'strength', label: '근력', desc: '캐스팅의 제한시간이 늘어난다.', effectPerLevel: 0.03 },
     luck: { key: 'luck', label: '행운', desc: '희귀·특급(과 약간의 전설) 물고기 출현확률이 늘어난다.', effectPerLevel: 0.06 },
-    precision: { key: 'precision', label: '정밀함', desc: '캐스팅의 속도가 느려진다.', effectPerLevel: 0.08 }
+    precision: { key: 'precision', label: '정밀함', desc: '캐스팅의 속도가 느려진다.', effectPerLevel: 0.04 }
   };
   const PLAYER_STAT_MAX_LEVEL = 5;
 

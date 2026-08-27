@@ -13,5 +13,5 @@
 // Unrelated to SAVE_SCHEMA_VERSION in game.js (a plain integer that tracks
 // save-DATA-SHAPE compatibility, not the release number -- see AGENT.md).
 // Never compare the two against each other.
-const GAME_VERSION = '0.2.3';
+const GAME_VERSION = '0.2.4';
 if (typeof window !== 'undefined') window.GAME_VERSION = GAME_VERSION;
