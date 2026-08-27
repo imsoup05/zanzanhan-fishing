@@ -516,11 +516,27 @@ function __zzhInit() {
   // Real species/tier data lives in fish-data.js (loaded before this file)
   // as window.FishData -- FishData.DUMMY_TEST_FISH is kept only as an
   // unused reference now that the live loop picks from FishData.pickCatch().
-  // Fixed regardless of rod/tier -- applied on both sides of the zone
-  // (see attemptHit()'s inZone check), so the two halves add up to the
-  // full 15% combined tolerance.
-  const HIT_TOLERANCE_TOTAL = 15;
-  const HIT_TOLERANCE = HIT_TOLERANCE_TOTAL / 2;
+  //
+  // Hit tolerance scales with the casting bar's actual current speed
+  // (reel.period) rather than being fixed -- a slow sweep is more
+  // forgiving, a fast one demands real precision. 8% combined at the
+  // fastest period anywhere in the game (전설's), widening to 15% combined
+  // at the slowest (꽝's); clamped outside that range, so 정밀함 stretching
+  // a period even slower than 꽝's base just stays capped at 15%, not
+  // higher. Applied on both sides of the zone (see attemptHit()'s inZone
+  // check), so each side gets half the combined total.
+  const PERIOD_RANGE = (() => {
+    const periods = Object.values(FishData.TIERS).map(t => t.reel.period);
+    return { fastest: Math.min(...periods), slowest: Math.max(...periods) };
+  })();
+  const TOLERANCE_TOTAL_AT_FASTEST = 8;
+  const TOLERANCE_TOTAL_AT_SLOWEST = 15;
+  function hitToleranceForPeriod(period) {
+    const { fastest, slowest } = PERIOD_RANGE;
+    const t = slowest === fastest ? 0 : Math.min(1, Math.max(0, (period - fastest) / (slowest - fastest)));
+    const total = TOLERANCE_TOTAL_AT_FASTEST + t * (TOLERANCE_TOTAL_AT_SLOWEST - TOLERANCE_TOTAL_AT_FASTEST);
+    return total / 2;
+  }
 
   let state = 'idle'; // idle | waiting | bite | reeling | result
   let waitingTimer = null, biteTimer = null;
@@ -664,11 +680,12 @@ function __zzhInit() {
   function updateShellsDisplay() { shellsCountEl.textContent = shells.toLocaleString('ko-KR'); }
 
   // Rod grade raises maxMisses (more forgiving); rod level only widens the
-  // hit zone -- time limit and hit tolerance are no longer rod-affected,
-  // but 근력 (a separate player stat) still lengthens the time limit.
-  // Everything's folded into the tier's base reel params here so
-  // startReel()/attemptHit() just consume one effective set without
-  // knowing about the rod or player stats at all.
+  // hit zone -- time limit is no longer rod-affected, but 근력 (a separate
+  // player stat) still lengthens it. Hit tolerance isn't tier/rod-based at
+  // all anymore -- see hitToleranceForPeriod() above, keyed off the reel's
+  // actual current speed instead. Everything else here is folded into the
+  // tier's base reel params so startReel()/attemptHit() just consume one
+  // effective set without knowing about the rod or player stats at all.
   const MAX_MISSES_CAP = 5;
   function getEffectiveReel(tier) {
     const base = FishData.TIERS[tier].reel;
@@ -679,8 +696,7 @@ function __zzhInit() {
       hitsRequired: base.hitsRequired,
       zoneHeight: base.zoneHeight * (1 + ease),
       timeLimit: base.timeLimit * (1 + strengthBonus),
-      maxMisses: Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus),
-      hitTolerance: HIT_TOLERANCE
+      maxMisses: Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus)
     };
   }
 
@@ -948,7 +964,7 @@ function __zzhInit() {
   function attemptHit() {
     if (state !== 'reeling' || !reel) return;
     const pos = currentIndicatorPos();
-    const tolerance = getEffectiveReel(currentCatch.tier).hitTolerance;
+    const tolerance = hitToleranceForPeriod(reel.period);
     const inZone = pos >= reel.zoneTop - tolerance && pos <= reel.zoneTop + reel.zoneHeight + tolerance;
     if (inZone) {
       reel.hits++;
