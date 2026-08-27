@@ -17,6 +17,8 @@
 | `junk.svg` | 낚시는 성공했지만 물고기가 아닌 꽝 아이템일 때 결과창 아이콘 — `miss.svg`(릴링 실패)와는 다른 개념 | `game.js`의 `catchSuccess()`가 `currentCatch.tier === 'junk'`일 때 사용 | 회색 낡은 장화 실루엣 |
 | `close.svg` | 상점 팝업 우측 상단 닫기 버튼 | `index.html`의 `#shop-close-btn` | 흰색 X자 |
 | `rod.svg` | 상점 "업그레이드" 탭, 낚싯대 아이콘 | `index.html`의 `#upgrade-rod-icon` | 대각선 낚싯대 + 릴 + 낚싯줄/바늘 |
+| `material-rare.svg` | 희귀 낚싯대 강화재료 획득 팝업 아이콘 | `game.js`의 `showMaterialPopup()`이 `mat.gradeKey === 'rare'`일 때 `#material-icon`의 `src`로 사용 | 하늘색(등급 색) 보석 |
+| `material-epic.svg` | 특급 낚싯대 강화재료 획득 팝업 아이콘 | `game.js`의 `showMaterialPopup()`이 `mat.gradeKey === 'epic'`일 때 `#material-icon`의 `src`로 사용 | 보라색(등급 색) 보석 — `material-rare.svg`와 모양은 같고 채색만 다른 별도 파일(`<img src>`로 불러온 SVG는 `currentColor`가 페이지 CSS를 상속하지 않아서 색만 다른 두 파일로 분리함) |
 | `icon-180.png` / `icon-192.png` / `icon-512.png` | 인게임 UI가 아니라 홈 화면 추가 시 앱 아이콘(PWA). 낚시찌 모양을 딴 별도 이미지 | `manifest.json`, `index.html`의 `<link rel="apple-touch-icon">` 등 | 남색 배경 + 낚싯대/찌/물결 |
 
 ## 참고

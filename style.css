@@ -607,6 +607,15 @@ body {
   font-size: 11.5px;
 }
 
+.upgrade-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-right: 4px;
+}
+
 .upgrade-rod {
   display: flex;
   align-items: center;
@@ -631,21 +640,58 @@ body {
 .upgrade-rod-info { flex: 1; min-width: 0; }
 .upgrade-rod-name { font-size: 16px; margin-bottom: 2px; }
 .upgrade-rod-level { font-size: 13px; opacity: 0.75; margin-bottom: 8px; }
-.upgrade-bar-track { height: 8px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden; }
-.upgrade-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #7fd7ff, #3aa0d8);
-  border-radius: 999px;
-  transition: width 0.25s ease;
+
+/* Discrete level boxes -- gray and empty past the current level, lit from
+   the left up through it. Same shape for the rod (10) and every player
+   stat (5), just a different pip count. */
+.pip-row { display: flex; gap: 4px; }
+.pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid var(--panel-border);
 }
-.upgrade-max-note {
-  margin-top: 16px;
-  font-size: 13.5px;
-  text-align: center;
-  opacity: 0.65;
-  line-height: 1.7;
+.pip.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(255,207,107,0.5);
 }
-.upgrade-max-note.hidden { display: none; }
+
+.upgrade-rod-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+/* Grade-up material count parked next to the rod -- visible any time the
+   rod has a next grade, not just once you've hit max level. */
+.upgrade-material {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+.upgrade-material img { width: 18px; height: 18px; }
+.upgrade-material.hidden { display: none; }
+
+.stats-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.upgrade-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  flex-shrink: 0;
+}
+.upgrade-stat-info { flex: 1; min-width: 0; }
+.upgrade-stat-name { font-size: 15px; margin-bottom: 2px; }
+.upgrade-stat-desc { font-size: 12.5px; opacity: 0.65; margin-bottom: 8px; }
+
 .upgrade-btn {
   background: linear-gradient(180deg, #ffe1a8, #ffb85c);
   color: #3a2a10;
@@ -777,6 +823,7 @@ body {
 .result-icon img { width: 84px; height: auto; }
 .result-title { font-size: 29px; margin-bottom: 10px; color: var(--accent); }
 .result-desc { font-size: 17px; opacity: 0.85; margin-bottom: 24px; line-height: 1.6; }
+.material-count { font-size: 15px; color: var(--accent); margin-top: -14px; margin-bottom: 24px; }
 
 .tier-badge {
   display: inline-block;

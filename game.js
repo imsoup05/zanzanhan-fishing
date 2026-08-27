@@ -516,7 +516,11 @@ function __zzhInit() {
   // Real species/tier data lives in fish-data.js (loaded before this file)
   // as window.FishData -- FishData.DUMMY_TEST_FISH is kept only as an
   // unused reference now that the live loop picks from FishData.pickCatch().
-  const HIT_TOLERANCE = 7.5;
+  // Fixed regardless of rod/tier -- applied on both sides of the zone
+  // (see attemptHit()'s inZone check), so the two halves add up to the
+  // full 15% combined tolerance.
+  const HIT_TOLERANCE_TOTAL = 15;
+  const HIT_TOLERANCE = HIT_TOLERANCE_TOTAL / 2;
 
   let state = 'idle'; // idle | waiting | bite | reeling | result
   let waitingTimer = null, biteTimer = null;
@@ -530,7 +534,11 @@ function __zzhInit() {
   // every mutation (not on page-unload, which mobile browsers can skip).
   const SAVE_KEY = 'zanzanhan-fishing-save-v1';
   function defaultSave() {
-    return { shells: 0, rod: { grade: 'common', level: 1 }, caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false };
+    return {
+      shells: 0, rod: { grade: 'common', level: 1 }, materials: {},
+      stats: { strength: 0, luck: 0, precision: 0 },
+      caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false
+    };
   }
   function loadSave() {
     try {
@@ -540,12 +548,18 @@ function __zzhInit() {
     return defaultSave();
   }
   function persist() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, caughtFish, nextFishUid, catches, hasCastBefore })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore })); } catch (e) { /* ignore */ }
   }
 
   const initialSave = loadSave();
   let shells = initialSave.shells;
   let rod = initialSave.rod;
+  // Rod grade-up materials held -- { [targetGradeKey]: count }, e.g.
+  // materials.rare counts toward upgrading a 일반 rod into a 희귀 one.
+  let materials = initialSave.materials;
+  // Player stats (근력/행운/정밀함), 0~5 each -- separate from the rod's own
+  // grade/level, bought straight with shells in the same 업그레이드 tab.
+  let stats = initialSave.stats;
   let caughtFish = initialSave.caughtFish; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
   let nextFishUid = initialSave.nextFishUid;
   // Per-species log for 보관함's 도감 tab -- { [speciesId]: { count, best } }.
@@ -555,6 +569,9 @@ function __zzhInit() {
   // Gates the first-cast onboarding hint (#tutorial-hint) -- flips true and
   // stays true forever once the player's very first cast() actually fires.
   let hasCastBefore = initialSave.hasCastBefore;
+  // Set in catchSuccess() when a grade-up material drops, consumed by
+  // closeResult() right after the catch result popup closes.
+  let pendingMaterial = null;
 
   const shellsCountEl = document.getElementById('shells-count');
   const statusTextEl = document.getElementById('status-text');
@@ -575,6 +592,12 @@ function __zzhInit() {
   const resultTitle = document.getElementById('result-title');
   const resultDesc = document.getElementById('result-desc');
   const resultBtn = document.getElementById('result-btn');
+  const materialOverlay = document.getElementById('material-overlay');
+  const materialIcon = document.getElementById('material-icon');
+  const materialTitle = document.getElementById('material-title');
+  const materialDesc = document.getElementById('material-desc');
+  const materialCountEl = document.getElementById('material-count');
+  const materialBtn = document.getElementById('material-btn');
   const menuShopBtn = document.getElementById('menu-shop-btn');
   const shopOverlay = document.getElementById('shop-overlay');
   const shopPanel = document.getElementById('shop-panel');
@@ -591,9 +614,12 @@ function __zzhInit() {
   const sellEmptyEl = document.getElementById('sell-empty');
   const rodNameEl = document.getElementById('rod-name');
   const rodLevelEl = document.getElementById('rod-level');
-  const upgradeBarFillEl = document.getElementById('upgrade-bar-fill');
-  const rodMaxNoteEl = document.getElementById('rod-max-note');
+  const rodPipsEl = document.getElementById('rod-pips');
+  const rodMaterialEl = document.getElementById('rod-material');
+  const rodMaterialIconEl = document.getElementById('rod-material-icon');
+  const rodMaterialCountEl = document.getElementById('rod-material-count');
   const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
+  const statsListEl = document.getElementById('stats-list');
 
   const menuBucketBtn = document.getElementById('menu-bucket-btn');
   const bucketOverlay = document.getElementById('bucket-overlay');
@@ -612,6 +638,7 @@ function __zzhInit() {
   const settingsOverlay = document.getElementById('settings-overlay');
   const settingsCloseBtn = document.getElementById('settings-close-btn');
   const leftyToggleBtn = document.getElementById('lefty-toggle');
+  const skipLowTierToggleBtn = document.getElementById('skip-lowtier-toggle');
   const volumeSliderEl = document.getElementById('volume-slider');
   const resetDataBtn = document.getElementById('reset-data-btn');
   const resetConfirmOverlay = document.getElementById('reset-confirm-overlay');
@@ -620,22 +647,34 @@ function __zzhInit() {
 
   function updateShellsDisplay() { shellsCountEl.textContent = shells.toLocaleString('ko-KR'); }
 
-  // Rod grade raises maxMisses (more forgiving); rod level smoothly widens
-  // the hit zone and per-hit time limit. Both are folded into the tier's
-  // base reel params here so startReel()/attemptHit() just consume one
-  // effective set without knowing about the rod at all.
+  // Rod grade raises maxMisses (more forgiving); rod level only widens the
+  // hit zone -- time limit and hit tolerance are no longer rod-affected,
+  // but 근력 (a separate player stat) still lengthens the time limit.
+  // Everything's folded into the tier's base reel params here so
+  // startReel()/attemptHit() just consume one effective set without
+  // knowing about the rod or player stats at all.
   const MAX_MISSES_CAP = 5;
   function getEffectiveReel(tier) {
     const base = FishData.TIERS[tier].reel;
     const ease = FishData.rodEase(rod.level);
     const missBonus = FishData.rodMissBonus(rod.grade);
+    const strengthBonus = stats.strength * FishData.PLAYER_STATS.strength.effectPerLevel;
     return {
       hitsRequired: base.hitsRequired,
       zoneHeight: base.zoneHeight * (1 + ease),
-      timeLimit: base.timeLimit * (1 + ease * 0.6),
+      timeLimit: base.timeLimit * (1 + strengthBonus),
       maxMisses: Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus),
-      hitTolerance: HIT_TOLERANCE * (1 + ease * 0.5)
+      hitTolerance: HIT_TOLERANCE
     };
+  }
+
+  // 정밀함 stat: slows the casting bar's sweep down (a bigger period is a
+  // slower, easier-to-time sweep) -- applied on top of whichever tier the
+  // rarity climb is currently displaying, same as the tier-color-driven
+  // speed itself.
+  function effectivePeriod(tierKey) {
+    const precisionBonus = stats.precision * FishData.PLAYER_STATS.precision.effectPerLevel;
+    return FishData.TIERS[tierKey].reel.period * (1 + precisionBonus);
   }
 
   function showStatus(text, iconSrc) {
@@ -697,6 +736,11 @@ function __zzhInit() {
   // the hard end, 희귀 sits alone in the middle.
   const HITS_BASE_BY_TIER = { junk: 2, common: 2, rare: 3, epic: 4, legendary: 4 };
 
+  // A rod that's outgrown a tier skips ever rolling it again -- 희귀 rod
+  // skips 꽝, 특급 rod skips 꽝 AND 일반. Toggleable in 설정 (see skipLowTier
+  // below); when off, the pool is never filtered regardless of rod grade.
+  const SKIP_TIERS_BY_GRADE = { common: [], rare: ['junk'], epic: ['junk', 'common'] };
+
   function triggerBite() {
     if (state !== 'waiting') return;
     state = 'bite';
@@ -706,7 +750,8 @@ function __zzhInit() {
     // counter's rarity climb is the only reveal during casting/reeling.
     // devForceTier (set only by the gitignored dev-mode.js panel) overrides
     // the random pick for one catch, then clears itself.
-    currentCatch = FishData.pickCatch(devForceTier);
+    const excludeTiers = skipLowTier ? SKIP_TIERS_BY_GRADE[rod.grade] : null;
+    currentCatch = FishData.pickCatch(devForceTier, excludeTiers, stats.luck);
     devForceTier = null;
     sfx.bite();
     showStatus('입질이 왔어요!', 'icons/bite.svg');
@@ -725,7 +770,7 @@ function __zzhInit() {
     // The very first hit's speed already matches whatever tier colorSeq[0]
     // displays -- see attemptHit() for how it keeps following the climb.
     reel = {
-      period: FishData.TIERS[colorSeq[0]].reel.period,
+      period: effectivePeriod(colorSeq[0]),
       zoneHeight: f.zoneHeight,
       zoneTop: randomZoneTop(f.zoneHeight),
       hits: 0,
@@ -906,7 +951,7 @@ function __zzhInit() {
       revealCurrentWindow();
       // Speed for the upcoming window follows whatever tier it just
       // revealed -- not a flat per-hit shrink, so it jumps in step with color.
-      reel.period = FishData.TIERS[reel.colorSeq[reel.hits]].reel.period;
+      reel.period = effectivePeriod(reel.colorSeq[reel.hits]);
       reel.zoneTop = randomZoneTop(reel.zoneHeight);
       reel.startT = performance.now() / 1000;
       reel.timeStart = performance.now() / 1000;
@@ -930,6 +975,21 @@ function __zzhInit() {
     if (c.size > rec.best) rec.best = c.size;
   }
 
+  // Rolled once per non-junk catch. Drop chance scales with rod LEVEL (see
+  // FishData.rodMaterialDropChance) -- which material depends on the rod's
+  // CURRENT grade, since that's the one you're climbing out of. Capped at
+  // the needed amount so the count never overflows past what grade-up
+  // actually consumes.
+  function rollRodMaterial() {
+    const gradeInfo = FishData.ROD_GRADES[rod.grade];
+    if (!gradeInfo.next) return null; // already at the top grade
+    if (Math.random() >= FishData.rodMaterialDropChance(rod.level)) return null;
+    const targetKey = gradeInfo.next;
+    const needed = FishData.ROD_GRADE_UP[targetKey].needed;
+    materials[targetKey] = Math.min(needed, (materials[targetKey] || 0) + 1);
+    return { gradeKey: targetKey, count: materials[targetKey], needed };
+  }
+
   function catchSuccess() {
     state = 'result';
     bobberState = 'hidden';
@@ -950,6 +1010,7 @@ function __zzhInit() {
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
       recordCatch(c);
+      pendingMaterial = rollRodMaterial();
       persist();
       desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
@@ -993,8 +1054,29 @@ function __zzhInit() {
     reel = null;
     currentCatch = null;
     hideStatus();
+    if (pendingMaterial) {
+      showMaterialPopup(pendingMaterial);
+      pendingMaterial = null;
+    }
   }
   resultBtn.addEventListener('click', closeResult);
+
+  // ================= Rod grade-up material popup =================
+  // Shown right after the catch result popup closes, only when a material
+  // actually dropped this catch (see rollRodMaterial()).
+  function showMaterialPopup(mat) {
+    const info = FishData.ROD_GRADE_UP[mat.gradeKey];
+    // Colored per-file rather than tinted via CSS -- an <img src="*.svg">
+    // loads as its own document, so currentColor inside it can't pick up
+    // a color set on the <img> element itself.
+    materialIcon.src = `icons/material-${mat.gradeKey}.svg`;
+    materialTitle.textContent = info.materialLabel;
+    materialDesc.textContent = `낚싯대를 강화하는 재료이다. ${info.needed}개를 모아서 등급을 올리자.`;
+    materialCountEl.textContent = `보유: ${mat.count} / ${info.needed}개`;
+    materialOverlay.classList.remove('hidden');
+  }
+  function closeMaterialPopup() { materialOverlay.classList.add('hidden'); }
+  materialBtn.addEventListener('click', closeMaterialPopup);
 
   // ================= Slide-out menu (상점 / 보관함 / 설정) =================
   const menuToggleBtn = document.getElementById('menu-toggle-btn');
@@ -1066,37 +1148,120 @@ function __zzhInit() {
     renderSellList();
   }
 
+  // Discrete level pips, reused for the rod (10 boxes) and every player
+  // stat (5 boxes) -- just a gray box per level, lit up to the current one.
+  function renderPips(container, level, maxLevel) {
+    container.innerHTML = '';
+    for (let i = 0; i < maxLevel; i++) {
+      const pip = document.createElement('span');
+      pip.className = 'pip' + (i < level ? ' filled' : '');
+      container.appendChild(pip);
+    }
+  }
+
   function renderUpgradeTab() {
     const gradeInfo = FishData.ROD_GRADES[rod.grade];
     rodNameEl.textContent = gradeInfo.label;
     rodNameEl.style.color = gradeInfo.color;
     rodLevelEl.textContent = `Lv. ${rod.level} / ${FishData.ROD_MAX_LEVEL}`;
-    upgradeBarFillEl.style.width = `${(rod.level / FishData.ROD_MAX_LEVEL) * 100}%`;
+    renderPips(rodPipsEl, rod.level, FishData.ROD_MAX_LEVEL);
+
+    // Grade-up material count sits next to the rod whenever there's a next
+    // grade to climb toward, whether or not you've hit level 10 yet --
+    // no separate explanatory note needed once the count is right there.
+    if (gradeInfo.next) {
+      const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
+      const have = materials[gradeInfo.next] || 0;
+      rodMaterialIconEl.src = `icons/material-${gradeInfo.next}.svg`;
+      rodMaterialCountEl.textContent = `${have} / ${upInfo.needed}`;
+      rodMaterialEl.classList.remove('hidden');
+    } else {
+      rodMaterialEl.classList.add('hidden');
+    }
 
     if (rod.level < FishData.ROD_MAX_LEVEL) {
-      const cost = FishData.rodLevelCost(rod.level);
-      rodMaxNoteEl.classList.add('hidden');
+      const cost = FishData.rodLevelCost(rod.grade, rod.level);
       rodUpgradeBtn.innerHTML = `<img class="price-icon" src="icons/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
       rodUpgradeBtn.disabled = shells < cost;
     } else if (gradeInfo.next) {
-      rodMaxNoteEl.textContent = `최고 레벨이에요. 다음 등급(${FishData.ROD_GRADES[gradeInfo.next].label})으로 올리려면 강화재료가 필요한데, 아직 준비 중이에요.`;
-      rodMaxNoteEl.classList.remove('hidden');
+      const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
+      const have = materials[gradeInfo.next] || 0;
       rodUpgradeBtn.textContent = '등급업';
-      rodUpgradeBtn.disabled = true;
+      rodUpgradeBtn.disabled = have < upInfo.needed;
     } else {
-      rodMaxNoteEl.textContent = '이미 가장 높은 등급, 가장 높은 레벨이에요!';
-      rodMaxNoteEl.classList.remove('hidden');
       rodUpgradeBtn.textContent = 'MAX';
       rodUpgradeBtn.disabled = true;
     }
+
+    renderStatsList();
   }
   rodUpgradeBtn.addEventListener('click', () => {
-    if (rod.level >= FishData.ROD_MAX_LEVEL) return; // grade-up needs materials that don't exist yet
-    const cost = FishData.rodLevelCost(rod.level);
+    const gradeInfo = FishData.ROD_GRADES[rod.grade];
+    if (rod.level < FishData.ROD_MAX_LEVEL) {
+      const cost = FishData.rodLevelCost(rod.grade, rod.level);
+      if (shells < cost) return;
+      sfx.coin();
+      shells -= cost;
+      rod.level += 1;
+      persist();
+      updateShellsDisplay();
+      renderUpgradeTab();
+      return;
+    }
+    if (!gradeInfo.next) return;
+    const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
+    if ((materials[gradeInfo.next] || 0) < upInfo.needed) return;
+    sfx.coin();
+    materials[gradeInfo.next] = 0;
+    rod.grade = gradeInfo.next;
+    rod.level = 1;
+    persist();
+    updateShellsDisplay();
+    renderUpgradeTab();
+  });
+
+  // ---- 근력 / 행운 / 정밀함: flat 0~5 stats, independent of the rod ----
+  function renderStatsList() {
+    statsListEl.innerHTML = '';
+    FishData.PLAYER_STAT_ORDER.forEach(key => {
+      const def = FishData.PLAYER_STATS[key];
+      const level = stats[key] || 0;
+      const maxed = level >= FishData.PLAYER_STAT_MAX_LEVEL;
+      const row = document.createElement('div');
+      row.className = 'upgrade-stat';
+      const pipsId = `stat-pips-${key}`;
+      row.innerHTML = `
+        <div class="upgrade-stat-info">
+          <div class="upgrade-stat-name">${def.label}</div>
+          <div class="upgrade-stat-desc">${def.desc}</div>
+          <div id="${pipsId}" class="pip-row"></div>
+        </div>
+        <button class="upgrade-btn" data-stat-btn="${key}"></button>
+      `;
+      statsListEl.appendChild(row);
+      renderPips(row.querySelector(`#${pipsId}`), level, FishData.PLAYER_STAT_MAX_LEVEL);
+      const btn = row.querySelector('[data-stat-btn]');
+      if (maxed) {
+        btn.textContent = 'MAX';
+        btn.disabled = true;
+      } else {
+        const cost = FishData.statLevelCost(level);
+        btn.innerHTML = `<img class="price-icon" src="icons/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
+        btn.disabled = shells < cost;
+      }
+    });
+  }
+  statsListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-stat-btn]');
+    if (!btn) return;
+    const key = btn.dataset.statBtn;
+    const level = stats[key] || 0;
+    if (level >= FishData.PLAYER_STAT_MAX_LEVEL) return;
+    const cost = FishData.statLevelCost(level);
     if (shells < cost) return;
     sfx.coin();
     shells -= cost;
-    rod.level += 1;
+    stats[key] = level + 1;
     persist();
     updateShellsDisplay();
     renderUpgradeTab();
@@ -1201,6 +1366,23 @@ function __zzhInit() {
     applyLeftyMode();
   });
   applyLeftyMode();
+
+  // ---- Skip low tiers the rod has outgrown (see SKIP_TIERS_BY_GRADE) ----
+  const SKIP_LOWTIER_KEY = 'zanzanhan-skip-lowtier-v1';
+  let skipLowTier = true;
+  try {
+    const stored = localStorage.getItem(SKIP_LOWTIER_KEY);
+    if (stored !== null) skipLowTier = stored === '1';
+  } catch (e) { /* ignore */ }
+  function applySkipLowTier() {
+    skipLowTierToggleBtn.setAttribute('aria-checked', String(skipLowTier));
+  }
+  skipLowTierToggleBtn.addEventListener('click', () => {
+    skipLowTier = !skipLowTier;
+    try { localStorage.setItem(SKIP_LOWTIER_KEY, skipLowTier ? '1' : '0'); } catch (e) { /* ignore */ }
+    applySkipLowTier();
+  });
+  applySkipLowTier();
 
   // ---- SFX volume slider ----
   const VOLUME_KEY = 'zanzanhan-sfx-volume-v1';

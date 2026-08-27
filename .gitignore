@@ -1,2 +1,5 @@
 # Local-only dev tooling -- never pushed. See game.js's __zzhDevCast hook.
 dev-mode.js
+
+# Local-only agent work-rules doc -- never pushed. See AGENT.md itself.
+AGENT.md

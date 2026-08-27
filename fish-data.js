@@ -121,17 +121,51 @@
     return Math.round(tier.priceMin + (tier.priceMax - tier.priceMin) * frac);
   }
 
+  const ALL_TIER_KEYS = ['junk', 'common', 'rare', 'epic', 'legendary'];
+  const LUCK_LOW_TIERS = ['junk', 'common'];
+  const LUCK_HIGH_TIERS = ['rare', 'epic', 'legendary'];
+
+  // 행운 stat: shifts a fraction of 꽝+일반's combined weight over into
+  // 희귀/특급/전설, proportional to each's existing share among the three --
+  // so luck makes the good tiers more likely without touching their
+  // relative odds against each other. Only touches whichever of those tiers
+  // are still in `order` (already-excluded tiers contribute nothing either
+  // direction).
+  function applyLuck(weights, order, luckLevel) {
+    if (!luckLevel) return weights;
+    const shiftFrac = luckLevel * 0.05; // 5%p per level, 25% at max (level 5)
+    const lowKeys = order.filter(k => LUCK_LOW_TIERS.includes(k));
+    const highKeys = order.filter(k => LUCK_HIGH_TIERS.includes(k));
+    if (!lowKeys.length || !highKeys.length) return weights;
+    const lowTotal = lowKeys.reduce((sum, k) => sum + weights[k], 0);
+    const highTotal = highKeys.reduce((sum, k) => sum + weights[k], 0);
+    const moved = lowTotal * shiftFrac;
+    const out = { ...weights };
+    lowKeys.forEach(k => { out[k] = weights[k] * (1 - shiftFrac); });
+    highKeys.forEach(k => { out[k] = weights[k] + moved * (weights[k] / highTotal); });
+    return out;
+  }
+
   // Weighted tier roll, then a uniform pick within that tier's species list.
   // forceTierKey skips the roll entirely -- used only by the (gitignored)
-  // dev-mode panel to test a specific tier on demand.
-  function pickCatch(forceTierKey) {
+  // dev-mode panel to test a specific tier on demand. excludeTierKeys drops
+  // those tiers from the roll and renormalizes the rest (see the rod's
+  // low-tier skip in game.js); luckLevel (행운 stat, 0~5) shifts weight from
+  // 꽝/일반 toward 희귀/특급/전설. Neither applies when forceTierKey is set.
+  function pickCatch(forceTierKey, excludeTierKeys, luckLevel) {
     let tierKey = forceTierKey;
     if (!tierKey || !TIERS[tierKey]) {
-      const roll = Math.random();
+      const exclude = excludeTierKeys && excludeTierKeys.length ? new Set(excludeTierKeys) : null;
+      const order = exclude ? ALL_TIER_KEYS.filter(k => !exclude.has(k)) : ALL_TIER_KEYS.slice();
+      const baseWeights = {};
+      order.forEach(k => { baseWeights[k] = TIERS[k].weight; });
+      const weights = applyLuck(baseWeights, order, luckLevel || 0);
+      const totalWeight = order.reduce((sum, k) => sum + weights[k], 0);
+      const roll = Math.random() * totalWeight;
       let acc = 0;
-      tierKey = 'common';
-      for (const key of ['junk', 'common', 'rare', 'epic', 'legendary']) {
-        acc += TIERS[key].weight;
+      tierKey = order[order.length - 1];
+      for (const key of order) {
+        acc += weights[key];
         if (roll < acc) { tierKey = key; break; }
       }
     }
@@ -144,10 +178,11 @@
   }
 
   // ================= Fishing rod (shop upgrade tab) =================
-  // Grade raises maxMisses (more forgiving), level smoothly widens the hit
-  // zone / time limit -- both read by game.js when it builds a tier's
-  // effective reel params. Grade-up past max level needs a material system
-  // that doesn't exist yet, so epic-at-level-10 is a real ceiling for now.
+  // Grade raises maxMisses (more forgiving) and skips the lowest tier(s) of
+  // catch entirely once you've outgrown them (rare skips 꽝, epic also
+  // skips 일반 -- see game.js's SKIP_TIERS_BY_GRADE). Level only widens the
+  // hit zone -- both are read by game.js when it builds a tier's effective
+  // reel params.
   const ROD_GRADE_ORDER = ['common', 'rare', 'epic'];
   const ROD_GRADES = {
     common: { key: 'common', label: '일반 낚싯대', color: '#8fd9a8', next: 'rare' },
@@ -167,19 +202,67 @@
     return ROD_MISS_MILESTONES.reduce((sum, m) => sum + (idx >= ROD_GRADE_ORDER.indexOf(m) ? 1 : 0), 0);
   }
 
-  // Cost to go from `level` to `level + 1`.
-  function rodLevelCost(level) {
-    return Math.round(150 * Math.pow(1.6, level - 1));
+  // Cost to go from `level` to `level + 1`, within one grade. Same 1.6x
+  // growth for every grade, just a higher base per grade so the total
+  // spend to max out a grade only ever goes up (희귀 grade's total must
+  // cost more than 일반's, 특급's more than 희귀's) -- rounded to the
+  // nearest 100 so every price lands on a clean number.
+  const ROD_GRADE_COST_BASE = { common: 150, rare: 300, epic: 600 };
+  function rodLevelCost(gradeKey, level) {
+    const base = ROD_GRADE_COST_BASE[gradeKey];
+    return Math.round((base * Math.pow(1.6, level - 1)) / 100) * 100;
   }
 
-  // Fraction the reel zone/time widen by, from rod level alone (0 at
-  // level 1, ~0.27 at level 10) -- grade contributes via rodMissBonus() instead.
+  // Fraction the reel zone widens by, from rod level alone (0 at level 1,
+  // ~0.27 at level 10).
   function rodEase(level) {
     return (level - 1) * 0.03;
   }
 
+  // ---- Grade-up materials ----
+  // Dropped (at most one per catch) alongside a real fish once the rod has
+  // a next grade to climb toward. Which material you can get depends on
+  // your CURRENT grade -- a 일반 rod drops 희귀 material, a 희귀 rod drops
+  // 특급 material. Keyed by the grade the material upgrades you INTO.
+  const ROD_GRADE_UP = {
+    rare: { materialLabel: '희귀 낚싯대 강화재료', needed: 3 },
+    epic: { materialLabel: '특급 낚싯대 강화재료', needed: 5 }
+  };
+
+  // Drop chance climbs with rod level so grinding a low-level rod barely
+  // ever drops materials, but it gets noticeably more generous as you
+  // approach level 10 -- nudging the player toward the grade-up rather
+  // than handing it out at a flat rate the whole way. 5% at level 1 up to
+  // 23% at level 10.
+  function rodMaterialDropChance(level) {
+    return 0.05 + (level - 1) * 0.02;
+  }
+
+  // ================= Player stats (별도 강화, 상점 업그레이드 탭 하단) =================
+  // Independent of the rod's grade/level -- three flat 0~5 stats bought
+  // straight with shells. Each level's effect is a flat fraction applied by
+  // game.js at the point it already computes the tier's effective reel
+  // params, so these compose with the rod/climb-color values already in
+  // play rather than replacing them.
+  const PLAYER_STAT_ORDER = ['strength', 'luck', 'precision'];
+  const PLAYER_STATS = {
+    strength: { key: 'strength', label: '근력', desc: '캐스팅의 시간이 늘어난다.', effectPerLevel: 0.08 },
+    luck: { key: 'luck', label: '행운', desc: '높은 등급의 물고기 출현확률이 늘어난다.', effectPerLevel: 0.05 },
+    precision: { key: 'precision', label: '정밀함', desc: '캐스팅의 속도가 느려진다.', effectPerLevel: 0.08 }
+  };
+  const PLAYER_STAT_MAX_LEVEL = 5;
+
+  // Cost to go from `level` to `level + 1` (level is 0-based, so the first
+  // purchase is statLevelCost(0)). Same shape as the rod's cost curve, just
+  // scaled down for a 0~5 stat instead of a 1~10 one.
+  function statLevelCost(level) {
+    return Math.round((300 * Math.pow(1.7, level)) / 100) * 100;
+  }
+
   window.FishData = {
     TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize,
-    ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, rodLevelCost, rodEase, rodMissBonus
+    ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
+    rodMaterialDropChance,
+    PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost
   };
 })();
