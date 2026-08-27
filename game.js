@@ -549,28 +549,62 @@ function __zzhInit() {
   // catches -- lives in one localStorage blob and is rewritten right after
   // every mutation (not on page-unload, which mobile browsers can skip).
   const SAVE_KEY = 'zanzanhan-fishing-save-v1';
-  // Bump this whenever the save shape changes in a way old saves can't just
-  // merge cleanly into (new required fields, changed meaning of an existing
-  // one, etc.). A save tagged with any other version is treated as stale --
-  // rather than risk half-migrated/undefined-shaped data, it's discarded
-  // and the player starts fresh under the current version.
-  const SAVE_VERSION = '0.2.1';
+  // Save-DATA-SHAPE compatibility marker -- unrelated to GAME_VERSION
+  // (version.js), which is the human-facing release number. This one is a
+  // plain integer on purpose, not a semver string like GAME_VERSION, so
+  // the two are never visually or logically confusable with each other.
+  // Bump it whenever the save shape changes in a way old saves can't just
+  // merge cleanly into (new required fields, changed meaning of an
+  // existing one, etc.) -- most releases (balance tuning, new features
+  // that only ADD fields) don't need to touch this at all.
+  //
+  // A mismatched save is NOT just thrown away anymore -- migrateSave()
+  // below tries to upgrade it field-by-field first, so a player only ever
+  // loses progress when a field's actual MEANING changed in a way nothing
+  // can safely reinterpret, not just because the version marker moved.
+  const SAVE_SCHEMA_VERSION = 1;
   function defaultSave() {
     return {
-      version: SAVE_VERSION,
+      schemaVersion: SAVE_SCHEMA_VERSION,
       shells: 0, rod: { grade: 'common', level: 1 }, materials: {},
       stats: { strength: 0, luck: 0, precision: 0 },
       caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false
     };
   }
+  // Each step upgrades a save from exactly one schema to the next, so a
+  // save several versions behind just runs through all of them in order.
+  // Add a new entry here whenever SAVE_SCHEMA_VERSION bumps -- write it to
+  // touch ONLY the field(s) that actually changed shape/meaning and pass
+  // everything else through untouched, so most bumps keep 조개/낚싯대/
+  // 보관함 등 intact instead of wiping the whole save over one field.
+  const SAVE_MIGRATIONS = [
+    // (no schemaVersion field, had `version` string instead) -> schema 1:
+    // that older marker was a plain rename to schemaVersion -- none of the
+    // actual game-data fields changed, so just swap the field itself.
+    (save) => {
+      const { version, ...rest } = save;
+      return { ...rest, schemaVersion: 1 };
+    }
+  ];
+  function migrateSave(save) {
+    let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
+    while (from < SAVE_SCHEMA_VERSION) {
+      const step = SAVE_MIGRATIONS[from];
+      if (!step) return null; // no known path forward -- too old/foreign to trust
+      save = step(save);
+      from++;
+    }
+    return save;
+  }
   function loadSave() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.version === SAVE_VERSION) return { ...defaultSave(), ...parsed };
-        // Old (or missing, pre-versioning) save version -- don't trust its
-        // shape against the current code, load the latest defaults instead.
+        const migrated = migrateSave(JSON.parse(raw));
+        if (migrated && migrated.schemaVersion === SAVE_SCHEMA_VERSION) return { ...defaultSave(), ...migrated };
+        // Still doesn't match after attempting every known migration --
+        // genuinely unrecognizable, fall through to a fresh save instead
+        // of risking undefined-shaped data.
       }
     } catch (e) { /* ignore -- corrupt save, fall back to default */ }
     return defaultSave();
@@ -578,7 +612,7 @@ function __zzhInit() {
   function persist() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        version: SAVE_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore
+        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore
       }));
     } catch (e) { /* ignore */ }
   }

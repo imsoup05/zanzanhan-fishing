@@ -1,9 +1,17 @@
-const CACHE_NAME = 'quiet-fishing-new-v1';
+// version.js is the single source of truth for GAME_VERSION -- folding it
+// into CACHE_NAME means this file's own bytes change on every release, so
+// registration.update()'s byte comparison (see index.html) actually has
+// something to detect. Without this, sw.js could stay byte-identical
+// across many releases and the mid-play update banner would never fire.
+importScripts('version.js');
+const CACHE_NAME = 'quiet-fishing-new-' + GAME_VERSION;
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './game.js',
+  './fish-data.js',
+  './version.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
