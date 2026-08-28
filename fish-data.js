@@ -108,6 +108,17 @@
     desc: '작동 확인용 테스트 물고기.'
   };
 
+  // Per-species icon path -- icons/fish/<tier>/<speciesId>.svg, one hand
+  // -drawn file per species (see icons/ICONS.md).
+  function speciesIconPath(tierKey, speciesId) {
+    return `icons/fish/${tierKey}/${speciesId}.svg`;
+  }
+  // Junk items get the same per-item treatment, just flat under result/junk/
+  // since 꽝 has no sub-tiers of its own to fold into a folder level.
+  function junkIconPath(junkId) {
+    return `icons/result/junk/${junkId}.svg`;
+  }
+
   function randSize(range) {
     return +(range[0] + Math.random() * (range[1] - range[0])).toFixed(1);
   }
@@ -313,12 +324,16 @@
 
   // ---- Grade-up materials ----
   // Dropped (at most one per catch) alongside a real fish once the rod has
-  // a next grade to climb toward. Which material you can get depends on
-  // your CURRENT grade -- a 일반 rod drops 희귀 material, a 희귀 rod drops
-  // 특급 material. Keyed by the grade the material upgrades you INTO.
+  // a next grade to climb toward. Which target grade a drop counts toward
+  // depends on your CURRENT grade -- a 일반 rod drops toward 희귀, a 희귀
+  // rod drops toward 특급. One unified material/name/icon across every
+  // grade (no more per-target color-coded material) -- only the needed
+  // count differs by target. Keyed by the grade the material upgrades you
+  // INTO. rollRodMaterial() in game.js stops rolling once a target's count
+  // already meets `needed`, so it never drops past what's actually usable.
   const ROD_GRADE_UP = {
-    rare: { materialLabel: '희귀 낚싯대 강화재료', needed: 3 },
-    epic: { materialLabel: '특급 낚싯대 강화재료', needed: 5 }
+    rare: { materialLabel: '낚싯대 강화재료', needed: 5 },
+    epic: { materialLabel: '낚싯대 강화재료', needed: 10 }
   };
 
   // Flat 2% through level 6, then climbs 2%p per level from level 7 on,
@@ -351,7 +366,7 @@
   }
 
   window.FishData = {
-    TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize,
+    TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize, speciesIconPath, junkIconPath,
     ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
     rodMaterialDropChance,
     PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,

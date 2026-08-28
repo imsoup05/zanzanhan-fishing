@@ -1128,10 +1128,14 @@ function __zzhInit() {
   function rollRodMaterial() {
     const gradeInfo = FishData.ROD_GRADES[rod.grade];
     if (!gradeInfo.next) return null; // already at the top grade
-    if (Math.random() >= FishData.rodMaterialDropChance(rod.level)) return null;
     const targetKey = gradeInfo.next;
     const needed = FishData.ROD_GRADE_UP[targetKey].needed;
-    materials[targetKey] = Math.min(needed, (materials[targetKey] || 0) + 1);
+    // Already have enough -- don't even roll, so a lucky RNG streak past
+    // the cap never pops the "you got a material!" popup for a drop that
+    // silently changes nothing.
+    if ((materials[targetKey] || 0) >= needed) return null;
+    if (Math.random() >= FishData.rodMaterialDropChance(rod.level)) return null;
+    materials[targetKey] = (materials[targetKey] || 0) + 1;
     return { gradeKey: targetKey, count: materials[targetKey], needed };
   }
 
@@ -1142,7 +1146,7 @@ function __zzhInit() {
     sfx.success();
     reelGaugeEl.classList.add('hidden');
     const c = currentCatch;
-    const icon = c.tier === 'junk' ? 'icons/result/junk.svg' : 'icons/fish/fish.svg';
+    const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
     let desc;
     let isNewSpecies = false;
@@ -1153,7 +1157,7 @@ function __zzhInit() {
       isNewSpecies = !catches[c.id];
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
-      caughtFish.push({ uid: nextFishUid++, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
+      caughtFish.push({ uid: nextFishUid++, id: c.id, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
       recordCatch(c);
       pendingMaterial = rollRodMaterial();
       persist();
@@ -1214,10 +1218,7 @@ function __zzhInit() {
   // actually dropped this catch (see rollRodMaterial()).
   function showMaterialPopup(mat) {
     const info = FishData.ROD_GRADE_UP[mat.gradeKey];
-    // Colored per-file rather than tinted via CSS -- an <img src="*.svg">
-    // loads as its own document, so currentColor inside it can't pick up
-    // a color set on the <img> element itself.
-    materialIcon.src = `icons/shop/material-${mat.gradeKey}.svg`;
+    materialIcon.src = 'icons/shop/material.svg';
     materialTitle.textContent = info.materialLabel;
     materialDesc.textContent = `낚싯대를 강화하는 재료이다. ${info.needed}개를 모아서 등급을 올리자.`;
     materialCountEl.textContent = `보유: ${mat.count} / ${info.needed}개`;
@@ -1410,7 +1411,7 @@ function __zzhInit() {
       const row = document.createElement('div');
       row.className = 'sell-row';
       row.innerHTML = `
-        <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
+        <div class="sell-row-icon"><img src="${FishData.speciesIconPath(item.tier, item.id)}" alt=""></div>
         <div class="sell-row-info">
           <div class="sell-row-name">
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
@@ -1465,7 +1466,7 @@ function __zzhInit() {
     if (gradeInfo.next) {
       const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
       const have = materials[gradeInfo.next] || 0;
-      rodMaterialIconEl.src = `icons/shop/material-${gradeInfo.next}.svg`;
+      rodMaterialIconEl.src = 'icons/shop/material.svg';
       rodMaterialCountEl.textContent = `${have} / ${upInfo.needed}`;
       rodMaterialEl.classList.remove('hidden');
     } else {
@@ -1589,7 +1590,7 @@ function __zzhInit() {
       const row = document.createElement('div');
       row.className = 'sell-row';
       row.innerHTML = `
-        <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
+        <div class="sell-row-icon"><img src="${FishData.speciesIconPath(item.tier, item.id)}" alt=""></div>
         <div class="sell-row-info">
           <div class="sell-row-name">
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
@@ -1621,7 +1622,7 @@ function __zzhInit() {
         const row = document.createElement('div');
         row.className = 'sell-row log-row' + (record ? '' : ' undiscovered');
         row.innerHTML = `
-          <div class="sell-row-icon"><img src="icons/fish/fish.svg" alt=""></div>
+          <div class="sell-row-icon"><img src="${record ? FishData.speciesIconPath(tier, sp.id) : 'icons/fish/fish.svg'}" alt=""></div>
           <div class="sell-row-info">
             <div class="sell-row-name">
               <span class="tier-badge tier-${tier}">${FishData.TIERS[tier].label}</span>
