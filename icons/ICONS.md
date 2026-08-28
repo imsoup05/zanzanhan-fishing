@@ -30,7 +30,7 @@
 | 파일 | 쓰이는 곳 | 코드 위치 | 현재 모양 |
 |---|---|---|---|
 | `shop/rod.svg` | 상점 "업그레이드" 탭, 낚싯대 아이콘 | `index.html`의 `#upgrade-rod-icon` | 대각선 낚싯대 + 릴 + 낚싯줄/바늘 |
-| `shop/material.svg` | 낚싯대 강화재료 획득 팝업 아이콘 + 업그레이드 탭의 강화재료 보유 개수 아이콘 (등급 구분 없이 공용) | `game.js`의 `showMaterialPopup()`/`renderUpgradeTab()`이 `#material-icon`/`#rod-material-icon`의 `src`로 사용 | 청동색 보석(`shop/rod.svg`의 gem 실루엣 재사용, 등급 색이 아닌 중립 색으로 통일) |
+| `shop/gem.svg` | 보석(낚싯대 등급업 보조 화폐) 아이콘 — 획득 팝업, 업그레이드 탭의 보유 개수, 상단바·상점 헤더의 보조 화폐 표시까지 전부 공용 | `game.js`의 `showMaterialPopup()`/`renderUpgradeTab()`이 `#material-icon`/`#rod-material-icon`의 `src`로, `index.html`의 `.gems-pill`/`.shop-balance`가 정적으로 사용 | 파란색 보석(등급 색이 아닌 화폐 전용 색) |
 | `shop/gacha-chest.svg` | 상점 "뽑기" 탭 첫 화면의 장식용 일러스트(둥실 떠 있는 애니메이션) | `index.html`의 `.gacha-hero-img` | 반짝이는 별 장식이 붙은 나무 보물상자 |
 
 ## fish/ — 물고기 아트
@@ -40,7 +40,8 @@
 | 파일 | 쓰이는 곳 | 코드 위치 | 비고 |
 |---|---|---|---|
 | `fish/<tier>/<id>.svg` (30개, 어종별) | 낚시 성공 결과창 아이콘, 상점 판매/보관함/도감 목록의 `sell-row-icon` | `game.js`의 `catchSuccess()`/`renderSellList()`/`renderBucketInventory()`/`renderLog()` — 전부 `FishData.speciesIconPath()`로 경로 조합 | 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`, 종 구분 없음) |
-| `fish/fish.svg` | (1) 도감에서 아직 못 잡은 종("???")의 자리를 채우는 공용 실루엣 — 실제 종 아이콘을 미리 보여주면 "???"로 이름을 가리는 의미가 없어지므로 미발견 상태에서만 사용. (2) `DUMMY_TEST_FISH`(사용 안 함, 코드 참고용) | `game.js`의 `renderLog()`가 `!record`일 때 사용 | 파란 옆모습 물고기 + 눈(등급/종 색이 아닌 중립 디자인) |
+| `fish/unknown.svg` | 도감에서 아직 못 잡은 종("???")의 자리를 채우는 공용 실루엣 — 실제 종 아이콘을 미리 보여주면 "???"로 이름을 가리는 의미가 없어지므로 미발견 상태에서만 사용 | `game.js`의 `renderLog()`가 `!record`일 때 사용 | 단색 검은 물고기 실루엣(디테일 없음, "정체불명"을 표현) |
+| `fish/fish.svg` | 이제 실제 UI 어디에서도 안 쓰임 — `DUMMY_TEST_FISH`(사용 안 하는 코드 참고용 더미)만 여전히 이 파일을 가리킴 | `fish-data.js`의 `DUMMY_TEST_FISH.icon` | 파란 옆모습 물고기 + 눈 |
 
 ## app/ — PWA 앱 아이콘
 

@@ -322,27 +322,19 @@
     return (level - 1) * (0.20 / 9);
   }
 
-  // ---- Grade-up materials ----
-  // Dropped (at most one per catch) alongside a real fish once the rod has
-  // a next grade to climb toward. Which target grade a drop counts toward
-  // depends on your CURRENT grade -- a 일반 rod drops toward 희귀, a 희귀
-  // rod drops toward 특급. One unified material/name/icon across every
-  // grade (no more per-target color-coded material) -- only the needed
-  // count differs by target. Keyed by the grade the material upgrades you
-  // INTO. rollRodMaterial() in game.js stops rolling once a target's count
-  // already meets `needed`, so it never drops past what's actually usable.
+  // ---- 보석 (rod grade-up secondary currency) ----
+  // A single running balance (game.js's `gems`), not a per-target meter --
+  // dropped (at most one per catch) alongside a real fish whenever the rod
+  // still has a next grade to climb toward, at a flat chance regardless of
+  // rod level. Grade-up just SPENDS `needed` gems once the rod hits max
+  // level and the balance covers it; any surplus carries over toward the
+  // next grade's (bigger) requirement instead of being capped/wasted.
+  const GEM_LABEL = '보석';
   const ROD_GRADE_UP = {
-    rare: { materialLabel: '낚싯대 강화재료', needed: 5 },
-    epic: { materialLabel: '낚싯대 강화재료', needed: 10 }
+    rare: { needed: 5 },
+    epic: { needed: 10 }
   };
-
-  // Flat 2% through level 6, then climbs 2%p per level from level 7 on,
-  // reaching 10% at level 10 -- keeps early/mid grinding slow and only
-  // meaningfully speeds up the material hunt once you're nearly maxed.
-  function rodMaterialDropChance(level) {
-    if (level <= 6) return 0.02;
-    return 0.02 + (level - 6) * 0.02;
-  }
+  const ROD_GEM_DROP_CHANCE = 0.05;
 
   // ================= Player stats (별도 강화, 상점 업그레이드 탭 하단) =================
   // Independent of the rod's grade/level -- three flat 0~5 stats bought
@@ -368,7 +360,7 @@
   window.FishData = {
     TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize, speciesIconPath, junkIconPath,
     ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
-    rodMaterialDropChance,
+    GEM_LABEL, ROD_GEM_DROP_CHANCE,
     PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,
     BAIT_ORDER, BAITS, baitExcludeTiers,
     GACHA_TABLE, GACHA_PULL_COST, GACHA_TEN_PULL_COST, LEGENDARY_PITY,

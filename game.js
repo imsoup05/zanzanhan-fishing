@@ -575,11 +575,11 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 3;
+  const SAVE_SCHEMA_VERSION = 5;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
-      shells: 0, rod: { grade: 'common', level: 1 }, materials: {},
+      shells: 0, rod: { grade: 'common', level: 1 }, gems: 0,
       stats: { strength: 0, luck: 0, precision: 0 },
       caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false,
       baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
@@ -613,7 +613,30 @@ function __zzhInit() {
       ...save,
       gachaPity: typeof save.gachaPity === 'number' ? save.gachaPity : 0,
       schemaVersion: 3
-    })
+    }),
+    // schema 3 -> 4: rod grade-up materials (per-target {rare,epic} object,
+    // each capped at its own `needed`) became 보석 (gems) -- one uncapped
+    // running number, no longer keyed by target grade. Sum whatever was
+    // banked under the old shape into the new single balance so upgrade
+    // progress isn't lost, then drop the old field entirely.
+    (save) => {
+      const { materials, ...rest } = save;
+      const carried = materials && typeof materials === 'object'
+        ? (materials.rare || 0) + (materials.epic || 0)
+        : 0;
+      return { ...rest, gems: typeof save.gems === 'number' ? save.gems : carried, schemaVersion: 4 };
+    },
+    // schema 4 -> 5: 도감 detail popup added a per-species catch-size
+    // history. Existing catches records only had {count, best} -- give
+    // each one an empty history array rather than inventing past sizes
+    // that were never recorded (see recordCatch()'s CATCH_HISTORY_MAX cap).
+    (save) => {
+      const catches = { ...(save.catches || {}) };
+      Object.keys(catches).forEach((id) => {
+        if (!Array.isArray(catches[id].history)) catches[id] = { ...catches[id], history: [] };
+      });
+      return { ...save, catches, schemaVersion: 5 };
+    }
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -641,7 +664,7 @@ function __zzhInit() {
   function persist() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
-        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, materials, stats, caughtFish, nextFishUid, catches, hasCastBefore,
+        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, gems, stats, caughtFish, nextFishUid, catches, hasCastBefore,
         baits, equippedBait, gachaPity
       }));
     } catch (e) { /* ignore */ }
@@ -650,9 +673,10 @@ function __zzhInit() {
   const initialSave = loadSave();
   let shells = initialSave.shells;
   let rod = initialSave.rod;
-  // Rod grade-up materials held -- { [targetGradeKey]: count }, e.g.
-  // materials.rare counts toward upgrading a 일반 rod into a 희귀 one.
-  let materials = initialSave.materials;
+  // 보석 (rod grade-up secondary currency) -- one running balance, spent
+  // `needed` at a time on whichever grade-up the rod is climbing toward
+  // next (see FishData.ROD_GRADE_UP). Shown in the topbar next to shells.
+  let gems = initialSave.gems;
   // Player stats (근력/행운/정밀함), 0~5 each -- separate from the rod's own
   // grade/level, bought straight with shells in the same 업그레이드 tab.
   let stats = initialSave.stats;
@@ -680,6 +704,7 @@ function __zzhInit() {
   let pendingMaterial = null;
 
   const shellsCountEl = document.getElementById('shells-count');
+  const gemsCountTopEl = document.getElementById('gems-count-top');
   const statusTextEl = document.getElementById('status-text');
   const tutorialHintEl = document.getElementById('tutorial-hint');
   const reelGaugeEl = document.getElementById('reel-gauge');
@@ -708,6 +733,11 @@ function __zzhInit() {
   const shopOverlay = document.getElementById('shop-overlay');
   const shopPanel = document.getElementById('shop-panel');
   const shopCloseBtn = document.getElementById('shop-close-btn');
+  // shop-overlay is a full-screen overlay sitting ABOVE the topbar (higher
+  // z-index) -- these two exist purely so shells/gems are still checkable
+  // while it's open, since the topbar's own display is hidden behind it.
+  const shopShellsEl = document.getElementById('shop-shells-count');
+  const shopGemsEl = document.getElementById('shop-gems-count');
   // Scoped to shopPanel -- .shop-tab is a shared visual style, also reused
   // by the bucket overlay's own tabs (which wire up separately below).
   const shopTabs = shopPanel.querySelectorAll('.shop-tab');
@@ -755,6 +785,14 @@ function __zzhInit() {
   const bucketListEl = document.getElementById('bucket-list');
   const bucketEmptyEl = document.getElementById('bucket-empty');
   const logListEl = document.getElementById('log-list');
+  const speciesDetailOverlay = document.getElementById('species-detail-overlay');
+  const speciesDetailIcon = document.getElementById('species-detail-icon');
+  const speciesDetailTierBadge = document.getElementById('species-detail-tier-badge');
+  const speciesDetailName = document.getElementById('species-detail-name');
+  const speciesDetailDesc = document.getElementById('species-detail-desc');
+  const speciesDetailStats = document.getElementById('species-detail-stats');
+  const speciesDetailHistory = document.getElementById('species-detail-history');
+  const speciesDetailCloseBtn = document.getElementById('species-detail-close-btn');
 
   const menuSettingsBtn = document.getElementById('menu-settings-btn');
   const settingsOverlay = document.getElementById('settings-overlay');
@@ -767,7 +805,15 @@ function __zzhInit() {
   const resetConfirmBtn = document.getElementById('reset-confirm-btn');
   const resetCancelBtn = document.getElementById('reset-cancel-btn');
 
-  function updateShellsDisplay() { shellsCountEl.textContent = shells.toLocaleString('ko-KR'); }
+  // Keeps every place either currency is shown in sync in one call --
+  // topbar (always visible) and the shop-panel header (needed because the
+  // shop overlay sits above and hides the topbar while it's open).
+  function updateCurrencyDisplay() {
+    shellsCountEl.textContent = shells.toLocaleString('ko-KR');
+    gemsCountTopEl.textContent = gems.toLocaleString('ko-KR');
+    shopShellsEl.textContent = shells.toLocaleString('ko-KR');
+    shopGemsEl.textContent = gems.toLocaleString('ko-KR');
+  }
 
   // Rod grade raises maxMisses (more forgiving); rod level only widens the
   // hit zone -- time limit is no longer rod-affected, but 근력 (a separate
@@ -1113,30 +1159,31 @@ function __zzhInit() {
   }
 
   // Persistent per-species stats for 보관함's 도감 tab -- unlike caughtFish,
-  // this survives selling (it's never removed, only added to).
+  // this survives selling (it's never removed, only added to). `history`
+  // keeps the most recent catch sizes for the 도감 detail popup, capped so
+  // a heavily-farmed common species doesn't grow the save without bound.
+  const CATCH_HISTORY_MAX = 20;
   function recordCatch(c) {
-    const rec = catches[c.id] || (catches[c.id] = { count: 0, best: 0 });
+    const rec = catches[c.id] || (catches[c.id] = { count: 0, best: 0, history: [] });
     rec.count++;
     if (c.size > rec.best) rec.best = c.size;
+    if (!rec.history) rec.history = [];
+    rec.history.push(c.size);
+    if (rec.history.length > CATCH_HISTORY_MAX) rec.history.shift();
   }
 
-  // Rolled once per non-junk catch. Drop chance scales with rod LEVEL (see
-  // FishData.rodMaterialDropChance) -- which material depends on the rod's
-  // CURRENT grade, since that's the one you're climbing out of. Capped at
-  // the needed amount so the count never overflows past what grade-up
-  // actually consumes.
-  function rollRodMaterial() {
+  // Rolled once per non-junk catch, at a flat chance independent of rod
+  // level, as long as the rod still has a next grade to climb toward.
+  // Adds straight to the single running 보석 balance -- no per-target cap,
+  // since any surplus past the current target's `needed` just carries
+  // forward toward the next (bigger) grade-up instead of being wasted.
+  function rollGem() {
     const gradeInfo = FishData.ROD_GRADES[rod.grade];
     if (!gradeInfo.next) return null; // already at the top grade
-    const targetKey = gradeInfo.next;
-    const needed = FishData.ROD_GRADE_UP[targetKey].needed;
-    // Already have enough -- don't even roll, so a lucky RNG streak past
-    // the cap never pops the "you got a material!" popup for a drop that
-    // silently changes nothing.
-    if ((materials[targetKey] || 0) >= needed) return null;
-    if (Math.random() >= FishData.rodMaterialDropChance(rod.level)) return null;
-    materials[targetKey] = (materials[targetKey] || 0) + 1;
-    return { gradeKey: targetKey, count: materials[targetKey], needed };
+    if (Math.random() >= FishData.ROD_GEM_DROP_CHANCE) return null;
+    gems += 1;
+    const needed = FishData.ROD_GRADE_UP[gradeInfo.next].needed;
+    return { count: gems, needed };
   }
 
   function catchSuccess() {
@@ -1159,7 +1206,7 @@ function __zzhInit() {
       // shop's 판매 tab, so this price is a preview, not income.
       caughtFish.push({ uid: nextFishUid++, id: c.id, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
       recordCatch(c);
-      pendingMaterial = rollRodMaterial();
+      pendingMaterial = rollGem();
       persist();
       desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/ui/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
@@ -1213,15 +1260,14 @@ function __zzhInit() {
   }
   resultBtn.addEventListener('click', closeResult);
 
-  // ================= Rod grade-up material popup =================
-  // Shown right after the catch result popup closes, only when a material
-  // actually dropped this catch (see rollRodMaterial()).
+  // ================= 보석 (rod grade-up currency) popup =================
+  // Shown right after the catch result popup closes, only when a gem
+  // actually dropped this catch (see rollGem()).
   function showMaterialPopup(mat) {
-    const info = FishData.ROD_GRADE_UP[mat.gradeKey];
-    materialIcon.src = 'icons/shop/material.svg';
-    materialTitle.textContent = info.materialLabel;
-    materialDesc.textContent = `낚싯대를 강화하는 재료이다. ${info.needed}개를 모아서 등급을 올리자.`;
-    materialCountEl.textContent = `보유: ${mat.count} / ${info.needed}개`;
+    materialIcon.src = 'icons/shop/gem.svg';
+    materialTitle.textContent = `${FishData.GEM_LABEL} 획득!`;
+    materialDesc.textContent = `낚싯대 등급업에 쓰는 보조 화폐이다. ${mat.needed}개를 모으면 등급을 올릴 수 있다.`;
+    materialCountEl.textContent = `보유: ${mat.count} / ${mat.needed}개`;
     materialOverlay.classList.remove('hidden');
   }
   function closeMaterialPopup() { materialOverlay.classList.add('hidden'); }
@@ -1302,7 +1348,7 @@ function __zzhInit() {
     // 카드 연출에서는 그대로 보여주되 보유 개수만 늘지 않는다.
     results.forEach(key => { if (key !== 'common') baits[key] = (baits[key] || 0) + 1; });
     persist();
-    updateShellsDisplay();
+    updateCurrencyDisplay();
     renderGachaTab();
     updateBaitButton();
     const sorted = results.slice().sort((a, b) => GACHA_REVEAL_ORDER.indexOf(a) - GACHA_REVEAL_ORDER.indexOf(b));
@@ -1438,7 +1484,7 @@ function __zzhInit() {
     shells += caughtFish[idx].price;
     caughtFish.splice(idx, 1);
     persist();
-    updateShellsDisplay();
+    updateCurrencyDisplay();
     renderSellList();
   }
 
@@ -1460,14 +1506,13 @@ function __zzhInit() {
     rodLevelEl.textContent = `Lv. ${rod.level} / ${FishData.ROD_MAX_LEVEL}`;
     renderPips(rodPipsEl, rod.level, FishData.ROD_MAX_LEVEL);
 
-    // Grade-up material count sits next to the rod whenever there's a next
-    // grade to climb toward, whether or not you've hit level 10 yet --
-    // no separate explanatory note needed once the count is right there.
+    // 보석 balance sits next to the rod whenever there's a next grade to
+    // climb toward, whether or not you've hit level 10 yet -- no separate
+    // explanatory note needed once the count is right there.
     if (gradeInfo.next) {
       const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
-      const have = materials[gradeInfo.next] || 0;
-      rodMaterialIconEl.src = 'icons/shop/material.svg';
-      rodMaterialCountEl.textContent = `${have} / ${upInfo.needed}`;
+      rodMaterialIconEl.src = 'icons/shop/gem.svg';
+      rodMaterialCountEl.textContent = `${gems} / ${upInfo.needed}`;
       rodMaterialEl.classList.remove('hidden');
     } else {
       rodMaterialEl.classList.add('hidden');
@@ -1479,9 +1524,8 @@ function __zzhInit() {
       rodUpgradeBtn.disabled = shells < cost;
     } else if (gradeInfo.next) {
       const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
-      const have = materials[gradeInfo.next] || 0;
       rodUpgradeBtn.textContent = '등급업';
-      rodUpgradeBtn.disabled = have < upInfo.needed;
+      rodUpgradeBtn.disabled = gems < upInfo.needed;
     } else {
       rodUpgradeBtn.textContent = 'MAX';
       rodUpgradeBtn.disabled = true;
@@ -1498,19 +1542,19 @@ function __zzhInit() {
       shells -= cost;
       rod.level += 1;
       persist();
-      updateShellsDisplay();
+      updateCurrencyDisplay();
       renderUpgradeTab();
       return;
     }
     if (!gradeInfo.next) return;
     const upInfo = FishData.ROD_GRADE_UP[gradeInfo.next];
-    if ((materials[gradeInfo.next] || 0) < upInfo.needed) return;
+    if (gems < upInfo.needed) return;
     sfx.coin();
-    materials[gradeInfo.next] = 0;
+    gems -= upInfo.needed; // surplus past `needed` carries over, not reset to 0
     rod.grade = gradeInfo.next;
     rod.level = 1;
     persist();
-    updateShellsDisplay();
+    updateCurrencyDisplay();
     renderUpgradeTab();
   });
 
@@ -1557,7 +1601,7 @@ function __zzhInit() {
     shells -= cost;
     stats[key] = level + 1;
     persist();
-    updateShellsDisplay();
+    updateCurrencyDisplay();
     renderUpgradeTab();
   });
 
@@ -1621,8 +1665,10 @@ function __zzhInit() {
         const record = catches[sp.id];
         const row = document.createElement('div');
         row.className = 'sell-row log-row' + (record ? '' : ' undiscovered');
+        row.dataset.tier = tier;
+        row.dataset.speciesId = sp.id;
         row.innerHTML = `
-          <div class="sell-row-icon"><img src="${record ? FishData.speciesIconPath(tier, sp.id) : 'icons/fish/fish.svg'}" alt=""></div>
+          <div class="sell-row-icon"><img src="${record ? FishData.speciesIconPath(tier, sp.id) : 'icons/fish/unknown.svg'}" alt=""></div>
           <div class="sell-row-info">
             <div class="sell-row-name">
               <span class="tier-badge tier-${tier}">${FishData.TIERS[tier].label}</span>
@@ -1635,6 +1681,45 @@ function __zzhInit() {
       });
     });
   }
+
+  // Tapping a discovered 도감 row opens a bigger detail popup (icon, full
+  // desc, size/price range, catch record). Undiscovered ("???") rows do
+  // nothing -- there's nothing to show without spoiling the mystery.
+  logListEl.addEventListener('click', (e) => {
+    const row = e.target.closest('.log-row');
+    if (!row || row.classList.contains('undiscovered')) return;
+    openSpeciesDetail(row.dataset.tier, row.dataset.speciesId);
+  });
+
+  function openSpeciesDetail(tier, speciesId) {
+    const record = catches[speciesId];
+    const sp = (FishData.FISH_BY_TIER[tier] || []).find(s => s.id === speciesId);
+    if (!record || !sp) return;
+    const tierInfo = FishData.TIERS[tier];
+    speciesDetailIcon.src = FishData.speciesIconPath(tier, speciesId);
+    speciesDetailTierBadge.textContent = tierInfo.label;
+    speciesDetailTierBadge.className = `tier-badge tier-${tier}`;
+    speciesDetailName.textContent = sp.name;
+    speciesDetailDesc.textContent = sp.desc;
+    speciesDetailStats.innerHTML = `
+      <div class="species-detail-row"><span>크기</span><span>${sp.sizeRange[0]}~${sp.sizeRange[1]}cm</span></div>
+      <div class="species-detail-row"><span>판매가</span><span><img class="price-icon" src="icons/ui/shell.svg" alt="">${tierInfo.priceMin.toLocaleString('ko-KR')}~${tierInfo.priceMax.toLocaleString('ko-KR')}</span></div>
+      <div class="species-detail-row"><span>낚은 기록</span><span>${record.count}회 · 최고 ${record.best}cm</span></div>
+    `;
+    const history = record.history || [];
+    speciesDetailHistory.innerHTML = history.length
+      // Chronological, oldest (1.) first -- history is already stored in
+      // catch order (see recordCatch()'s push()).
+      ? history.map((size, i) => `<div class="species-detail-history-item"><span class="species-detail-history-index">${i + 1}.</span><span>${size}cm</span></div>`).join('')
+      // count is always >=1 once a record exists (see recordCatch()), so an
+      // empty history here only ever means these catches predate this
+      // feature -- there was never a chance to record their sizes.
+      : `<p class="species-detail-history-empty">이 기능이 생기기 전 기록이라 크기가 남아있지 않아요.</p>`;
+    speciesDetailOverlay.classList.remove('hidden');
+  }
+  function closeSpeciesDetail() { speciesDetailOverlay.classList.add('hidden'); }
+  speciesDetailCloseBtn.addEventListener('click', closeSpeciesDetail);
+  speciesDetailOverlay.addEventListener('click', (e) => { if (e.target === speciesDetailOverlay) closeSpeciesDetail(); });
 
   // ================= Settings (왼손 모드 / 볼륨 / 데이터 삭제) =================
   function openSettings() {
@@ -1753,17 +1838,35 @@ function __zzhInit() {
     gachaPity = Math.max(0, value || 0);
     persist();
   };
+  window.__zzhDevGiveGems = function (amount) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    gems += amount || 10;
+    persist();
+    updateCurrencyDisplay();
+    if (!shopOverlay.classList.contains('hidden')) renderUpgradeTab();
+  };
   window.__zzhDevGiveShells = function (amount) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
     shells += amount || 1000;
     persist();
-    updateShellsDisplay();
+    updateCurrencyDisplay();
     if (!shopOverlay.classList.contains('hidden')) { renderGachaTab(); renderUpgradeTab(); }
   };
 
-  updateShellsDisplay();
+  updateCurrencyDisplay();
   updateBaitButton();
   if (!hasCastBefore) tutorialHintEl.classList.remove('hidden');
+
+  // Browsers refuse to start any audio (WebAudio included) before the page
+  // has seen a real user gesture -- no way around that, so this is as
+  // close to "sound as soon as the game starts" as possible: unlock on the
+  // very FIRST tap/click/key anywhere on the page, not specifically a cast
+  // or a gacha pull like before. Self-removing, and ensureAudio() itself is
+  // a no-op once actx already exists, so firing more than once is harmless.
+  const unlockAudioOnFirstGesture = () => ensureAudio();
+  ['pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, unlockAudioOnFirstGesture, { once: true, passive: true });
+  });
 }
 
 try {
