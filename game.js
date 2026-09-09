@@ -708,6 +708,7 @@ function __zzhInit() {
   const statusTextEl = document.getElementById('status-text');
   const tutorialHintEl = document.getElementById('tutorial-hint');
   const reelGaugeEl = document.getElementById('reel-gauge');
+  const reelTapCatcherEl = document.getElementById('reel-tap-catcher');
   const gaugeTrackEl = document.getElementById('gauge-track-v');
   const gaugeZoneEl = document.getElementById('gauge-zone-v');
   const gaugeIndicatorEl = document.getElementById('gauge-indicator-v');
@@ -879,6 +880,13 @@ function __zzhInit() {
     }
   });
 
+  // Mirrors the canvas's reeling branch above -- see .reel-tap-catcher in
+  // style.css and its show/hide in startReel()/catchSuccess()/catchFail().
+  reelTapCatcherEl.addEventListener('click', () => {
+    ensureAudio();
+    attemptHit();
+  });
+
   function cast(x, y) {
     if (!hasCastBefore) {
       hasCastBefore = true;
@@ -951,6 +959,12 @@ function __zzhInit() {
     hideStatus();
     state = 'reeling';
     bobberState = 'reeling';
+    // A bite can land while the player still has 미끼/메뉴 open from the
+    // waiting period -- close both so the full-screen tap catcher below
+    // isn't fighting an open dropdown for the reeling taps.
+    setBaitMenuOpen(false);
+    setMenuOpen(false);
+    reelTapCatcherEl.classList.remove('hidden');
     const f = getEffectiveReel(currentCatch.tier);
     // Hit count is random per catch: HITS_BASE_BY_TIER's floor, plus 0~1.
     const hitsRequired = HITS_BASE_BY_TIER[currentCatch.tier] + Math.floor(Math.random() * 2);
@@ -1192,6 +1206,7 @@ function __zzhInit() {
     sfx.splash();
     sfx.success();
     reelGaugeEl.classList.add('hidden');
+    reelTapCatcherEl.classList.add('hidden');
     const c = currentCatch;
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
@@ -1219,6 +1234,7 @@ function __zzhInit() {
     bobberState = 'hidden';
     sfx.fail();
     reelGaugeEl.classList.add('hidden');
+    reelTapCatcherEl.classList.add('hidden');
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/result/miss.svg');
   }
 

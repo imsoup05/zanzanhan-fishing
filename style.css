@@ -1,10 +1,49 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Display face used sparingly for a handful of heading/wordmark moments
+   (see --font-display below) -- everything else stays in the Pretendard
+   body face loaded via <link> in index.html. Naver's own free-commercial-use
+   font, mirrored on jsDelivr since Naver's own CDN isn't meant for
+   cross-origin hotlinking. */
+@font-face {
+  font-family: 'Maru Buri';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-SemiBold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Maru Buri';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-Bold.woff2') format('woff2');
+}
+
 :root {
   --panel-bg: rgba(20, 40, 45, 0.55);
   --panel-border: rgba(255, 255, 255, 0.18);
   --accent: #ffcf6b;
   --text-light: #f4f8f6;
+  /* Reserved for headings/wordmarks (상점/설정 title, 위치 pill, 결과 팝업
+     제목) -- not the default body face. Keeps one distinctive display face
+     from being spread over every label, button and toggle in the UI. */
+  --font-display: 'Maru Buri', 'Apple SD Gothic Neo', serif;
+
+  /* Browsing chrome: menus/panels the player pokes around in (상점,
+     보관함, 설정, dropdown menus). One surface so they read as the same
+     "layer" of UI. */
+  --surface-menu: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
+  /* Spotlight moments: catch result / gacha reveal. Deliberately cooler and
+     darker than --surface-menu (less teal, more neutral charcoal) so these
+     don't read as "just another settings screen" and the gold accent/art
+     inside them pops harder. */
+  --surface-spotlight: linear-gradient(160deg, rgba(26,32,38,0.97), rgba(9,14,18,0.98));
+
+  /* Primary economy actions only (뽑기/강화/판매/확인) -- the one button
+     color that should mean "this is the important action here". */
+  --cta-grad: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  --danger-grad: linear-gradient(180deg, #ff8a70, #e8493a);
 }
 
 html, body {
@@ -20,7 +59,7 @@ html, body {
      only made to look intentional instead of a stray black/mismatched
      strip -- deep water reads as "the bottom of the scene", not a bug. */
   background: #0f4b5c;
-  font-family: 'Gowun Dodum', 'Jua', sans-serif;
+  font-family: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif;
   color: var(--text-light);
 }
 
@@ -45,6 +84,28 @@ body {
   width: min(var(--vw-px, 100vw), calc(var(--vh-px, 100dvh) * 393 / 852));
   height: min(var(--vh-px, 100dvh), calc(var(--vw-px, 100vw) * 852 / 393));
   overflow: hidden;
+}
+
+/* Whole-screen film grain: the flat gradients elsewhere (panels, buttons)
+   are what make an all-CSS UI read as "AI/template-made" at a glance --
+   real shipped apps almost always break that up with some texture. One
+   procedural noise layer (SVG feTurbulence, no image asset) over the
+   entire game ties every screen together with the same subtle grain
+   rather than fixing this panel-by-panel. mix-blend-mode:overlay keeps it
+   from just looking like gray fog -- it darkens/lightens what's already
+   there instead of sitting on top of it. */
+#game::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.06;
+  /* overlay barely registers against these near-black panels (overlay
+     preserves dark bases as dark); screen only adds light speckle on top,
+     which is what actually shows up as grain here. */
+  mix-blend-mode: screen;
 }
 
 /* Real phones rarely match that exact 393:852 ratio -- letterboxing them
@@ -98,11 +159,13 @@ body {
 }
 .update-banner.hidden { display: none; }
 .update-refresh-btn {
-  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
-  color: #3a2a10;
-  border: none;
+  /* Deliberately not --cta-grad: this is incidental app chrome, not a game
+     action, so it shouldn't compete with 뽑기/강화/확인 for attention. */
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: var(--text-light);
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: 14px;
   font-family: inherit;
   font-size: 13px;
   font-weight: bold;
@@ -114,21 +177,20 @@ body {
 
 /* ================= Reserved chrome (top/bottom -- never casts) =================
    These bands mirror 기본 UI 영역 분류: only the middle water band between
-   them is tap-to-fish. Kept deliberately bare (icon-only, no panel behind
-   them) since the canvas art is the background, not these controls. */
+   them is tap-to-fish. */
 .topbar {
   position: absolute;
   top: 0; left: 0; right: 0;
   /* env(safe-area-inset-top) clears the notch/Dynamic Island/status bar --
      without it (and viewport-fit=cover in the meta tag) this row renders
-     underneath the iOS status bar instead of below it. */
-  padding: calc(16px + env(safe-area-inset-top)) 16px 0;
+     underneath the iOS status bar instead of below it. That's the only
+     top clearance left -- no more added-on decorative gap above the bar,
+     so on a non-notched screen (like this desktop preview) the bar sits
+     flush at y=0. */
+  padding: env(safe-area-inset-top) 0 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
   z-index: 5;
 }
-.topbar-right { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 
 .bottombar {
   position: absolute;
@@ -141,25 +203,45 @@ body {
   z-index: 5;
 }
 
-.currency-row { display: flex; gap: 8px; }
-
-.location-pill, .shells-pill, .gems-pill {
-  background: var(--panel-bg);
+/* One rectangular bar instead of three separate floating oval pills (plus
+   a separate hamburger button) -- sharp corners deliberately
+   (border-radius: 0), unlike the panels elsewhere. Solid (not translucent)
+   and flush against both screen edges with no margin, so it reads as a
+   fixed HUD strip rather than a floating card -- backdrop-filter is gone
+   too since there's nothing showing through an opaque background for it
+   to blur. position:relative so #side-menu (absolute, appended last) can
+   drop straight down from this same box instead of a separate one. */
+.status-bar {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgb(20, 40, 45);
   border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 14px;
-  backdrop-filter: blur(6px);
+  border-radius: 0;
+  padding: 10px 16px;
+  margin: 0;
+  font-size: 16px;
   white-space: nowrap;
+}
+.status-location {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 600;
 }
+/* Pushed to the right (auto-margin eats the space 다리 밑 doesn't use) so
+   the two currencies sit grouped next to the menu button instead of
+   trailing right behind the location label. */
+.status-currencies { display: inline-flex; align-items: center; gap: 14px; margin-left: auto; }
+.status-currency { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Every emoji in the UI was swapped for one of these generated icon files
    (icons/*.svg) -- emoji render inconsistently (missing glyphs, wildly
    different art style) across platforms/fonts, images don't. */
-.ui-icon { width: 16px; height: 16px; display: block; }
+.ui-icon { width: 18px; height: 18px; display: block; }
 .ui-icon-lg { width: 26px; height: 26px; display: block; }
 .ui-icon-xl { width: 38px; height: 38px; display: block; }
 
@@ -231,20 +313,17 @@ body {
 .icon-btn:hover { transform: translateY(-1px); }
 .icon-btn:active { transform: scale(0.94); }
 
-/* Menu toggle carries the same panel color as .side-menu below it, sized
-   to match its width -- so opening the menu reads as this button growing
-   downward into a pill, not a separate box appearing under it. */
+/* Lives inside .status-bar now (see index.html) instead of floating next
+   to it -- transparent/borderless like .shop-close-btn, so it reads as
+   part of the same bar rather than a button sitting on top of it. Square
+   corners (border-radius:0), not the circle .icon-btn gives everything
+   else by default. Sits at the bar's right edge because .status-currencies
+   already pushed itself (and everything after it) over with its own
+   margin-left:auto -- no auto-margin needed here too. */
 #menu-toggle-btn {
-  position: relative;
-  z-index: 5;
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
-  border: 1px solid var(--panel-border);
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .status-text {
@@ -337,6 +416,18 @@ body {
   pointer-events: none;
 }
 .reel-gauge.hidden { display: none; }
+
+/* Invisible, covers the whole game area above the top/bottom bar chrome
+   (z-index 5) and the gauge itself (6) -- see game.js's startReel(). Only
+   .active while reeling, so a mistimed tap on 미끼/메뉴 buttons still
+   lands as a hit attempt instead of opening something. */
+.reel-tap-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  cursor: pointer;
+}
+.reel-tap-catcher.hidden { display: none; }
 
 .gauge-track-v {
   position: relative;
@@ -502,13 +593,30 @@ body {
 .side-menu {
   position: absolute;
   top: 100%;
-  right: 0;
-  margin-top: -14px; /* tucks under the button so the seam disappears */
-  width: 60px;
-  background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
+  /* NOT 0 -- for an absolutely positioned element, `right` is measured
+     from the ancestor's PADDING edge, which ignores the ancestor's own
+     padding entirely. #menu-toggle-btn, as a normal flex child, sits
+     inset from .status-bar's true right edge by that same padding
+     (16px). So right:0 here landed 16px too far right (measured this
+     with getBoundingClientRect -- button right=376, menu right=392 on a
+     393px-wide screen). right:16px cancels that out and the two match. */
+  right: 16px;
+  /* No negative margin anymore -- the button it used to tuck under has no
+     background of its own now that it lives inside .status-bar, so this
+     just continues flush from the bar's own bottom edge. */
+  margin-top: 0;
+  /* Must match #menu-toggle-btn's actual rendered width exactly (26px icon
+     + .icon-btn's 10px padding each side = 46px) -- both are right-aligned
+     the same amount now, so any mismatch here sticks out as a jagged left
+     edge where the dropdown meets the button above it. */
+  width: 46px;
+  background: var(--surface-menu);
   border: 1px solid var(--panel-border);
-  border-radius: 30px;
-  padding: 22px 0 8px;
+  /* Flat top (0) so it reads as continuing straight out of the status
+     bar's flat bottom edge, not a separate rounded panel that happens to
+     touch it -- only the bottom stays rounded. */
+  border-radius: 0 0 30px 30px;
+  padding: 16px 0 8px;
   display: flex;
   flex-direction: column;
   z-index: 4; /* sits behind the button (z-index 5) so it visibly grows out from under it */
@@ -549,7 +657,7 @@ body {
   transform: translateX(-50%) scaleY(0);
   margin-bottom: -14px; /* tucks under the button, same seam trick as .side-menu */
   width: 168px;
-  background: linear-gradient(160deg, rgba(24,54,60,0.96), rgba(15,38,44,0.96));
+  background: var(--surface-menu);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
   padding: 8px 0 22px;
@@ -595,7 +703,7 @@ body {
   max-width: 420px;
   height: calc(var(--vh-px, 100dvh) * 0.72);
   max-height: 620px;
-  background: linear-gradient(160deg, rgba(24,54,60,0.97), rgba(15,38,44,0.97));
+  background: var(--surface-menu);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
   display: flex;
@@ -609,7 +717,7 @@ body {
   padding: 18px 10px 8px 22px;
   flex-shrink: 0;
 }
-.shop-title { font-size: 20px; color: var(--accent); }
+.shop-title { font-size: 20px; color: var(--accent); font-family: var(--font-display); font-weight: 600; }
 .shop-balances { display: flex; gap: 12px; font-size: 14px; }
 .shop-balance { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .shop-close-btn {
@@ -701,11 +809,11 @@ body {
 .sell-row-meta { font-size: 12.5px; opacity: 0.7; margin-top: 3px; }
 .sell-row-price { font-size: 14px; color: var(--accent); white-space: nowrap; }
 .sell-btn {
-  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  background: var(--cta-grad);
   color: #3a2a10;
   border: none;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: 14px;
   font-family: inherit;
   font-size: 13.5px;
   cursor: pointer;
@@ -747,11 +855,11 @@ body {
 .gacha-pull-buttons { display: flex; gap: 10px; margin-top: auto; }
 .gacha-pull-btn {
   flex: 1;
-  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  background: var(--cta-grad);
   color: #3a2a10;
   border: none;
   padding: 14px 0;
-  border-radius: 16px;
+  border-radius: 14px;
   font-family: inherit;
   cursor: pointer;
   display: flex;
@@ -769,9 +877,13 @@ body {
 /* ---- Gacha reveal overlay ---- */
 .gacha-reveal-panel {
   position: relative;
-  background: linear-gradient(160deg, rgba(24,54,60,0.95), rgba(15,38,44,0.95));
+  background: var(--surface-spotlight);
   border: 1px solid var(--panel-border);
-  border-radius: 22px;
+  /* Asymmetric corners (vs. the plain uniform 22px on the calm/browsing
+     .shop-panel) -- reads more like a ticket/medal than a generic rounded
+     card, and reinforces spotlight-vs-menu as two distinct shapes, not
+     just two colors. */
+  border-radius: 34px 14px 34px 14px;
   padding: 30px 24px;
   text-align: center;
   width: min(480px, 94%);
@@ -934,11 +1046,11 @@ body {
 .upgrade-stat-name { font-size: 15px; margin-bottom: 2px; }
 .upgrade-stat-desc { font-size: 12.5px; opacity: 0.65; margin-bottom: 8px; }
 .upgrade-btn {
-  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  background: var(--cta-grad);
   color: #3a2a10;
   border: none;
   padding: 10px 16px;
-  border-radius: 999px;
+  border-radius: 14px;
   font-family: inherit;
   font-size: 14px;
   cursor: pointer;
@@ -1058,7 +1170,7 @@ body {
 }
 
 .danger-btn {
-  background: linear-gradient(180deg, #ff8a70, #e8493a);
+  background: var(--danger-grad);
   color: #fff;
   border: none;
   padding: 13px 16px;
@@ -1096,9 +1208,9 @@ body {
 
 .result-card {
   position: relative;
-  background: linear-gradient(160deg, rgba(24,54,60,0.95), rgba(15,38,44,0.95));
+  background: var(--surface-spotlight);
   border: 1px solid var(--panel-border);
-  border-radius: 22px;
+  border-radius: 34px 14px 34px 14px;
   padding: 38px 32px;
   text-align: center;
   width: min(480px, 94%);
@@ -1106,7 +1218,7 @@ body {
 }
 .result-icon { margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
 .result-icon img { width: 84px; height: auto; }
-.result-title { font-size: 29px; margin-bottom: 10px; color: var(--accent); }
+.result-title { font-size: 29px; margin-bottom: 10px; color: var(--accent); font-family: var(--font-display); font-weight: 700; }
 .result-desc { font-size: 17px; opacity: 0.85; margin-bottom: 24px; line-height: 1.6; }
 .material-count { font-size: 15px; color: var(--accent); margin-top: -14px; margin-bottom: 24px; }
 
@@ -1186,11 +1298,11 @@ body {
 }
 
 .main-btn {
-  background: linear-gradient(180deg, #ffe1a8, #ffb85c);
+  background: var(--cta-grad);
   color: #3a2a10;
   border: none;
   padding: 17px 34px;
-  border-radius: 999px;
+  border-radius: 14px;
   font-family: inherit;
   font-size: 19px;
   cursor: pointer;

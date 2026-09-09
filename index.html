@@ -12,9 +12,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="낚시터">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,17 +30,20 @@
 
   <!-- Reserved zones (see 기본 UI 영역 분류): tapping here never casts a line -->
   <header class="topbar">
-    <div class="location-pill"><img class="ui-icon" src="icons/ui/location.svg" alt="">다리 밑</div>
-    <div class="topbar-right">
-      <div class="currency-row">
-        <div class="shells-pill"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></div>
-        <div class="gems-pill"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></div>
+    <!-- One rectangular status bar spanning the full width -- location,
+         currencies AND the menu button now live inside the same box
+         (sharp corners, see .status-bar) instead of the button floating
+         next to it as its own separate shape. -->
+    <div class="status-bar">
+      <div class="status-location"><img class="ui-icon" src="icons/ui/location.svg" alt="">다리 밑</div>
+      <div class="status-currencies">
+        <span class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></span>
+        <span class="status-currency"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></span>
       </div>
       <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/ui/menu.svg" alt="메뉴"></button>
 
-      <!-- Grows straight down out of the hamburger button, same width and
-           color, so it reads as one shape rather than a separate panel.
-           Icon-only. Order: 상점, 보관함, 설정. -->
+      <!-- Grows straight down out of the status bar, right-aligned under
+           the menu button. Icon-only. Order: 상점, 보관함, 설정. -->
       <nav id="side-menu" class="side-menu">
         <button id="menu-shop-btn" class="side-menu-item" title="상점">
           <img class="side-menu-icon" src="icons/ui/shop.svg" alt="상점">
@@ -87,6 +89,14 @@
       <div id="chance-lights" class="chance-lights"></div>
     </div>
   </div>
+
+  <!-- Full-screen tap target shown only while reeling (see game.js's
+       startReel/catchSuccess/catchFail). Sits above the top/bottom bar
+       chrome so a mistimed tap on the 미끼 button, hamburger menu, etc.
+       still counts as a hit attempt instead of opening a menu -- first-time
+       players don't yet know reeling wants a tap ANYWHERE, not just on the
+       water. Invisible; #reel-gauge stays the only visible feedback. -->
+  <div id="reel-tap-catcher" class="reel-tap-catcher hidden"></div>
 
   <footer class="bottombar">
     <div class="bait-btn-wrap">
