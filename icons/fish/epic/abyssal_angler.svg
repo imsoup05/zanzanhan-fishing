@@ -1,9 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
-  <circle cx="16.5" cy="16" r="15.5" fill="#8ce8ff" fill-opacity="0.22"/>
-  <path d="M29.0 16Q40.2 6.2 42.2 16Q40.2 25.8 29.0 16z" fill="#4c2b64"/>
-  <path d="M4.0 16C8.5 8.5 24.5 8.5 29.0 16C24.5 23.5 8.5 23.5 4.0 16z" fill="#4c2b64"/>
-  <path d="M14.0 11.9q3.0 -5.6 6.5 -1.1" stroke="#261533" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-  <path d="M9.0 10.0Q2.0 6.5 2.0 2.5" stroke="#261533" stroke-width="1" fill="none" stroke-linecap="round"/>
-  <circle cx="2.0" cy="2.5" r="1.8" fill="#8ce8ff"/>
-  <circle cx="10.0" cy="13.6" r="1.9" fill="#0a1a1e"/>
+  <circle cx="16.5" cy="16" r="15.5" fill="#8ce8ff" fill-opacity="0.18"/>
+  <!-- Front-heavy, bulbous body (mass up front near the jaw) instead of a
+       symmetric lens; anglerfish read as "mostly mouth". Small tail. -->
+  <path d="M3 16C3 7.5 15 5 23 8.5C29.5 11.3 29.5 20.7 23 23.5C15 27 3 24.5 3 16Z" fill="#3a2050"/>
+  <path d="M28 16L36 11.5L33 16L36 20.5Z" fill="#2c1840"/>
+  <!-- Huge crescent mouth with small teeth. -->
+  <path d="M6 18.5Q15 26 24 19" stroke="#160c22" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M8.5 19.5l1.1 2.1l1.1-1.7M13 22l1.1 2.1l1.1-1.9M17.5 22l1.1 1.9l1.1-2.1" stroke="#e8e4f0" stroke-width="0.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Bioluminescent lure: antenna + glowing tip with its own soft halo. -->
+  <path d="M10 9Q3 5.5 2.2 0.8" stroke="#160c22" stroke-width="1" fill="none" stroke-linecap="round"/>
+  <circle cx="2.2" cy="0.8" r="3.2" fill="#8ce8ff" opacity="0.35"/>
+  <circle cx="2.2" cy="0.8" r="1.6" fill="#c9f7ff"/>
+  <!-- A couple of smaller luminous spots along the flank. -->
+  <circle cx="17" cy="12.5" r="0.8" fill="#8ce8ff" opacity="0.8"/>
+  <circle cx="21" cy="16" r="0.7" fill="#8ce8ff" opacity="0.7"/>
+  <circle cx="9.5" cy="11.5" r="1.9" fill="#e8e4f0"/>
+  <circle cx="9.5" cy="11.5" r="1" fill="#0a0614"/>
 </svg>

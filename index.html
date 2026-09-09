@@ -40,21 +40,32 @@
         <span class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></span>
         <span class="status-currency"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></span>
       </div>
-      <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/ui/menu.svg" alt="메뉴"></button>
+      <!-- Wrapper is what #side-menu centers itself against (left:50% +
+           translateX(-50%) in CSS) -- so the dropdown always lines up
+           with the button's actual rendered center no matter how either
+           one's width changes later, instead of a hand-measured `right`
+           offset that has to be re-derived (and silently drifts out of
+           sync) every time. -->
+      <div class="menu-wrap">
+        <button id="menu-toggle-btn" class="icon-btn" title="메뉴"><img class="ui-icon-lg" src="icons/ui/menu.svg" alt="메뉴"></button>
 
-      <!-- Grows straight down out of the status bar, right-aligned under
-           the menu button. Icon-only. Order: 상점, 보관함, 설정. -->
-      <nav id="side-menu" class="side-menu">
-        <button id="menu-shop-btn" class="side-menu-item" title="상점">
-          <img class="side-menu-icon" src="icons/ui/shop.svg" alt="상점">
-        </button>
-        <button id="menu-bucket-btn" class="side-menu-item" title="보관함">
-          <img class="side-menu-icon" src="icons/ui/bucket.svg" alt="보관함">
-        </button>
-        <button id="menu-settings-btn" class="side-menu-item" title="설정">
-          <img class="side-menu-icon" src="icons/ui/settings.svg" alt="설정">
-        </button>
-      </nav>
+        <!-- Icon + small label under it (icon-only wasn't clear to
+             first-time players). Order: 상점, 보관함, 설정. -->
+        <nav id="side-menu" class="side-menu">
+          <button id="menu-shop-btn" class="side-menu-item" title="상점">
+            <img class="side-menu-icon" src="icons/ui/shop.svg" alt="">
+            <span class="side-menu-label">상점</span>
+          </button>
+          <button id="menu-bucket-btn" class="side-menu-item" title="보관함">
+            <img class="side-menu-icon" src="icons/ui/bucket.svg" alt="">
+            <span class="side-menu-label">보관함</span>
+          </button>
+          <button id="menu-settings-btn" class="side-menu-item" title="설정">
+            <img class="side-menu-icon" src="icons/ui/settings.svg" alt="">
+            <span class="side-menu-label">설정</span>
+          </button>
+        </nav>
+      </div>
     </div>
   </header>
 

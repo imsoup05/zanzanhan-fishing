@@ -186,7 +186,12 @@ body {
      underneath the iOS status bar instead of below it. That's the only
      top clearance left -- no more added-on decorative gap above the bar,
      so on a non-notched screen (like this desktop preview) the bar sits
-     flush at y=0. */
+     flush at y=0. background matches .status-bar exactly so the iOS
+     status bar (clock/battery) sits on the SAME dark strip as 다리 밑 --
+     without this, that safe-area padding was empty and showed the
+     lighter water/sky scene through it, splitting the top of the screen
+     into two visually different bands. */
+  background: rgb(20, 40, 45);
   padding: env(safe-area-inset-top) 0 0;
   display: flex;
   z-index: 5;
@@ -218,7 +223,11 @@ body {
   align-items: center;
   gap: 14px;
   background: rgb(20, 40, 45);
-  border: 1px solid var(--panel-border);
+  /* Only a bottom edge now -- top/left/right borders would just be a
+     seam against the identically-colored .topbar background surrounding
+     this box on those three sides. */
+  border: none;
+  border-bottom: 1px solid var(--panel-border);
   border-radius: 0;
   padding: 10px 16px;
   margin: 0;
@@ -313,13 +322,19 @@ body {
 .icon-btn:hover { transform: translateY(-1px); }
 .icon-btn:active { transform: scale(0.94); }
 
+/* Positioning context for #side-menu, which centers itself against THIS
+   box (left:50%/translateX(-50%)) rather than the status bar -- so the
+   dropdown always lines up with the button regardless of either one's
+   width. Sits at the bar's right edge because .status-currencies already
+   pushed itself (and everything after it, including this) over with its
+   own margin-left:auto. */
+.menu-wrap { position: relative; }
+
 /* Lives inside .status-bar now (see index.html) instead of floating next
    to it -- transparent/borderless like .shop-close-btn, so it reads as
    part of the same bar rather than a button sitting on top of it. Square
    corners (border-radius:0), not the circle .icon-btn gives everything
-   else by default. Sits at the bar's right edge because .status-currencies
-   already pushed itself (and everything after it) over with its own
-   margin-left:auto -- no auto-margin needed here too. */
+   else by default. */
 #menu-toggle-btn {
   background: transparent;
   border: none;
@@ -592,24 +607,27 @@ body {
 
 .side-menu {
   position: absolute;
-  top: 100%;
-  /* NOT 0 -- for an absolutely positioned element, `right` is measured
-     from the ancestor's PADDING edge, which ignores the ancestor's own
-     padding entirely. #menu-toggle-btn, as a normal flex child, sits
-     inset from .status-bar's true right edge by that same padding
-     (16px). So right:0 here landed 16px too far right (measured this
-     with getBoundingClientRect -- button right=376, menu right=392 on a
-     393px-wide screen). right:16px cancels that out and the two match. */
-  right: 16px;
-  /* No negative margin anymore -- the button it used to tuck under has no
-     background of its own now that it lives inside .status-bar, so this
-     just continues flush from the bar's own bottom edge. */
+  /* Not just 100% -- .menu-wrap only wraps the button's own height, which
+     is shorter than .status-bar's full row (the row's height comes from
+     the button being its tallest child, centered inside the bar's own
+     10px top/bottom padding). top:100% alone would anchor to
+     .menu-wrap's bottom, landing 11px above the status bar's actual
+     painted edge (its border-box) -- the dropdown opened overlapping
+     the bar's own background instead of starting cleanly below it.
+     +11px = .status-bar's 10px bottom padding + its 1px border, so keep
+     this in sync if either of those change. */
+  top: calc(100% + 11px);
+  /* Centered on .menu-wrap (i.e. on the button) instead of a `right`
+     offset hand-matched to the button's width -- that broke every time
+     either width changed (46px -> 64px for labels drifted it off-center;
+     see git history). left:50% + translateX(-50%) keeps it centered
+     automatically no matter what either width is from now on. */
+  left: 50%;
   margin-top: 0;
-  /* Must match #menu-toggle-btn's actual rendered width exactly (26px icon
-     + .icon-btn's 10px padding each side = 46px) -- both are right-aligned
-     the same amount now, so any mismatch here sticks out as a jagged left
-     edge where the dropdown meets the button above it. */
-  width: 46px;
+  /* Wide enough for an icon + text label per item (icon-only wasn't clear
+     to first-time players) while still reading as "grows out of the
+     button" rather than a wide separate panel. */
+  width: 64px;
   background: var(--surface-menu);
   border: 1px solid var(--panel-border);
   /* Flat top (0) so it reads as continuing straight out of the status
@@ -621,21 +639,23 @@ body {
   flex-direction: column;
   z-index: 4; /* sits behind the button (z-index 5) so it visibly grows out from under it */
   transform-origin: top center;
-  transform: scaleY(0);
+  transform: translateX(-50%) scaleY(0);
   opacity: 0;
   pointer-events: none;
   transition: transform 0.22s ease, opacity 0.16s ease;
 }
-.side-menu.open { transform: scaleY(1); opacity: 1; pointer-events: auto; }
+.side-menu.open { transform: translateX(-50%) scaleY(1); opacity: 1; pointer-events: auto; }
 
 .side-menu-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
   width: 100%;
   background: transparent;
   border: none;
-  padding: 13px 0;
+  padding: 11px 2px;
   color: var(--text-light);
   font-family: inherit;
   font-size: 15px;
@@ -645,7 +665,8 @@ body {
 }
 .side-menu-item:hover { background: rgba(255,255,255,0.08); }
 .side-menu-item:active { background: rgba(255,255,255,0.14); }
-.side-menu-icon { width: 24px; height: 24px; display: block; }
+.side-menu-icon { width: 21px; height: 21px; display: block; }
+.side-menu-label { font-size: 9.5px; line-height: 1; opacity: 0.85; white-space: nowrap; }
 
 /* ================= Bait picker (하단바 미끼 버튼) =================
    Same "grows straight out of the button" idea as .side-menu above, just

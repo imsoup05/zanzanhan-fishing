@@ -575,7 +575,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 5;
+  const SAVE_SCHEMA_VERSION = 6;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -636,6 +636,23 @@ function __zzhInit() {
         if (!Array.isArray(catches[id].history)) catches[id] = { ...catches[id], history: [] };
       });
       return { ...save, catches, schemaVersion: 5 };
+    },
+    // schema 5 -> 6: per-species fish icons (icons/fish/<tier>/<id>.svg)
+    // were added after this field already existed, so caughtFish entries
+    // still sitting unsold from before that point never got an `id` --
+    // rendering them now (speciesIconPath needs it) shows a broken image.
+    // Back-fill it by matching each entry's (tier, name) against the fixed
+    // species list -- FishData is loaded before game.js, so it's available
+    // here. Leaves an entry alone if it somehow already has an id, or if
+    // no species matches (shouldn't happen with the current fixed roster).
+    (save) => {
+      const caughtFish = (save.caughtFish || []).map((item) => {
+        if (item.id) return item;
+        const pool = (window.FishData && window.FishData.FISH_BY_TIER[item.tier]) || [];
+        const match = pool.find((sp) => sp.name === item.name);
+        return match ? { ...item, id: match.id } : item;
+      });
+      return { ...save, caughtFish, schemaVersion: 6 };
     }
   ];
   function migrateSave(save) {
@@ -1866,6 +1883,21 @@ function __zzhInit() {
     persist();
     updateCurrencyDisplay();
     if (!shopOverlay.classList.contains('hidden')) { renderGachaTab(); renderUpgradeTab(); }
+  };
+  // Fills in every species' 도감 entry that isn't already discovered, with
+  // a plausible (not just zeroed) count/best/history so the log previews
+  // realistically instead of showing a pile of freshly-reset-looking rows.
+  window.__zzhDevUnlockAllSpecies = function () {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    Object.keys(FishData.FISH_BY_TIER).forEach((tierKey) => {
+      FishData.FISH_BY_TIER[tierKey].forEach((sp) => {
+        if (catches[sp.id]) return;
+        const history = [1, 2, 3].map(() => FishData.randSize(sp.sizeRange)).sort((a, b) => a - b);
+        catches[sp.id] = { count: history.length, best: history[history.length - 1], history };
+      });
+    });
+    persist();
+    if (!bucketOverlay.classList.contains('hidden')) renderLog();
   };
 
   updateCurrencyDisplay();
