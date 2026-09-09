@@ -1479,7 +1479,6 @@ function __zzhInit() {
             <span class="tier-badge tier-${item.tier}">${FishData.TIERS[item.tier].label}</span>
             ${item.name} · ${item.size}cm
           </div>
-          <div class="sell-row-meta">${item.desc}</div>
         </div>
         <div class="sell-row-price"><img class="price-icon" src="icons/ui/shell.svg" alt="">${item.price.toLocaleString('ko-KR')}</div>
         <button class="sell-btn" data-uid="${item.uid}">판매</button>
