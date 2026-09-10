@@ -245,7 +245,13 @@ body {
    the two currencies sit grouped next to the menu button instead of
    trailing right behind the location label. */
 .status-currencies { display: inline-flex; align-items: center; gap: 14px; margin-left: auto; }
-.status-currency { display: inline-flex; align-items: center; gap: 6px; }
+.status-currency {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; color: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.status-currency:active { opacity: 0.6; }
 
 /* Every emoji in the UI was swapped for one of these generated icon files
    (icons/*.svg) -- emoji render inconsistently (missing glyphs, wildly
@@ -409,6 +415,72 @@ body {
   100% { transform: scale(1.7); opacity: 0; }
 }
 
+/* Docked to #gauge-track-v (which is already position:relative), pointing
+   inward off whichever side the track ends up on -- so it automatically
+   stays correctly attached whether or not lefty-mode has moved/reversed
+   the whole gauge cluster, no separate position math needed. */
+.reel-tutorial-hint {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 7;
+}
+.reel-tutorial-hint.hidden { display: none; }
+.reel-tutorial-hint-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-shadow: 0 1px 5px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.5);
+}
+.reel-tutorial-hint-arrow {
+  width: 0; height: 0;
+  flex: none;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 9px solid #fff;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+  animation: tutorialArrowNudge 1s ease-in-out infinite;
+}
+@keyframes tutorialArrowNudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-3px); }
+}
+#game.lefty-mode .reel-tutorial-hint {
+  left: auto; right: 100%;
+  margin-left: 0; margin-right: 8px;
+  flex-direction: row-reverse;
+}
+#game.lefty-mode .reel-tutorial-hint-arrow {
+  border-right: none;
+  border-left: 9px solid #fff;
+  animation-name: tutorialArrowNudgeRight;
+}
+@keyframes tutorialArrowNudgeRight {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
+/* Pulsing emphasis on the gauge itself during that same first reel --
+   .tutorial-glow is toggled by game.js alongside the callout above. */
+.gauge-track-v.tutorial-glow { animation: gaugeTutorialPulse 1.3s ease-in-out infinite; }
+@keyframes gaugeTutorialPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.6); }
+  50% { box-shadow: 0 0 0 5px rgba(255,255,255,0); }
+}
+.gauge-zone-v.tutorial-glow { animation: zoneTutorialPulse 1.3s ease-in-out infinite; }
+@keyframes zoneTutorialPulse {
+  0%, 100% { box-shadow: inset 0 0 10px rgba(255,255,255,0.4), 0 0 0 0 rgba(255,255,255,0.9); }
+  50% { box-shadow: inset 0 0 10px rgba(255,255,255,0.4), 0 0 12px 3px rgba(255,255,255,0.95); }
+}
+
 /* Currency icon dropped inline into plain text/buttons (price labels,
    costs) -- shell.svg in place of a trailing "개". vertical-align nudges it
    up onto the text baseline since these sit in non-flex containers. */
@@ -444,9 +516,11 @@ body {
 }
 .reel-tap-catcher.hidden { display: none; }
 
+.gauge-track-wrap { position: relative; flex: none; align-self: stretch; }
 .gauge-track-v {
   position: relative;
   width: 18px;
+  height: 100%;
   background: rgba(255,255,255,0.12);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
@@ -669,51 +743,119 @@ body {
 .side-menu-label { font-size: 9.5px; line-height: 1; opacity: 0.85; white-space: nowrap; }
 
 /* ================= Bait picker (하단바 미끼 버튼) =================
-   Same "grows straight out of the button" idea as .side-menu above, just
-   mirrored to grow upward out of the bottom bar instead of downward. */
+   Horizontally-scrollable row of round chips, growing straight out of the
+   button (same idea as .side-menu, just sideways instead of vertical) --
+   was a vertical list of rows before; picking a bait is now a quick
+   sideways swipe+tap right next to where the thumb already is, and each
+   tier reads as its own round "coin" rather than a text row. */
 .bait-menu {
   position: absolute;
-  bottom: 100%;
+  /* Anchored to the BUTTON's own bottom edge (not its top, via bottom:100%
+     + a hand-tuned negative margin like before) -- that left the button
+     only partly covered and drifted out of sync if the button's size ever
+     changed. Since the panel's own height (circle + label + padding) is
+     comfortably taller than the 68px button regardless, bottom:0 always
+     fully covers it from here upward with no magic number involved. */
+  bottom: 0;
   left: 50%;
-  transform: translateX(-50%) scaleY(0);
-  margin-bottom: -14px; /* tucks under the button, same seam trick as .side-menu */
-  width: 168px;
+  width: min(280px, 80vw);
+  max-width: 320px;
   background: var(--surface-menu);
   border: 1px solid var(--panel-border);
-  border-radius: 22px;
-  padding: 8px 0 22px;
+  border-radius: 30px;
+  /* Left/right padding is set from game.js (updateBaitMenuPadding()), not
+     here -- it has to exactly equal half the container's own rendered
+     width minus half an item's width so the FIRST and LAST chips can
+     physically reach dead-center when scrolled all the way to either end;
+     a fixed px value drifts wrong the moment the container's width
+     changes (e.g. min(280px, 80vw) kicking in on a narrower phone). */
+  padding: 14px 0 16px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
   z-index: 4;
   transform-origin: bottom center;
+  transform: translateX(-50%) scale(0.85) translateY(6px);
   opacity: 0;
   pointer-events: none;
   transition: transform 0.22s ease, opacity 0.16s ease;
 }
-.bait-menu.open { transform: translateX(-50%) scaleY(1); opacity: 1; pointer-events: auto; }
+.bait-menu::-webkit-scrollbar { display: none; }
+.bait-menu.open { transform: translateX(-50%) scale(1) translateY(0); opacity: 1; pointer-events: auto; }
 
 .bait-menu-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  gap: 6px;
+  flex: none;
+  width: 52px;
+  scroll-snap-align: center;
   background: transparent;
   border: none;
-  padding: 10px 16px;
+  padding: 0;
   color: var(--text-light);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 11.5px;
   cursor: pointer;
-  text-align: left;
-  transition: background 0.15s ease;
 }
-.bait-menu-item:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
-.bait-menu-item:active:not(:disabled) { background: rgba(255,255,255,0.14); }
-.bait-menu-item.active { background: rgba(255,255,255,0.12); }
-.bait-menu-item:disabled { opacity: 0.35; cursor: default; }
-.bait-menu-icon { width: 24px; height: 24px; display: block; flex: none; }
-.bait-menu-name { flex: 1; }
-.bait-menu-count { font-size: 12px; opacity: 0.75; }
+.bait-menu-circle {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 2px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Starts small/faded -- .centered below is what brings an item to full
+     size+opacity, wheel-picker style, so scrolling reads as physically
+     bringing one tier into focus rather than everything sitting flat. */
+  opacity: 0.55;
+  transform: scale(0.8);
+  transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.15s ease, background 0.15s ease;
+}
+/* game.js tracks scroll position (see updateCenteredBaitItem()) and keeps
+   this on whichever chip currently sits at the row's horizontal center --
+   tapping THIS one is what actually equips it (see the click handler);
+   tapping an off-center one just scrolls it into the middle instead. */
+.bait-menu-item.centered .bait-menu-circle {
+  opacity: 1;
+  transform: scale(1.15);
+  background: rgba(255,255,255,0.14);
+}
+/* After .centered in source order so a disabled-but-centered chip still
+   reads as unavailable (same specificity, later rule wins the tie). */
+.bait-menu-item:disabled { cursor: default; }
+.bait-menu-item:disabled .bait-menu-circle { opacity: 0.35; }
+.bait-menu-item:active:not(:disabled) .bait-menu-circle { transform: scale(0.92); }
+/* Equipped tier's chip -- a persistent ring, independent of scroll/centered
+   state, so what's currently equipped stays visible while browsing. */
+.bait-menu-item.active .bait-menu-circle {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255,207,107,0.25);
+}
+.bait-menu-icon { width: 28px; height: 28px; display: block; }
+.bait-menu-name { line-height: 1.2; }
+.bait-menu-count {
+  position: absolute;
+  bottom: -3px;
+  right: -6px;
+  min-width: 16px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgb(20, 40, 45);
+  border: 1px solid var(--panel-border);
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: center;
+}
 
 /* ================= Shop popup (구매/판매/업그레이드) =================
    Fixed, screen-proportional size -- switching tabs never resizes the
@@ -900,11 +1042,10 @@ body {
   position: relative;
   background: var(--surface-spotlight);
   border: 1px solid var(--panel-border);
-  /* Asymmetric corners (vs. the plain uniform 22px on the calm/browsing
-     .shop-panel) -- reads more like a ticket/medal than a generic rounded
-     card, and reinforces spotlight-vs-menu as two distinct shapes, not
-     just two colors. */
-  border-radius: 34px 14px 34px 14px;
+  /* Was an asymmetric 34/14/34/14 "spotlight" shape to read as distinct
+     from .shop-panel; next to that panel in the actual live app it just
+     looked inconsistent, so this now matches .shop-panel's uniform radius. */
+  border-radius: 22px;
   padding: 30px 24px;
   text-align: center;
   width: min(480px, 94%);
@@ -1231,7 +1372,7 @@ body {
   position: relative;
   background: var(--surface-spotlight);
   border: 1px solid var(--panel-border);
-  border-radius: 34px 14px 34px 14px;
+  border-radius: 22px;
   padding: 38px 32px;
   text-align: center;
   width: min(480px, 94%);

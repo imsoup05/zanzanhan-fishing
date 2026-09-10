@@ -8,6 +8,10 @@ function __zzhInit() {
   // multiplier from the volume knob. exponentialRampToValueAtTime throws if
   // it ever ramps from exactly 0, hence the floor -- not audible at that level.
   let sfxVolume = 0.8;
+  // Independent from sfxVolume -- BGM gets its own dial in 설정 rather than
+  // riding along on the SFX slider. bgmVolume() (further down, next to the
+  // rest of the BGM code) is what actually reads this.
+  let bgmMasterVolume = 0.6;
   function blip(freq, dur, type, vol) {
     if (!actx) return;
     const osc = actx.createOscillator();
@@ -21,6 +25,10 @@ function __zzhInit() {
     osc.stop(actx.currentTime + dur);
   }
   const sfx = {
+    // Generic UI tap -- deliberately short/quiet since it fires on nearly
+    // every button in the app; anything louder or longer than this got
+    // fatiguing fast when tried at higher volume/duration.
+    tap: () => blip(600, 0.045, 'sine', 0.07),
     cast: () => blip(220, 0.18, 'sine', 0.12),
     bite: () => { blip(500, 0.1, 'triangle', 0.15); setTimeout(() => blip(650, 0.12, 'triangle', 0.12), 90); },
     hit: () => blip(700, 0.09, 'sine', 0.14),
@@ -29,6 +37,14 @@ function __zzhInit() {
     fail: () => { blip(300, 0.15, 'sawtooth', 0.12); setTimeout(() => blip(200, 0.25, 'sawtooth', 0.12), 130); },
     splash: () => { blip(90, 0.22, 'sine', 0.2); blip(180, 0.15, 'triangle', 0.1); },
     coin: () => { blip(880, 0.08, 'square', 0.1); setTimeout(() => blip(1180, 0.1, 'square', 0.1), 70); },
+    // Distinct from coin() -- 보석 drops are a rare (5%) bonus, not a routine
+    // currency tick, so this is a brighter 3-note sparkle rather than the
+    // flat double-blip used for every ordinary shell gain.
+    gem: () => {
+      blip(784, 0.09, 'sine', 0.15);
+      setTimeout(() => blip(1046, 0.09, 'sine', 0.15), 70);
+      setTimeout(() => blip(1568, 0.16, 'sine', 0.17), 140);
+    },
     // One flip-reveal blip per gacha tier, escalating in richness/length so
     // a legendary pull is unmistakably the biggest moment in the sequence.
     gachaReveal: (tier) => {
@@ -43,6 +59,106 @@ function __zzhInit() {
     // fish icon is now filled, one more landed hit completes the catch.
     finalStretch: () => { setTimeout(() => { blip(880, 0.07, 'triangle', 0.13); setTimeout(() => blip(1174, 0.1, 'triangle', 0.14), 70); }, 60); }
   };
+
+  // ================= Ambient background music (procedural, no assets) =================
+  // Same zero-asset philosophy as the SFX blips above -- built entirely out
+  // of oscillators instead of a licensed/composed audio file. First attempt
+  // here was a single held two-note drone + filtered noise bed; in real
+  // playtesting that read as "stuck on one note" (technically true -- it
+  // never changed pitch at all) and generally ominous rather than calm (a
+  // static low drone + filtered rumbling noise is a classic tension/horror
+  // cue, not a cozy one). Replaced with a slow-cycling chord pad -- the
+  // pitch set actually changes over time, and dropped the noise bed
+  // entirely. Shares the single existing volume slider with SFX (sfxVolume)
+  // rather than adding a second slider nobody asked for.
+  let bgmNodes = null; // non-null while playing, so start/stop are idempotent
+  let sparkleTimer = null;
+  let chordTimer = null;
+  const BGM_PENTATONIC = [329.63, 392.00, 440.00, 523.25, 587.33, 659.25]; // E G A C D E, kept mid/high so it reads as light sparkle, not a low drone
+  // Slow I - vi - IV - V-ish progression, calm/major throughout (no minor-key
+  // tension), each chord a plain close triad so nothing clashes.
+  const BGM_CHORDS = [
+    [261.63, 329.63, 392.00], // C major (C4 E4 G4)
+    [220.00, 261.63, 329.63], // A minor (A3 C4 E4)
+    [174.61, 220.00, 261.63], // F major (F3 A3 C4)
+    [196.00, 246.94, 293.66], // G major (G3 B3 D4)
+  ];
+  const CHORD_HOLD_S = 13;
+  const CHORD_FADE_S = 4.5;
+  function scheduleSparkle() {
+    const delay = 5000 + Math.random() * 7000;
+    sparkleTimer = setTimeout(() => {
+      if (bgmNodes) {
+        const freq = BGM_PENTATONIC[Math.floor(Math.random() * BGM_PENTATONIC.length)];
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        const pan = actx.createStereoPanner ? actx.createStereoPanner() : null;
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, actx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.04 * bgmVolume()), actx.currentTime + 1.2);
+        gain.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 4.5);
+        if (pan) { pan.pan.value = Math.random() * 1.6 - 0.8; osc.connect(gain).connect(pan).connect(bgmNodes.master); }
+        else { osc.connect(gain).connect(bgmNodes.master); }
+        osc.start();
+        osc.stop(actx.currentTime + 4.6);
+      }
+      scheduleSparkle();
+    }, delay);
+  }
+  function playChordVoice(freq, master) {
+    const osc = actx.createOscillator();
+    osc.type = 'triangle'; // softer/rounder than sine's clinical purity once filtered
+    osc.frequency.value = freq;
+    const filter = actx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1100;
+    const gain = actx.createGain();
+    gain.gain.value = 0.0001;
+    osc.connect(filter).connect(gain).connect(master);
+    osc.start();
+    const now = actx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.16, now + CHORD_FADE_S);
+    gain.gain.setValueAtTime(0.16, now + CHORD_HOLD_S - CHORD_FADE_S);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + CHORD_HOLD_S);
+    osc.stop(now + CHORD_HOLD_S + 0.2);
+  }
+  let chordIndex = 0;
+  function scheduleChordCycle() {
+    if (bgmNodes) {
+      const chord = BGM_CHORDS[chordIndex % BGM_CHORDS.length];
+      chordIndex++;
+      chord.forEach(freq => playChordVoice(freq, bgmNodes.master));
+    }
+    // Next chord's fade-in starts while this one is still fading out, so
+    // the pad crossfades continuously with no gap and no static hold.
+    chordTimer = setTimeout(scheduleChordCycle, (CHORD_HOLD_S - CHORD_FADE_S) * 1000);
+  }
+  function bgmVolume() { return bgmMasterVolume * 0.3; } // internal balance scale, not the raw slider value
+  function startBgm() {
+    if (!actx || bgmNodes) return;
+    const master = actx.createGain();
+    master.gain.value = bgmVolume();
+    master.connect(actx.destination);
+    bgmNodes = { master };
+    chordIndex = 0;
+    scheduleChordCycle();
+    scheduleSparkle();
+  }
+  function stopBgm() {
+    clearTimeout(sparkleTimer);
+    clearTimeout(chordTimer);
+    if (!bgmNodes) return;
+    const now = actx.currentTime;
+    // Individual chord voices/sparkles are already self-scheduled to stop
+    // on their own; dropping the shared master to silence immediately is
+    // enough to cut them off cleanly without tracking every live node.
+    bgmNodes.master.gain.setTargetAtTime(0.0001, now, 0.15);
+    bgmNodes = null;
+  }
+  // Volume slider changes should retune the currently-playing pad too, not
+  // just future sfx blips -- see the slider wiring below.
+  function refreshBgmVolume() { if (bgmNodes) bgmNodes.master.gain.setTargetAtTime(bgmVolume(), actx.currentTime, 0.2); }
 
   // ================= Canvas background =================
   const gameEl = document.getElementById('game');
@@ -407,39 +523,19 @@ function __zzhInit() {
     const antennaTopY = bodyTopY - antennaLen;
     // only the upper ~35% of the body sits above the surface -- the rest is submerged
     const submergeFrac = 0.35;
+    // Waterline (and the ripple/plane drawn at it) now tracks the float's
+    // OWN current bob/dip/tug position, not the fixed resting byBase --
+    // previously the ring sat at a fixed height while the body's own
+    // submerged-tint boundary moved with the bob, so the two drifted out of
+    // sync as it bobbed (the ring stopped lining up with where the body
+    // actually met the water). Locking both to the same `by` keeps the
+    // surface visually glued to the float at all times.
     const waterLineY = bodyTopY + bodyH * submergeFrac;
-    // ripples are a water-surface phenomenon: anchor them to the resting
-    // surface level only, independent of the float's bob/dip/tug motion
-    const rippleY = byBase - bodyH * 0.5 + bodyH * submergeFrac;
 
     // line from the rod (off-screen above) down to the float
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, by); ctx.stroke();
-
-    // ambient ripple ring
-    const ringPhase = (t * 0.8) % 1;
-    ctx.save();
-    ctx.globalAlpha = 1 - ringPhase;
-    ctx.strokeStyle = '#eafffb';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.ellipse(bx, rippleY, 16 + ringPhase * 38, 5 + ringPhase * 10, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // extra burst ripple on a perfect hit
-    if (bobberState === 'reeling' && tug >= 0 && tug < 0.5) {
-      const p = tug / 0.5;
-      ctx.save();
-      ctx.globalAlpha = (1 - p) * 0.9;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.ellipse(bx, rippleY, 12 + p * 52, 4 + p * 17, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     // antenna: dark rod with a bright orange tip and a small bead
     ctx.strokeStyle = '#3a2a20';
@@ -451,7 +547,9 @@ function __zzhInit() {
     ctx.fillStyle = '#ffcf4d';
     ctx.beginPath(); ctx.arc(bx, antennaTopY, 2.6, 0, Math.PI * 2); ctx.fill();
 
-    // body: torpedo float, orange upper half / cream lower half
+    // body: torpedo float, drawn in full (plain white/red) -- the water
+    // mask painted over it below is what actually sells "submerged", so
+    // this doesn't need its own underwater tint baked in anymore.
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(bx, by, bodyW * 0.5, bodyH * 0.5, 0, 0, Math.PI * 2);
@@ -460,13 +558,6 @@ function __zzhInit() {
     ctx.fillRect(bx - bodyW, by - bodyH, bodyW * 2, bodyH * 2);
     ctx.fillStyle = '#e6472f';
     ctx.fillRect(bx - bodyW, by - bodyH, bodyW * 2, bodyH * 0.62);
-
-    // submerged portion: tint + soften with the water color so it reads as
-    // underwater rather than just sitting on top of the surface
-    ctx.fillStyle = 'rgba(28,110,120,0.4)';
-    ctx.fillRect(bx - bodyW, waterLineY, bodyW * 2, bodyH);
-    ctx.fillStyle = 'rgba(15,75,90,0.28)';
-    ctx.fillRect(bx - bodyW, waterLineY + bodyH * 0.25, bodyW * 2, bodyH);
     ctx.restore();
 
     // dark separator band + rim highlight for a rounded, glossy look
@@ -486,16 +577,63 @@ function __zzhInit() {
     ctx.ellipse(bx, by, bodyW * 0.5, bodyH * 0.5, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // bright waterline where the float pierces the surface (meniscus)
+    // ---- Water mask: instead of trying to fake "submerged" behind the
+    // float with a ring/tint that has to stay perfectly synced to its bob
+    // (fragile, and an encircling ring reads as a halo/UFO ring rather than
+    // water), just paint actual water color OVER the lower portion, same as
+    // if the real water surface were sitting in front of it. A wavy top
+    // edge (instead of a hard flat line) is what actually sells "water
+    // surface" rather than "a rectangle was pasted on". ----
+    // Everything below is clipped to the float's own ellipse silhouette --
+    // first pass had the mask as a separate wider rectangle-ish shape with
+    // hard vertical sides, which stuck out past the body's rounded/tapered
+    // outline and read as a blocky curtain hanging off it rather than water
+    // hugging a round object. Clipping to the same ellipse the body itself
+    // uses guarantees the mask's sides always follow the body's curve.
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(bx, by, bodyW * 0.5, bodyH * 0.5, 0, 0, Math.PI * 2);
     ctx.clip();
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    const maskBottom = by + bodyH * 0.5;
+    const halfW = bodyW * 0.5;
+    const waveSteps = 10;
+    ctx.beginPath();
+    ctx.moveTo(bx - halfW, maskBottom);
+    ctx.lineTo(bx - halfW, waterLineY);
+    for (let i = 0; i <= waveSteps; i++) {
+      const x = bx - halfW + (halfW * 2) * (i / waveSteps);
+      const wave = Math.sin(i * 0.9 + t * 3) * 2;
+      ctx.lineTo(x, waterLineY + wave);
+    }
+    ctx.lineTo(bx + halfW, maskBottom);
+    ctx.closePath();
+    const maskGrad = ctx.createLinearGradient(0, waterLineY, 0, maskBottom);
+    maskGrad.addColorStop(0, 'rgba(96,186,190,0.88)');
+    maskGrad.addColorStop(1, 'rgba(31,109,120,0.94)');
+    ctx.fillStyle = maskGrad;
+    ctx.fill();
+    // a couple of short, subtle ripple accents sitting on the mask itself
+    // (not encircling the float) for a touch of surface texture
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    [0.35, 0.62].forEach((frac, i) => {
+      const wob = Math.sin(t * 2.4 + i * 3) * 3;
+      ctx.beginPath();
+      ctx.moveTo(bx - halfW + wob, waterLineY + (maskBottom - waterLineY) * frac);
+      ctx.lineTo(bx + halfW + wob, waterLineY + (maskBottom - waterLineY) * frac);
+      ctx.stroke();
+    });
+    // bright meniscus highlight right where the float pierces the surface,
+    // clipped along with everything else so it can't poke past the body
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(bx - bodyW * 0.6, waterLineY);
-    ctx.quadraticCurveTo(bx, waterLineY + 2.5, bx + bodyW * 0.6, waterLineY);
+    ctx.moveTo(bx - halfW, waterLineY);
+    for (let i = 0; i <= waveSteps; i++) {
+      const x = bx - halfW + (halfW * 2) * (i / waveSteps);
+      const wave = Math.sin(i * 0.9 + t * 3) * 2;
+      ctx.lineTo(x, waterLineY + wave);
+    }
     ctx.stroke();
     ctx.restore();
   }
@@ -582,6 +720,7 @@ function __zzhInit() {
       shells: 0, rod: { grade: 'common', level: 1 }, gems: 0,
       stats: { strength: 0, luck: 0, precision: 0 },
       caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false,
+      hasReeledBefore: false,
       baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
       gachaPity: 0
     };
@@ -682,7 +821,7 @@ function __zzhInit() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, gems, stats, caughtFish, nextFishUid, catches, hasCastBefore,
-        baits, equippedBait, gachaPity
+        hasReeledBefore, baits, equippedBait, gachaPity
       }));
     } catch (e) { /* ignore */ }
   }
@@ -716,6 +855,11 @@ function __zzhInit() {
   // Gates the first-cast onboarding hint (#tutorial-hint) -- flips true and
   // stays true forever once the player's very first cast() actually fires.
   let hasCastBefore = initialSave.hasCastBefore;
+  // Same idea, for the first-reel hint (#reel-tutorial-hint) -- flips true
+  // the moment startReel() first runs, independent of hasCastBefore since a
+  // rod outgrowing 꽝/일반 (see resolveSkippedCatch()) can let several
+  // casts go by before the player ever actually reaches reeling.
+  let hasReeledBefore = initialSave.hasReeledBefore;
   // Set in catchSuccess() when a grade-up material drops, consumed by
   // closeResult() right after the catch result popup closes.
   let pendingMaterial = null;
@@ -724,6 +868,7 @@ function __zzhInit() {
   const gemsCountTopEl = document.getElementById('gems-count-top');
   const statusTextEl = document.getElementById('status-text');
   const tutorialHintEl = document.getElementById('tutorial-hint');
+  const reelTutorialHintEl = document.getElementById('reel-tutorial-hint');
   const reelGaugeEl = document.getElementById('reel-gauge');
   const reelTapCatcherEl = document.getElementById('reel-tap-catcher');
   const gaugeTrackEl = document.getElementById('gauge-track-v');
@@ -812,12 +957,45 @@ function __zzhInit() {
   const speciesDetailHistory = document.getElementById('species-detail-history');
   const speciesDetailCloseBtn = document.getElementById('species-detail-close-btn');
 
+  // Currency info popup -- one overlay reused for both 조개껍질/보석, tapped
+  // from the topbar pills so new players can tell what each is actually for.
+  const shellsInfoBtn = document.getElementById('shells-info-btn');
+  const gemsInfoBtn = document.getElementById('gems-info-btn');
+  const currencyInfoOverlay = document.getElementById('currency-info-overlay');
+  const currencyInfoIcon = document.getElementById('currency-info-icon');
+  const currencyInfoName = document.getElementById('currency-info-name');
+  const currencyInfoDesc = document.getElementById('currency-info-desc');
+  const currencyInfoCloseBtn = document.getElementById('currency-info-close-btn');
+  const CURRENCY_INFO = {
+    shells: {
+      icon: 'icons/ui/shell.svg', name: '조개껍질',
+      desc: '낚싯대 레벨업, 근력·행운·정밀함 강화, 미끼 뽑기에 사용하는 기본 재화예요. 물고기를 낚거나 팔면 얻을 수 있어요.'
+    },
+    gems: {
+      icon: 'icons/shop/gem.svg', name: '보석',
+      desc: '낚싯대 등급을 올릴 때만 쓰이는 특별한 재화예요. 조개껍질과는 별도로 모아야 해요.'
+    }
+  };
+  function openCurrencyInfo(key) {
+    const info = CURRENCY_INFO[key];
+    currencyInfoIcon.src = info.icon;
+    currencyInfoName.textContent = info.name;
+    currencyInfoDesc.textContent = info.desc;
+    currencyInfoOverlay.classList.remove('hidden');
+  }
+  function closeCurrencyInfo() { currencyInfoOverlay.classList.add('hidden'); }
+  shellsInfoBtn.addEventListener('click', () => openCurrencyInfo('shells'));
+  gemsInfoBtn.addEventListener('click', () => openCurrencyInfo('gems'));
+  currencyInfoCloseBtn.addEventListener('click', closeCurrencyInfo);
+  currencyInfoOverlay.addEventListener('click', (e) => { if (e.target === currencyInfoOverlay) closeCurrencyInfo(); });
+
   const menuSettingsBtn = document.getElementById('menu-settings-btn');
   const settingsOverlay = document.getElementById('settings-overlay');
   const settingsCloseBtn = document.getElementById('settings-close-btn');
   const leftyToggleBtn = document.getElementById('lefty-toggle');
   const skipLowTierToggleBtn = document.getElementById('skip-lowtier-toggle');
   const volumeSliderEl = document.getElementById('volume-slider');
+  const bgmVolumeSliderEl = document.getElementById('bgm-volume-slider');
   const resetDataBtn = document.getElementById('reset-data-btn');
   const resetConfirmOverlay = document.getElementById('reset-confirm-overlay');
   const resetConfirmBtn = document.getElementById('reset-confirm-btn');
@@ -929,9 +1107,13 @@ function __zzhInit() {
   // the hard end, 희귀 sits alone in the middle.
   const HITS_BASE_BY_TIER = { junk: 2, common: 2, rare: 3, epic: 4, legendary: 4 };
 
-  // A rod that's outgrown a tier skips ever rolling it again -- 희귀 rod
-  // skips 꽝, 특급 rod skips 꽝 AND 일반. Toggleable in 설정 (see skipLowTier
-  // below); when off, the pool is never filtered regardless of rod grade.
+  // A rod that's outgrown a tier auto-catches it instead of making the
+  // player reel it in -- 희귀 rod auto-catches 꽝, 특급 rod auto-catches 꽝
+  // AND 일반. Toggleable in 설정 (see skipLowTier below); when off, every
+  // tier always goes through the normal reeling minigame regardless of rod
+  // grade. NOTE: this used to instead EXCLUDE these tiers from ever being
+  // rolled at all -- changed because "스킵" was meant as "skip the reeling
+  // minigame for a trivial catch", not "never encounter it again".
   const SKIP_TIERS_BY_GRADE = { common: [], rare: ['junk'], epic: ['junk', 'common'] };
 
   function triggerBite() {
@@ -942,14 +1124,22 @@ function __zzhInit() {
     // Tier is chosen now but no longer announced up front -- the hit
     // counter's rarity climb is the only reveal during casting/reeling.
     // devForceTier (set only by the gitignored dev-mode.js panel) overrides
-    // the random pick for one catch, then clears itself. Rod's low-tier
-    // skip and the equipped bait's own floor both just exclude tiers --
-    // pickCatch renormalizes over whatever's left, so a union of the two
-    // exclusion lists is all that's needed here.
-    const rodExclude = skipLowTier ? SKIP_TIERS_BY_GRADE[rod.grade] : [];
+    // the random pick for one catch, then clears itself. The equipped
+    // bait's floor is the only thing that still excludes tiers from the
+    // roll -- the rod-grade low-tier skip (below) no longer touches the
+    // roll itself, only whether reeling gets skipped afterward.
+    //
+    // The player's very first-ever bite is forced to 희귀 instead of
+    // whatever the roll would've given -- a real fish (not 꽝) with an
+    // actual multi-hit fight (unlike 꽝/일반's trivial 2 hits) makes their
+    // first-ever reel, and the new #reel-tutorial-hint shown during it,
+    // land on a representative catch instead of a coin-flip between
+    // "nothing" and "the easiest possible fish". Gated on hasReeledBefore
+    // (flips true in startReel(), right after this) so it only ever fires
+    // once, the same moment the reel hint itself only ever shows once.
+    const forcedFirstCatch = hasReeledBefore ? null : 'rare';
     const baitExclude = FishData.baitExcludeTiers(equippedBait);
-    const excludeTiers = [...new Set([...rodExclude, ...baitExclude])];
-    currentCatch = FishData.pickCatch(devForceTier, excludeTiers, stats.luck);
+    currentCatch = FishData.pickCatch(devForceTier || forcedFirstCatch, baitExclude, stats.luck);
     devForceTier = null;
     // Bait is spent here, once the fish has actually taken it -- NOT back
     // in cast(). Consuming it at the tap meant the auto-revert-to-common
@@ -968,7 +1158,24 @@ function __zzhInit() {
     }
     sfx.bite();
     showStatus('입질이 왔어요!', 'icons/result/bite.svg');
-    biteTimer = setTimeout(startReel, 500);
+    const shouldSkipReel = skipLowTier && SKIP_TIERS_BY_GRADE[rod.grade].includes(currentCatch.tier);
+    biteTimer = setTimeout(shouldSkipReel ? resolveSkippedCatch : startReel, 500);
+  }
+
+  // Reeling minigame skipped entirely -- 캐스팅/입질까지는 정상 진행되지만,
+  // 이미 졸업한 낮은 등급은 여기서 바로 성공 처리된다. catchSuccess() doesn't
+  // touch `reel` at all (only currentCatch), so it's safe to call directly
+  // without ever having started the minigame.
+  function resolveSkippedCatch() {
+    if (state !== 'bite') return;
+    hideStatus();
+    catchSuccess();
+  }
+
+  function hideReelTutorial() {
+    reelTutorialHintEl.classList.add('hidden');
+    gaugeTrackEl.classList.remove('tutorial-glow');
+    gaugeZoneEl.classList.remove('tutorial-glow');
   }
 
   function startReel() {
@@ -982,6 +1189,13 @@ function __zzhInit() {
     setBaitMenuOpen(false);
     setMenuOpen(false);
     reelTapCatcherEl.classList.remove('hidden');
+    if (!hasReeledBefore) {
+      hasReeledBefore = true;
+      persist();
+      reelTutorialHintEl.classList.remove('hidden');
+      gaugeTrackEl.classList.add('tutorial-glow');
+      gaugeZoneEl.classList.add('tutorial-glow');
+    }
     const f = getEffectiveReel(currentCatch.tier);
     // Hit count is random per catch: HITS_BASE_BY_TIER's floor, plus 0~1.
     const hitsRequired = HITS_BASE_BY_TIER[currentCatch.tier] + Math.floor(Math.random() * 2);
@@ -1224,6 +1438,7 @@ function __zzhInit() {
     sfx.success();
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
+    hideReelTutorial();
     const c = currentCatch;
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
@@ -1252,6 +1467,7 @@ function __zzhInit() {
     sfx.fail();
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
+    hideReelTutorial();
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/result/miss.svg');
   }
 
@@ -1297,6 +1513,7 @@ function __zzhInit() {
   // Shown right after the catch result popup closes, only when a gem
   // actually dropped this catch (see rollGem()).
   function showMaterialPopup(mat) {
+    sfx.gem();
     materialIcon.src = 'icons/shop/gem.svg';
     materialTitle.textContent = `${FishData.GEM_LABEL} 획득!`;
     materialDesc.textContent = `낚싯대 등급업에 쓰는 보조 화폐이다. ${mat.needed}개를 모으면 등급을 올릴 수 있다.`;
@@ -1334,15 +1551,72 @@ function __zzhInit() {
     });
   }
 
+  // Left/right padding has to exactly equal half the container's own
+  // rendered width minus half an item's width, so the FIRST and LAST chips
+  // can physically scroll all the way to dead-center -- computed here from
+  // the container's actual clientWidth rather than a fixed CSS value, so it
+  // stays correct however wide the container ends up (min(280px, 80vw)
+  // means that varies across phone widths).
+  const BAIT_ITEM_WIDTH = 52; // must match .bait-menu-item/.bait-menu-circle width in style.css
+  function updateBaitMenuPadding() {
+    const pad = Math.max(8, baitMenu.clientWidth / 2 - BAIT_ITEM_WIDTH / 2);
+    baitMenu.style.paddingLeft = pad + 'px';
+    baitMenu.style.paddingRight = pad + 'px';
+  }
+
+  // Wheel-picker style: scrolling brings a tier to the row's horizontal
+  // center (tracked here, not CSS -- scroll position isn't something CSS
+  // alone can query), and tapping THAT centered chip is what actually
+  // equips it. Tapping an off-center chip instead just scrolls it into the
+  // middle, so a stray tap while swiping never accidentally equips the
+  // wrong tier.
+  function updateCenteredBaitItem() {
+    const containerRect = baitMenu.getBoundingClientRect();
+    const centerX = containerRect.left + containerRect.width / 2;
+    let closest = null;
+    let closestDist = Infinity;
+    baitMenuItems.forEach(item => {
+      const r = item.getBoundingClientRect();
+      const dist = Math.abs((r.left + r.width / 2) - centerX);
+      if (dist < closestDist) { closestDist = dist; closest = item; }
+    });
+    baitMenuItems.forEach(item => item.classList.toggle('centered', item === closest));
+  }
+  let baitMenuScrollRaf = null;
+  baitMenu.addEventListener('scroll', () => {
+    if (baitMenuScrollRaf) return;
+    baitMenuScrollRaf = requestAnimationFrame(() => { updateCenteredBaitItem(); baitMenuScrollRaf = null; });
+  });
+
   function setBaitMenuOpen(open) {
     baitMenu.classList.toggle('open', open);
     baitMenuBackdrop.classList.toggle('open', open);
+    if (open) {
+      updateBaitMenuPadding();
+      // Land on whatever's currently equipped rather than always opening
+      // scrolled to 전설 (the first/leftmost chip) -- no animation here
+      // since this is the opening state, not a user-driven scroll.
+      const equippedItem = baitMenu.querySelector(`[data-bait="${equippedBait}"]`);
+      if (equippedItem) equippedItem.scrollIntoView({ inline: 'center', block: 'nearest' });
+      updateCenteredBaitItem();
+    }
   }
+  // Re-derive the padding (and recenter) if the viewport changes while the
+  // picker happens to be open -- e.g. a rotation mid-selection.
+  window.addEventListener('resize', () => {
+    if (!baitMenu.classList.contains('open')) return;
+    updateBaitMenuPadding();
+    updateCenteredBaitItem();
+  });
   baitBtn.addEventListener('click', () => setBaitMenuOpen(!baitMenu.classList.contains('open')));
   baitMenuBackdrop.addEventListener('click', () => setBaitMenuOpen(false));
   baitMenuItems.forEach(item => {
     item.addEventListener('click', () => {
       if (item.disabled) return;
+      if (!item.classList.contains('centered')) {
+        item.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        return;
+      }
       equipBait(item.dataset.bait);
       setBaitMenuOpen(false);
     });
@@ -1809,6 +2083,19 @@ function __zzhInit() {
     try { localStorage.setItem(VOLUME_KEY, String(sfxVolume)); } catch (e) { /* ignore */ }
   });
 
+  // ---- BGM volume slider (independent of SFX) ----
+  const BGM_VOLUME_KEY = 'zanzanhan-bgm-volume-v1';
+  try {
+    const storedBgmVol = parseFloat(localStorage.getItem(BGM_VOLUME_KEY));
+    if (!isNaN(storedBgmVol) && storedBgmVol >= 0 && storedBgmVol <= 1) bgmMasterVolume = storedBgmVol;
+  } catch (e) { /* ignore */ }
+  bgmVolumeSliderEl.value = String(Math.round(bgmMasterVolume * 100));
+  bgmVolumeSliderEl.addEventListener('input', () => {
+    bgmMasterVolume = Math.max(0, Math.min(1, bgmVolumeSliderEl.value / 100));
+    try { localStorage.setItem(BGM_VOLUME_KEY, String(bgmMasterVolume)); } catch (e) { /* ignore */ }
+    refreshBgmVolume();
+  });
+
   // ---- Reset all progress -- in-game confirm (not window.confirm), with
   // the delete button disabled for 3s so it can't be reflex-clicked. ----
   let resetCountdownTimer = null;
@@ -1910,9 +2197,32 @@ function __zzhInit() {
   // very FIRST tap/click/key anywhere on the page, not specifically a cast
   // or a gacha pull like before. Self-removing, and ensureAudio() itself is
   // a no-op once actx already exists, so firing more than once is harmless.
-  const unlockAudioOnFirstGesture = () => ensureAudio();
+  const unlockAudioOnFirstGesture = () => { ensureAudio(); startBgm(); };
   ['pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
     document.addEventListener(evt, unlockAudioOnFirstGesture, { once: true, passive: true });
+  });
+
+  // BGM is a continuous loop (unlike the one-shot SFX blips), so unlike
+  // those it actually needs to stop when the tab/app goes to the
+  // background and pick back up on return -- required by the Apps in
+  // Toss launch checklist ("백그라운드 전환 시 사운드 즉시 종료, 재진입 시
+  // 정상 재생") and just generally correct regardless of platform.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopBgm();
+    else if (actx) startBgm();
+  });
+
+  // Generic UI tap sound, delegated once here rather than threaded into
+  // every individual button's own click handler -- so any button (present
+  // or future) gets feedback for free. A short exemption list covers the
+  // handful of buttons that already play their own more specific sound
+  // (coin pickup, etc.); without it those would double up into a jarring
+  // back-to-back blip.
+  const NO_TAP_SELECTOR = '#rod-upgrade-btn, [data-stat-btn], #gacha-pull1-btn, #gacha-pull10-btn, .sell-btn';
+  document.getElementById('game').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.matches(NO_TAP_SELECTOR)) return;
+    sfx.tap();
   });
 }
 

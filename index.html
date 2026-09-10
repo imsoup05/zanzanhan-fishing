@@ -37,8 +37,8 @@
     <div class="status-bar">
       <div class="status-location"><img class="ui-icon" src="icons/ui/location.svg" alt="">다리 밑</div>
       <div class="status-currencies">
-        <span class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></span>
-        <span class="status-currency"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></span>
+        <button type="button" id="shells-info-btn" class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></button>
+        <button type="button" id="gems-info-btn" class="status-currency"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></button>
       </div>
       <!-- Wrapper is what #side-menu centers itself against (left:50% +
            translateX(-50%) in CSS) -- so the dropdown always lines up
@@ -85,9 +85,28 @@
        Left-to-right: position gauge, per-hit time limit, then fish (hits)
        + chances (misses) stacked together in one column. -->
   <div id="reel-gauge" class="reel-gauge hidden">
-    <div id="gauge-track-v" class="gauge-track-v">
-      <div id="gauge-zone-v" class="gauge-zone-v"></div>
-      <div id="gauge-indicator-v" class="gauge-indicator-v"></div>
+    <!-- Wrapper exists only so the callout below can dock right at the
+         track's edge (left:100% of THIS, not of #reel-gauge as a whole) --
+         #gauge-track-v itself needs overflow:hidden to clip the zone/
+         indicator to its pill shape, which would also clip the callout if
+         it were nested inside the track directly instead of beside it. -->
+    <div class="gauge-track-wrap">
+      <div id="gauge-track-v" class="gauge-track-v">
+        <div id="gauge-zone-v" class="gauge-zone-v"></div>
+        <div id="gauge-indicator-v" class="gauge-indicator-v"></div>
+      </div>
+      <!-- One-time callout, docked directly onto the gauge it's pointing
+           at rather than floating as a separate popup elsewhere -- shown
+           only through the player's very first-ever reel (see game.js's
+           hasReeledBefore/startReel/catchSuccess/catchFail), same visual
+           family (light callout + pulsing highlight) as #tutorial-hint so
+           the two feel like one onboarding moment, not two different UI
+           languages. Stays up for the whole first reel, not just the first
+           tap -- hidden only once that first catch actually resolves. -->
+      <div id="reel-tutorial-hint" class="reel-tutorial-hint hidden">
+        <span class="reel-tutorial-hint-arrow"></span>
+        <span class="reel-tutorial-hint-text">밝게 빛나는 구간에<br>맞춰 눌러보세요</span>
+      </div>
     </div>
     <div id="time-track-v" class="time-track-v">
       <div id="time-fill-v" class="time-fill-v"></div>
@@ -111,27 +130,38 @@
 
   <footer class="bottombar">
     <div class="bait-btn-wrap">
-      <!-- Grows straight up out of this button, same shape/idea as the
-           topbar's #side-menu but upward (see .bait-menu in style.css). -->
+      <!-- Grows straight up out of this button, same idea as the topbar's
+           #side-menu but upward -- now a horizontally-scrollable row of
+           round chips (see .bait-menu in style.css) instead of a vertical
+           list, so picking a bait is a quick sideways swipe+tap next to the
+           button itself rather than a trip through a dropdown list. -->
       <div id="bait-menu" class="bait-menu">
         <button class="bait-menu-item" data-bait="legendary">
-          <img class="bait-menu-icon" src="icons/ui/bait-legendary.svg" alt="">
-          <span class="bait-menu-name">전설 미끼</span>
-          <span class="bait-menu-count" data-bait-count="legendary"></span>
+          <span class="bait-menu-circle">
+            <img class="bait-menu-icon" src="icons/ui/bait-legendary.svg" alt="">
+            <span class="bait-menu-count" data-bait-count="legendary"></span>
+          </span>
+          <span class="bait-menu-name">전설</span>
         </button>
         <button class="bait-menu-item" data-bait="epic">
-          <img class="bait-menu-icon" src="icons/ui/bait-epic.svg" alt="">
-          <span class="bait-menu-name">특급 미끼</span>
-          <span class="bait-menu-count" data-bait-count="epic"></span>
+          <span class="bait-menu-circle">
+            <img class="bait-menu-icon" src="icons/ui/bait-epic.svg" alt="">
+            <span class="bait-menu-count" data-bait-count="epic"></span>
+          </span>
+          <span class="bait-menu-name">특급</span>
         </button>
         <button class="bait-menu-item" data-bait="rare">
-          <img class="bait-menu-icon" src="icons/ui/bait-rare.svg" alt="">
-          <span class="bait-menu-name">희귀 미끼</span>
-          <span class="bait-menu-count" data-bait-count="rare"></span>
+          <span class="bait-menu-circle">
+            <img class="bait-menu-icon" src="icons/ui/bait-rare.svg" alt="">
+            <span class="bait-menu-count" data-bait-count="rare"></span>
+          </span>
+          <span class="bait-menu-name">희귀</span>
         </button>
         <button class="bait-menu-item" data-bait="common">
-          <img class="bait-menu-icon" src="icons/ui/bait-common.svg" alt="">
-          <span class="bait-menu-name">일반 미끼</span>
+          <span class="bait-menu-circle">
+            <img class="bait-menu-icon" src="icons/ui/bait-common.svg" alt="">
+          </span>
+          <span class="bait-menu-name">일반</span>
         </button>
       </div>
       <button id="bait-btn" class="bait-btn-main" title="미끼">
@@ -245,6 +275,18 @@
     </div>
   </div>
 
+  <!-- Currency info: opened by tapping either currency pill in the top
+       status bar. One overlay reused for both -- game.js fills in the
+       icon/title/desc per which currency was tapped. -->
+  <div id="currency-info-overlay" class="overlay hidden">
+    <div class="result-card">
+      <div class="result-icon"><img id="currency-info-icon" src="" alt=""></div>
+      <h2 id="currency-info-name" class="result-title"></h2>
+      <p id="currency-info-desc" class="result-desc"></p>
+      <button id="currency-info-close-btn" class="main-btn">닫기</button>
+    </div>
+  </div>
+
   <!-- 도감 species detail: opened by tapping a discovered row in
        #log-list (see game.js's openSpeciesDetail()). Undiscovered ("???")
        rows are inert -- nothing to show without spoiling them. -->
@@ -278,7 +320,7 @@
           </button>
         </div>
         <div class="settings-row">
-          <div class="settings-row-label">저등급 캐스팅 스킵<span class="settings-row-note">낚싯대 등급이 오르면 이미 졸업한 낮은 등급(꽝/일반)은 더 이상 낚이지 않음</span></div>
+          <div class="settings-row-label">저등급 캐스팅 스킵<span class="settings-row-note">낚싯대 등급이 오르면 이미 졸업한 낮은 등급(꽝/일반)은 릴링 없이 자동으로 낚임</span></div>
           <button id="skip-lowtier-toggle" class="toggle-switch" role="switch" aria-checked="true">
             <span class="toggle-knob"></span>
           </button>
@@ -286,6 +328,10 @@
         <div class="settings-row">
           <div class="settings-row-label">효과음 볼륨</div>
           <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="80">
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">배경음악 볼륨</div>
+          <input type="range" id="bgm-volume-slider" class="volume-slider" min="0" max="100" value="60">
         </div>
         <button id="reset-data-btn" class="danger-btn">진행 데이터 전체 삭제</button>
       </div>
