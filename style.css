@@ -33,6 +33,11 @@
 }
 
 :root {
+  /* Safe-area insets reported by the host itself, for WebViews that don't
+     expose them through env() (Apps in Toss: platform.js sets these from
+     the SDK). Every safe-area rule below takes max(env(), var()). */
+  --host-safe-top: 0px;
+  --host-safe-bottom: 0px;
   --panel-bg: rgba(20, 40, 45, 0.55);
   --panel-border: rgba(255, 255, 255, 0.18);
   --accent: #ffcf6b;
@@ -164,7 +169,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  padding: calc(10px + max(env(safe-area-inset-top, 0px), var(--host-safe-top))) 16px 10px;
   background: linear-gradient(180deg, rgba(24,54,60,0.97), rgba(15,38,44,0.92));
   border-bottom: 1px solid var(--panel-border);
   font-size: 13.5px;
@@ -204,7 +209,7 @@ body {
      lighter water/sky scene through it, splitting the top of the screen
      into two visually different bands. */
   background: rgb(20, 40, 45);
-  padding: env(safe-area-inset-top) 0 0;
+  padding: max(env(safe-area-inset-top, 0px), var(--host-safe-top)) 0 0;
   display: flex;
   z-index: 5;
   transition: opacity 0.5s ease;
@@ -223,7 +228,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 19vh) 24px calc(env(safe-area-inset-bottom) + 58px);
+  padding: calc(max(env(safe-area-inset-top, 0px), var(--host-safe-top)) + 19vh) 24px calc(max(env(safe-area-inset-bottom, 0px), var(--host-safe-bottom)) + 58px);
   background: radial-gradient(ellipse at 50% 38%, rgba(5,15,20,0.08) 0%, rgba(5,15,20,0.5) 62%, rgba(5,15,20,0.74) 100%);
   pointer-events: none;
   transition: opacity 0.55s ease;
@@ -265,13 +270,17 @@ body {
 #game.title-up .bottombar { opacity: 0; pointer-events: none; }
 #game.title-up .tutorial-hint { display: none; }
 
-/* Bottom tab bar (상점/보관함/미끼/설정): the same opaque strip as the status
-   bar up top, so the two read as one HUD frame around the water.
-   env(safe-area-inset-bottom) clears the home-indicator bar on iOS. */
+/* Bottom tab bar (상점/보관함/미끼/도전과제/설정): the same opaque strip as
+   the status bar up top, so the two read as one HUD frame around the water.
+   Bottom padding clears the home-indicator bar: the larger of env() and the
+   host-reported inset, plus 16px of breathing room so the labels sit well
+   clear of the indicator (tuned on an iPhone 16 in the Toss WebView, which
+   exposes no env() insets), and never less than 24px on hosts that report
+   neither. */
 .bottombar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  padding: 0 0 env(safe-area-inset-bottom);
+  padding: 0 0 max(calc(env(safe-area-inset-bottom, 0px) + 16px), calc(var(--host-safe-bottom) + 16px), 24px);
   background: rgb(20, 40, 45);
   border-top: 1px solid var(--panel-border);
   display: flex;
@@ -1371,7 +1380,7 @@ body {
    (clear of the Apps in Toss close pill, which sits level with the bar). */
 .achievement-toasts {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 56px);
+  top: calc(max(env(safe-area-inset-top, 0px), var(--host-safe-top)) + 56px);
   right: 10px;
   z-index: 32;
   display: flex;
