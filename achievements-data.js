@@ -108,12 +108,13 @@
     { id: 'rod_max', cat: '강화', title: '낚싯대 완성', desc: '특급 낚싯대 Lv.10 달성', ...flag((c) => c.rod.grade === 'epic' && c.rod.level >= FishData.ROD_MAX_LEVEL) },
     { id: 'stat_max_one', cat: '강화', title: '스탯 하나 만렙', desc: '근력·행운·정밀함 중 하나를 최대까지 올렸다', ...flag((c) => statLevels(c).some((v) => v >= FishData.PLAYER_STAT_MAX_LEVEL)) },
     { id: 'stat_max_all', cat: '강화', title: '모든 스탯 만렙', desc: '근력·행운·정밀함을 전부 최대까지 올렸다', ...counter((c) => statLevels(c).reduce((a, b) => a + b, 0), FishData.PLAYER_STAT_MAX_LEVEL * Object.keys(FishData.PLAYER_STATS).length) },
-    // ---- 히든: shown as ??? until cleared ----
-    { id: 'hidden_first_legendary', cat: '히든', hidden: true, title: '전설급 물고기를 처음으로 낚았다!', desc: '이무기를 처음 낚았다', ...flag((c) => c.s.tierTotals.legendary >= 1) },
-    { id: 'hidden_biggest_imugi', cat: '히든', hidden: true, title: '크기가 가장 큰 이무기를 낚았다!', desc: '495cm가 넘는 이무기를 낚았다', ...flag((c) => c.s.biggestImugi >= 495) },
-    { id: 'hidden_pulls_300', cat: '히든', hidden: true, title: '미끼 뽑기를 300회 진행했다!', desc: '미끼를 300번 뽑았다', ...flag((c) => c.s.pulls >= 300) },
-    { id: 'hidden_ten_epics', cat: '히든', hidden: true, title: '한 번의 10뽑에서 특급 이상 5장!', desc: '10뽑 한 번에 특급 이상 미끼가 5장 이상 나왔다', ...flag((c) => c.s.maxEpicInTen >= 5) },
-    { id: 'hidden_same_species_5', cat: '히든', hidden: true, title: '같은 물고기를 5번 연속 낚았다!', desc: '한 종만 5번 연달아 낚았다', ...flag((c) => c.s.maxSameSpeciesStreak >= 5) }
+    // ---- 히든: invisible until cleared, then listed in their own category
+    // with a badge. The panel only ever shows how many are still unfound.
+    { id: 'hidden_first_legendary', cat: '낚시', hidden: true, title: '전설급 물고기를 처음으로 낚았다!', desc: '이무기를 처음 낚았다', ...flag((c) => c.s.tierTotals.legendary >= 1) },
+    { id: 'hidden_biggest_imugi', cat: '낚시', hidden: true, title: '크기가 가장 큰 이무기를 낚았다!', desc: '495cm가 넘는 이무기를 낚았다', ...flag((c) => c.s.biggestImugi >= 495) },
+    { id: 'hidden_same_species_5', cat: '낚시', hidden: true, title: '같은 물고기를 5번 연속 낚았다!', desc: '한 종만 5번 연달아 낚았다', ...flag((c) => c.s.maxSameSpeciesStreak >= 5) },
+    { id: 'hidden_pulls_300', cat: '뽑기', hidden: true, title: '미끼 뽑기를 300회 진행했다!', desc: '미끼를 300번 뽑았다', ...flag((c) => c.s.pulls >= 300) },
+    { id: 'hidden_ten_epics', cat: '뽑기', hidden: true, title: '한 번의 10뽑에서 특급 이상 5장!', desc: '10뽑 한 번에 특급 이상 미끼가 5장 이상 나왔다', ...flag((c) => c.s.maxEpicInTen >= 5) }
   ];
   const BY_ID = {};
   LIST.forEach((a) => { BY_ID[a.id] = a; });

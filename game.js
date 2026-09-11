@@ -2210,43 +2210,59 @@ function __zzhInit() {
     pumpToasts();
   }
 
+  const ACHIEVEMENT_CATEGORIES = ['낚시', '도감', '상점', '뽑기', '강화'];
   function renderAchievements() {
     const ctx = achievementCtx();
     const total = Achievements.LIST.length;
     const done = Achievements.LIST.filter((a) => achievements.unlocked[a.id]).length;
     achievementsSummaryEl.textContent = `${done} / ${total}`;
     achievementsListEl.innerHTML = '';
-    let lastCat = null;
-    Achievements.LIST.forEach((a) => {
-      if (a.cat !== lastCat) {
-        lastCat = a.cat;
-        const head = document.createElement('div');
-        head.className = 'achievement-section';
-        head.textContent = a.cat;
-        achievementsListEl.appendChild(head);
-      }
-      const unlockedAt = achievements.unlocked[a.id];
-      const secret = a.hidden && !unlockedAt;
-      const row = document.createElement('div');
-      row.className = 'sell-row achievement-row ' + (unlockedAt ? 'cleared' : 'locked');
-      row.innerHTML = '<div class="sell-row-icon"><img alt=""></div>'
-        + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div></div>'
-        + '<div class="achievement-state"></div>';
-      row.querySelector('img').src = secret ? 'icons/ui/lock.svg' : 'icons/ui/trophy.svg';
-      row.querySelector('.sell-row-name').textContent = secret ? '???' : a.title;
-      let meta = secret ? '숨겨진 도전과제' : a.desc;
-      if (!unlockedAt && !secret && a.progress) {
-        const [cur, max] = a.progress(ctx);
-        meta += ` · ${cur.toLocaleString('ko-KR')} / ${max.toLocaleString('ko-KR')}`;
-      }
-      row.querySelector('.sell-row-meta').textContent = meta;
-      if (unlockedAt) {
-        const d = new Date(unlockedAt);
-        row.querySelector('.achievement-state').innerHTML = '달성<small></small>';
-        row.querySelector('small').textContent = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
-      }
-      achievementsListEl.appendChild(row);
+    ACHIEVEMENT_CATEGORIES.forEach((cat) => {
+      // Hidden ones don't exist here until cleared -- then they surface in
+      // their own category with a badge, never as a "???" placeholder.
+      const rows = Achievements.LIST.filter((a) => a.cat === cat && (!a.hidden || achievements.unlocked[a.id]));
+      if (!rows.length) return;
+      const head = document.createElement('div');
+      head.className = 'achievement-section';
+      head.textContent = cat;
+      achievementsListEl.appendChild(head);
+      rows.forEach((a) => {
+        const unlockedAt = achievements.unlocked[a.id];
+        const row = document.createElement('div');
+        row.className = 'sell-row achievement-row ' + (unlockedAt ? 'cleared' : 'locked');
+        row.innerHTML = '<div class="sell-row-icon"><img src="icons/ui/trophy.svg" alt=""></div>'
+          + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div></div>'
+          + '<div class="achievement-state"></div>';
+        const nameEl = row.querySelector('.sell-row-name');
+        nameEl.textContent = a.title;
+        if (a.hidden) {
+          const badge = document.createElement('span');
+          badge.className = 'achievement-hidden-badge';
+          badge.textContent = '히든';
+          nameEl.appendChild(badge);
+        }
+        let meta = a.desc;
+        if (!unlockedAt && a.progress) {
+          const [cur, max] = a.progress(ctx);
+          meta += ` · ${cur.toLocaleString('ko-KR')} / ${max.toLocaleString('ko-KR')}`;
+        }
+        row.querySelector('.sell-row-meta').textContent = meta;
+        if (unlockedAt) {
+          const d = new Date(unlockedAt);
+          row.querySelector('.achievement-state').innerHTML = '달성<small></small>';
+          row.querySelector('small').textContent = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+        }
+        achievementsListEl.appendChild(row);
+      });
     });
+    // The only trace of unfound hidden ones: how many are left.
+    const secretsLeft = Achievements.LIST.filter((a) => a.hidden && !achievements.unlocked[a.id]).length;
+    if (secretsLeft) {
+      const note = document.createElement('p');
+      note.className = 'achievement-footnote';
+      note.textContent = `숨겨진 도전과제 ${secretsLeft}개 남음`;
+      achievementsListEl.appendChild(note);
+    }
   }
   function openAchievements() {
     renderAchievements();

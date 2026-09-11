@@ -1375,6 +1375,15 @@ body {
 .achievement-row.cleared .sell-row-icon { background: rgba(255, 207, 107, 0.2); }
 .achievement-state { font-size: 12px; color: var(--accent); white-space: nowrap; text-align: right; line-height: 1.3; flex-shrink: 0; }
 .achievement-state small { display: block; font-size: 10.5px; opacity: 0.7; }
+.achievement-hidden-badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 207, 107, 0.18);
+  border: 1px solid rgba(255, 207, 107, 0.4);
+  color: var(--accent);
+}
+.achievement-footnote { text-align: center; font-size: 12.5px; opacity: 0.55; padding: 10px 0 4px; }
 
 /* Unlock toasts: slide in from the right, stacked under the status bar
    (clear of the Apps in Toss close pill, which sits level with the bar). */
