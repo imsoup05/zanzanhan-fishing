@@ -34,8 +34,15 @@ window.Platform = {
   // so step back past the guard entry game.js keeps on the history stack,
   // which lands on whatever page came before the game, if any.
   exit() {
-    const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-    if (app && app.exitApp) { app.exitApp(); return; }
+    // This is a plain-script app with no Capacitor JS runtime, so the App
+    // plugin isn't on Capacitor.Plugins; call the native method through the
+    // injected bridge's own low-level entry point instead (the same call
+    // the bridge uses internally for exitApp).
+    const cap = window.Capacitor;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.nativePromise) {
+      cap.nativePromise('App', 'exitApp', {}).catch(() => {});
+      return;
+    }
     history.go(-2);
   },
   // Resolves once the host is ready for the game to start; immediate here,
