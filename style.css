@@ -1,23 +1,35 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Fonts ship with the game (fonts/) instead of coming off a CDN: a
+   render-blocking stylesheet on a slow network held the first paint for
+   as long as the CDN took, and the ONE Store / Apps in Toss bundles are
+   meant to work fully offline. Both faces are subset to KS X 1001's 2,350
+   hangul syllables + ASCII + punctuation + every character the game's own
+   text uses -- regenerate with fonts/build-fonts.py if a new string ever
+   needs something outside that (it would just fall back to the system
+   font for that character, not break). */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/PretendardVariable-subset.woff2') format('woff2-variations');
+}
 /* Display face used sparingly for a handful of heading/wordmark moments
-   (see --font-display below) -- everything else stays in the Pretendard
-   body face loaded via <link> in index.html. Naver's own free-commercial-use
-   font, mirrored on jsDelivr since Naver's own CDN isn't meant for
-   cross-origin hotlinking. */
+   (see --font-display below) -- everything else stays in Pretendard. */
 @font-face {
   font-family: 'Maru Buri';
   font-weight: 600;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-SemiBold.woff2') format('woff2');
+  src: url('fonts/MaruBuri-SemiBold-subset.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Maru Buri';
   font-weight: 700;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-Bold.woff2') format('woff2');
+  src: url('fonts/MaruBuri-Bold-subset.woff2') format('woff2');
 }
 
 :root {
@@ -195,18 +207,106 @@ body {
   padding: env(safe-area-inset-top) 0 0;
   display: flex;
   z-index: 5;
+  transition: opacity 0.5s ease;
 }
 
+/* ================= Launch title =================
+   Wordmark + tagline over the live scene, HUD hidden underneath, until the
+   first gesture (game.js clears #game.title-up). pointer-events:none so
+   that gesture also reaches the water as a real cast -- launching costs
+   no extra tap. Only .title-actions (future buttons) takes input. */
+.title-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 19vh) 24px calc(env(safe-area-inset-bottom) + 58px);
+  background: radial-gradient(ellipse at 50% 38%, rgba(5,15,20,0.08) 0%, rgba(5,15,20,0.5) 62%, rgba(5,15,20,0.74) 100%);
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+.title-overlay.fading { opacity: 0; }
+.title-overlay.hidden { display: none; }
+.title-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  color: #fff8ea;
+  text-align: center;
+  text-shadow: 0 3px 18px rgba(0,0,0,0.55);
+}
+.title-tagline {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--accent);
+  text-align: center;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.55);
+}
+.title-bottom { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.title-actions { display: flex; gap: 10px; pointer-events: auto; }
+.title-actions:empty { display: none; }
+.title-hint {
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  animation: titleHintPulse 2.2s ease-in-out infinite;
+}
+@keyframes titleHintPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+#game.title-up .topbar,
+#game.title-up .bottombar { opacity: 0; pointer-events: none; }
+#game.title-up .tutorial-hint { display: none; }
+
+/* Bottom tab bar (상점/보관함/미끼/설정): the same opaque strip as the status
+   bar up top, so the two read as one HUD frame around the water.
+   env(safe-area-inset-bottom) clears the home-indicator bar on iOS. */
 .bottombar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  /* env(safe-area-inset-bottom) clears the home-indicator bar on iOS. */
-  padding: 0 16px calc(22px + env(safe-area-inset-bottom));
+  padding: 0 0 env(safe-area-inset-bottom);
+  background: rgb(20, 40, 45);
+  border-top: 1px solid var(--panel-border);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
   z-index: 5;
+  transition: transform 0.22s ease, opacity 0.5s ease;
 }
+/* Reeling is full-screen input (see .reel-tap-catcher) -- slide the bar
+   out of the way so the whole height belongs to the gauge and the water. */
+#game.reeling .bottombar { transform: translateY(100%); }
+/* position:relative so .bait-menu (absolute) can anchor to the bar. */
+.tab-bar { position: relative; flex: 1; display: flex; }
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 0 7px;
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease;
+}
+.tab-item:active { background: rgba(255,255,255,0.1); }
+.tab-icon { width: 24px; height: 24px; display: block; }
+.tab-icon-wrap { position: relative; display: block; }
+.tab-label { line-height: 1; opacity: 0.85; white-space: nowrap; }
+/* Tabs vanish under the open bait picker (game.js toggles this) so their
+   labels don't show through the picker's translucent panel. */
+.tab-bar.picker-open .tab-item { visibility: hidden; }
 
 /* One rectangular bar instead of three separate floating oval pills (plus
    a separate hamburger button) -- sharp corners deliberately
@@ -214,8 +314,7 @@ body {
    and flush against both screen edges with no margin, so it reads as a
    fixed HUD strip rather than a floating card -- backdrop-filter is gone
    too since there's nothing showing through an opaque background for it
-   to blur. position:relative so #side-menu (absolute, appended last) can
-   drop straight down from this same box instead of a separate one. */
+   to blur. */
 .status-bar {
   position: relative;
   flex: 1;
@@ -241,10 +340,16 @@ body {
   font-family: var(--font-display);
   font-weight: 600;
 }
-/* Pushed to the right (auto-margin eats the space 다리 밑 doesn't use) so
-   the two currencies sit grouped next to the menu button instead of
-   trailing right behind the location label. */
-.status-currencies { display: inline-flex; align-items: center; gap: 14px; margin-left: auto; }
+/* Grouped right after the location label, leaving the bar's right end
+   empty on purpose: the Apps in Toss shell draws its "··· | X" pill there
+   (~88x31pt, 11pt in from the right edge, vertically centred on this very
+   bar), so nothing of ours may live under it. Same layout on every host
+   so the bar doesn't reshuffle between builds. */
+.status-currencies { display: inline-flex; align-items: center; gap: 14px; margin-left: 8px; }
+/* Toss-only: hard-reserve the pill's footprint (measured from a live
+   mini app: 88pt pill + 11pt margin, plus breathing room) so a wide
+   location name can't ever push a currency underneath it. */
+#game.host-toss .status-bar { padding-right: 110px; }
 .status-currency {
   display: inline-flex; align-items: center; gap: 6px;
   background: none; border: none; padding: 0; margin: 0;
@@ -257,46 +362,18 @@ body {
    (icons/*.svg) -- emoji render inconsistently (missing glyphs, wildly
    different art style) across platforms/fonts, images don't. */
 .ui-icon { width: 18px; height: 18px; display: block; }
-.ui-icon-lg { width: 26px; height: 26px; display: block; }
-.ui-icon-xl { width: 38px; height: 38px; display: block; }
 
-/* The one action button left outside the drawer -- given its own visible
-   circle (not the transparent icon-only style) since it's now the sole,
-   primary bottom control rather than one of a row of equals. */
-.bait-btn-main {
-  width: 68px;
-  height: 68px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 50%;
-  backdrop-filter: blur(6px);
-  color: var(--text-light);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-family: inherit;
-  transition: transform 0.15s ease;
-}
-.bait-btn-main:hover { transform: translateY(-1px); }
-.bait-btn-main:active { transform: scale(0.94); }
-
-/* Relative anchor for .bait-menu (grows upward, see below) and the small
-   remaining-count badge -- .bottombar itself is a centering flex row, so
-   this wrapper is what actually gives the popup something to anchor to. */
-.bait-btn-wrap { position: relative; display: flex; align-items: flex-end; }
-
-/* Equipped bait tier glows the button itself so "무엇을 장착했는지" reads at
+/* Equipped bait tier glows the 미끼 tab's icon so "무엇을 장착했는지" reads at
    a glance without opening the picker -- same pulsing glow already used for
    legendary tier badges elsewhere. */
-.bait-btn-main.legendary-equipped { animation: legendaryGlow 1.1s ease-in-out infinite; }
+.tab-item.legendary-equipped .tab-icon-wrap { border-radius: 50%; animation: legendaryGlow 1.1s ease-in-out infinite; }
 
-/* Remaining-count pill on the button's corner, only shown while a
+/* Remaining-count pill on the icon's corner, only shown while a
    non-무한 (non-common) bait is equipped. */
 .bait-btn-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -7px;
+  right: -12px;
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
@@ -311,41 +388,6 @@ body {
   box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 .bait-btn-badge.hidden { display: none; }
-
-/* Sized for thumbs, not cursors -- these are the only touch targets outside
-   the fishing area, so bigger beats tidy here. */
-.icon-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-light);
-  line-height: 1;
-  padding: 10px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-family: inherit;
-  transition: transform 0.15s ease;
-}
-.icon-btn:hover { transform: translateY(-1px); }
-.icon-btn:active { transform: scale(0.94); }
-
-/* Positioning context for #side-menu, which centers itself against THIS
-   box (left:50%/translateX(-50%)) rather than the status bar -- so the
-   dropdown always lines up with the button regardless of either one's
-   width. Sits at the bar's right edge because .status-currencies already
-   pushed itself (and everything after it, including this) over with its
-   own margin-left:auto. */
-.menu-wrap { position: relative; }
-
-/* Lives inside .status-bar now (see index.html) instead of floating next
-   to it -- transparent/borderless like .shop-close-btn, so it reads as
-   part of the same bar rather than a button sitting on top of it. Square
-   corners (border-radius:0), not the circle .icon-btn gives everything
-   else by default. */
-#menu-toggle-btn {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
 
 .status-text {
   position: absolute;
@@ -661,108 +703,37 @@ body {
   box-shadow: none;
 }
 
-/* ================= Slide-out menu (상점/보관함/설정) =================
-   Grows straight down out of the hamburger button as one rounded capsule,
-   not a full drawer panel -- no backdrop dimming, just an invisible
-   click-outside catcher so tapping elsewhere still closes it. */
+/* ================= Click-outside catcher for the bait picker =================
+   Invisible; only exists so tapping anywhere else closes the open picker.
+   Must stay below .bottombar (z-index 5) -- the picker and its chips are
+   the bar's children, so a backdrop that outranks the bar would silently
+   make every chip unclickable while the picker is open. */
 .menu-backdrop {
   position: absolute;
   inset: 0;
-  /* Must stay below .topbar (z-index 5) -- .side-menu and its buttons are
-     topbar's children, so no z-index on side-menu itself can put it above
-     a backdrop that outranks topbar; they're stuck at topbar's stacking
-     level as a unit. A higher value here silently makes every side-menu
-     button unclickable while the menu is open. */
   z-index: 3;
   background: transparent;
   pointer-events: none;
 }
 .menu-backdrop.open { pointer-events: auto; }
 
-.side-menu {
-  position: absolute;
-  /* Not just 100% -- .menu-wrap only wraps the button's own height, which
-     is shorter than .status-bar's full row (the row's height comes from
-     the button being its tallest child, centered inside the bar's own
-     10px top/bottom padding). top:100% alone would anchor to
-     .menu-wrap's bottom, landing 11px above the status bar's actual
-     painted edge (its border-box) -- the dropdown opened overlapping
-     the bar's own background instead of starting cleanly below it.
-     +11px = .status-bar's 10px bottom padding + its 1px border, so keep
-     this in sync if either of those change. */
-  top: calc(100% + 11px);
-  /* Centered on .menu-wrap (i.e. on the button) instead of a `right`
-     offset hand-matched to the button's width -- that broke every time
-     either width changed (46px -> 64px for labels drifted it off-center;
-     see git history). left:50% + translateX(-50%) keeps it centered
-     automatically no matter what either width is from now on. */
-  left: 50%;
-  margin-top: 0;
-  /* Wide enough for an icon + text label per item (icon-only wasn't clear
-     to first-time players) while still reading as "grows out of the
-     button" rather than a wide separate panel. */
-  width: 64px;
-  background: var(--surface-menu);
-  border: 1px solid var(--panel-border);
-  /* Flat top (0) so it reads as continuing straight out of the status
-     bar's flat bottom edge, not a separate rounded panel that happens to
-     touch it -- only the bottom stays rounded. */
-  border-radius: 0 0 30px 30px;
-  padding: 16px 0 8px;
-  display: flex;
-  flex-direction: column;
-  z-index: 4; /* sits behind the button (z-index 5) so it visibly grows out from under it */
-  transform-origin: top center;
-  transform: translateX(-50%) scaleY(0);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.22s ease, opacity 0.16s ease;
-}
-.side-menu.open { transform: translateX(-50%) scaleY(1); opacity: 1; pointer-events: auto; }
-
-.side-menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 100%;
-  background: transparent;
-  border: none;
-  padding: 11px 2px;
-  color: var(--text-light);
-  font-family: inherit;
-  font-size: 15px;
-  cursor: pointer;
-  text-align: center;
-  transition: background 0.15s ease;
-}
-.side-menu-item:hover { background: rgba(255,255,255,0.08); }
-.side-menu-item:active { background: rgba(255,255,255,0.14); }
-.side-menu-icon { width: 21px; height: 21px; display: block; }
-.side-menu-label { font-size: 9.5px; line-height: 1; opacity: 0.85; white-space: nowrap; }
-
-/* ================= Bait picker (하단바 미끼 버튼) =================
-   Horizontally-scrollable row of round chips, growing straight out of the
-   button (same idea as .side-menu, just sideways instead of vertical) --
-   was a vertical list of rows before; picking a bait is now a quick
-   sideways swipe+tap right next to where the thumb already is, and each
-   tier reads as its own round "coin" rather than a text row. */
+/* ================= Bait picker (하단 탭바 미끼 탭) =================
+   Horizontally-scrollable row of round chips growing straight up out of
+   the tab bar; picking a bait is a quick sideways swipe+tap right next to
+   where the thumb already is, and each tier reads as its own round "coin"
+   rather than a text row. */
 .bait-menu {
   position: absolute;
-  /* Anchored to the BUTTON's own bottom edge (not its top, via bottom:100%
-     + a hand-tuned negative margin like before) -- that left the button
-     only partly covered and drifted out of sync if the button's size ever
-     changed. Since the panel's own height (circle + label + padding) is
-     comfortably taller than the 68px button regardless, bottom:0 always
-     fully covers it from here upward with no magic number involved. */
+  /* Spans the whole bar (a narrower centered panel left the outer tabs
+     peeking out at both sides) and sits on its bottom edge; the panel is
+     taller than the bar, so bottom:0 covers it completely while open. */
   bottom: 0;
-  left: 50%;
-  width: min(280px, 80vw);
-  max-width: 320px;
+  left: 0;
+  right: 0;
   background: var(--surface-menu);
   border: 1px solid var(--panel-border);
-  border-radius: 30px;
+  border-bottom: none;
+  border-radius: 30px 30px 0 0;
   /* Left/right padding is set from game.js (updateBaitMenuPadding()), not
      here -- it has to exactly equal half the container's own rendered
      width minus half an item's width so the FIRST and LAST chips can
@@ -780,13 +751,13 @@ body {
   scrollbar-width: none;
   z-index: 4;
   transform-origin: bottom center;
-  transform: translateX(-50%) scale(0.85) translateY(6px);
+  transform: scale(0.95) translateY(8px);
   opacity: 0;
   pointer-events: none;
   transition: transform 0.22s ease, opacity 0.16s ease;
 }
 .bait-menu::-webkit-scrollbar { display: none; }
-.bait-menu.open { transform: translateX(-50%) scale(1) translateY(0); opacity: 1; pointer-events: auto; }
+.bait-menu.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
 
 .bait-menu-item {
   display: flex;
@@ -1330,6 +1301,17 @@ body {
   accent-color: var(--accent);
   flex-shrink: 0;
 }
+.volume-control { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.sound-check {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Muted channel: dial stays adjustable but reads as inactive. */
+.volume-control.muted .volume-slider { opacity: 0.35; }
 
 .danger-btn {
   background: var(--danger-grad);
@@ -1354,6 +1336,26 @@ body {
 .reset-confirm-actions { display: flex; gap: 10px; justify-content: center; }
 .reset-confirm-actions .main-btn { flex: 1; padding: 13px 0; font-size: 15px; }
 .reset-confirm-actions .danger-btn { flex: 1; }
+
+/* Exit confirm (host back button) must clear everything -- the reel HUD,
+   any open popup, even the update banner -- since a back press can come
+   at any moment. */
+#exit-confirm-overlay { z-index: 30; }
+/* Secondary action next to a .main-btn: same shape, no fill, so 계속하기
+   reads as the default. */
+.quiet-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+  border: 1px solid var(--panel-border);
+  padding: 13px 0;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.quiet-btn:active { transform: scale(0.97); }
 
 /* ================= Result popup (ported as-is from the old version) ================= */
 .overlay {

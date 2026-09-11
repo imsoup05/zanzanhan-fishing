@@ -12,8 +12,12 @@ function __zzhInit() {
   // riding along on the SFX slider. bgmVolume() (further down, next to the
   // rest of the BGM code) is what actually reads this.
   let bgmMasterVolume = 0.6;
+  // Per-channel mute checkboxes in 설정 -- an explicit off for each, separate
+  // from dragging its dial to zero. sfxOn gates every blip, bgmOn the pad.
+  let sfxOn = true;
+  let bgmOn = true;
   function blip(freq, dur, type, vol) {
-    if (!actx) return;
+    if (!actx || !sfxOn) return;
     const osc = actx.createOscillator();
     const gain = actx.createGain();
     osc.type = type || 'sine';
@@ -136,7 +140,7 @@ function __zzhInit() {
   }
   function bgmVolume() { return bgmMasterVolume * 0.3; } // internal balance scale, not the raw slider value
   function startBgm() {
-    if (!actx || bgmNodes) return;
+    if (!actx || bgmNodes || !bgmOn) return;
     const master = actx.createGain();
     master.gain.value = bgmVolume();
     master.connect(actx.destination);
@@ -165,6 +169,10 @@ function __zzhInit() {
   const canvas = document.getElementById('bg-canvas');
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  // Offscreen copy of everything static in the scene (deck, vault, piers,
+  // arch ring, the shadow they throw on the water) -- painted once per
+  // size, blitted each frame. See renderBridgeCache().
+  let bridgeCache = null;
 
   // #game's CSS size is driven by --vw-px/--vh-px rather than raw vw/vh --
   // window.visualViewport reports the *actual* visible area, which mobile
@@ -191,6 +199,7 @@ function __zzhInit() {
     canvas.width = W * DPR; canvas.height = H * DPR;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bridgeCache = null;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -229,155 +238,278 @@ function __zzhInit() {
   function pierWidth() { return W * 0.22; }
 
   const THEME = {
-    underside: '#2a2624',
-    archSky: ['#bfe3f0', '#ffe6ae', '#ffd98a'],
-    archGlow: 'rgba(255,244,214,0.65)',
-    farBank: 'rgba(35,64,50,0.4)',
-    archEdge: 'rgba(255,235,190,0.35)',
-    pier: ['#57524c', '#3a3531', '#262320'],
-    moss: ['rgba(35,58,32,0)', 'rgba(28,48,26,0.6)'],
-    deckCap: '#423d38',
-    bridgeShadow: 'rgba(0,0,0,0.4)',
+    beam: '#171412',
+    wall: ['#221e1b', '#3a3430', '#4d4640'],
+    wallWarm: 'rgba(255,186,110,0.18)',
+    sky: ['#a6d6ea', '#ffe8b8', '#ffd27c'],
+    sun: 'rgba(255,248,224,0.7)',
+    haze: 'rgba(255,236,200,0.5)',
+    farBank: 'rgba(110,130,140,0.35)',
+    ring: '#332e2a',
+    ringRim: 'rgba(255,224,176,0.75)',
+    bounce: 'rgba(120,205,215,0.2)',
+    moss: ['rgba(35,58,32,0)', 'rgba(28,48,26,0.65)'],
+    bridgeShadow: 'rgba(0,0,0,0.45)',
     rayColor: 'rgba(255,238,190,',
     water: ['#bfe9dc', '#6cc0c2', '#2f8f9c', '#0f4b5c'],
+    openingReflect: 'rgba(255,232,190,',
     pierReflect: '#0a2a30',
     waveA: '#eaffef', waveB: '#0a3a44',
-    sunGlow: 'rgba(255,246,214,0.22)',
+    sunGlow: 'rgba(255,246,214,0.12)',
     waterline: '#eafffb',
     sparkle: '#fffbe8'
   };
 
-  function drawStoneBridge(t) {
-    const theme = THEME;
+  // Shared layout of the bridge so the static painter, the water's
+  // reflection of the opening and the shadow cut-out all agree on where
+  // the arch actually is.
+  function bridgeGeom() {
     const wTop = waterTop();
     const deckH = Math.max(24, H * 0.045);
     const pierW = pierWidth();
+    const span = wTop - deckH;
+    const cx = W * 0.5;
+    const rx = W * 0.5 - pierW;
+    const crownY = deckH + span * 0.22;
+    const springY = wTop - span * 0.4;
+    return { wTop, deckH, pierW, span, cx, rx, crownY, springY, ry: springY - crownY };
+  }
 
-    // --- underside of the bridge: solid stone slab ---
-    ctx.fillStyle = theme.underside;
-    ctx.fillRect(0, deckH, W, wTop - deckH);
+  // Outline of the opening: straight jambs up from the water, elliptical
+  // arc over the top. Runs a little below the waterline so the sky always
+  // meets its own reflection with no seam. A negative inset grows it.
+  // `open` leaves the bottom unclosed -- for strokes, otherwise the closing
+  // chord paints a bar straight across the opening at the waterline.
+  function archPath(c, g, inset, open) {
+    inset = inset || 0;
+    c.beginPath();
+    c.moveTo(g.cx - g.rx + inset, g.wTop + 4);
+    c.lineTo(g.cx - g.rx + inset, g.springY);
+    c.ellipse(g.cx, g.springY, g.rx - inset, g.ry - inset, 0, Math.PI, 0, false);
+    c.lineTo(g.cx + g.rx - inset, g.wTop + 4);
+    if (!open) c.closePath();
+  }
 
-    // --- arch opening: sky and warm light beyond ---
-    const cx = W * 0.5, cy = wTop;
-    const rx = W * 0.5 - pierW, ry = (wTop - deckH) * 1.25;
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - ry * 0.42, rx, ry, 0, Math.PI, 0, false);
-    ctx.closePath();
-    ctx.clip();
-    const skyGrad = ctx.createLinearGradient(0, deckH, 0, wTop);
-    skyGrad.addColorStop(0, theme.archSky[0]);
-    skyGrad.addColorStop(0.5, theme.archSky[1]);
-    skyGrad.addColorStop(1, theme.archSky[2]);
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, W, wTop);
-    const glow = ctx.createRadialGradient(cx, cy - ry * 0.15, 5, cx, cy - ry * 0.15, rx);
-    glow.addColorStop(0, theme.archGlow);
-    glow.addColorStop(1, theme.archGlow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, wTop);
-    // faint far riverbank hinted right at the waterline inside the opening
-    ctx.fillStyle = theme.farBank;
-    ctx.beginPath();
-    ctx.moveTo(cx - rx, wTop);
-    for (let x = cx - rx; x <= cx + rx; x += 18) {
-      const y = wTop - 3 - Math.abs(Math.sin(x * 0.025 + 2)) * 9;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(cx + rx, wTop);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+  // Cheap deterministic noise so each stone block keeps the same tone
+  // across frames and resizes instead of shimmering.
+  function hash2(a, b) {
+    const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
 
-    // keystone/arch-edge highlight tracing the curve
-    ctx.save();
-    ctx.strokeStyle = theme.archEdge;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - ry * 0.42, rx, ry, 0, Math.PI, 0, false);
-    ctx.stroke();
-    ctx.restore();
+  // Everything here is static, so it paints into `c` (the offscreen cache
+  // context) rather than the live canvas. Light comes from beyond the
+  // opening: the vault and piers are in shadow, picking up only a warm
+  // wash near the arch and a cool bounce off the water at their feet.
+  function drawStoneBridge(c) {
+    const th = THEME;
+    const g = bridgeGeom();
+    const { wTop, deckH, span, cx, rx, springY, crownY, ry } = g;
 
-    // --- stone piers left & right, with block coursing + moss base ---
-    function drawPier(x0, x1) {
-      const pierGrad = ctx.createLinearGradient(0, deckH, 0, wTop);
-      pierGrad.addColorStop(0, theme.pier[0]);
-      pierGrad.addColorStop(0.75, theme.pier[1]);
-      pierGrad.addColorStop(1, theme.pier[2]);
-      ctx.fillStyle = pierGrad;
-      ctx.fillRect(x0, deckH, x1 - x0, wTop - deckH);
-
-      ctx.strokeStyle = 'rgba(0,0,0,0.32)';
-      ctx.lineWidth = 1;
-      const rows = 7;
-      const rowH = (wTop - deckH) / rows;
-      for (let r = 0; r <= rows; r++) {
-        const y = deckH + rowH * r;
-        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+    // --- the whole face is one coursed stone wall with the arch cut out
+    // of it; each block gets its own tone plus a top highlight / bottom
+    // shadow so the wall has relief instead of reading as a flat slab ---
+    const base = c.createLinearGradient(0, deckH, 0, wTop);
+    base.addColorStop(0, th.wall[0]);
+    base.addColorStop(0.55, th.wall[1]);
+    base.addColorStop(1, th.wall[2]);
+    c.fillStyle = base;
+    c.fillRect(0, deckH, W, span);
+    const rows = 9;
+    const rowH = span / rows;
+    const blockW = W * 0.115;
+    for (let r = 0; r < rows; r++) {
+      const y0 = deckH + rowH * r;
+      const offset = r % 2 ? blockW * 0.5 : 0;
+      for (let bx = -blockW + offset; bx < W; bx += blockW) {
+        const bx0 = Math.max(0, bx), bx1 = Math.min(W, bx + blockW);
+        if (bx1 - bx0 < 2) continue;
+        const tone = hash2(Math.round(bx), r);
+        c.fillStyle = tone > 0.5
+          ? 'rgba(255,255,255,' + ((tone - 0.5) * 0.12).toFixed(3) + ')'
+          : 'rgba(0,0,0,' + ((0.5 - tone) * 0.24).toFixed(3) + ')';
+        c.fillRect(bx0, y0, bx1 - bx0, rowH);
+        c.fillStyle = 'rgba(255,255,255,0.08)';
+        c.fillRect(bx0, y0, bx1 - bx0, 1);
+        c.fillStyle = 'rgba(0,0,0,0.42)';
+        c.fillRect(bx0, y0 + rowH - 1.2, bx1 - bx0, 1.2);
+        c.fillRect(bx1 - 1, y0, 1, rowH);
       }
-      for (let r = 0; r < rows; r++) {
-        const y0 = deckH + rowH * r, y1 = y0 + rowH;
-        const offset = (r % 2 === 0) ? 0 : (x1 - x0) / 4;
-        for (let px = x0 + offset; px < x1; px += (x1 - x0) / 2) {
-          ctx.beginPath(); ctx.moveTo(px, y0); ctx.lineTo(px, y1); ctx.stroke();
-        }
-      }
-      // moss / waterline stain
-      const mossH = (wTop - deckH) * 0.16;
-      const mossGrad = ctx.createLinearGradient(0, wTop - mossH, 0, wTop);
-      mossGrad.addColorStop(0, theme.moss[0]);
-      mossGrad.addColorStop(1, theme.moss[1]);
-      ctx.fillStyle = mossGrad;
-      ctx.fillRect(x0, wTop - mossH, x1 - x0, mossH);
     }
-    drawPier(0, pierW);
-    drawPier(W - pierW, W);
+    // lighting on the wall: deepest shadow right under the deck, a cool
+    // bounce off the water at its feet, a warm halo around the opening
+    const top = c.createLinearGradient(0, deckH, 0, deckH + span * 0.45);
+    top.addColorStop(0, 'rgba(0,0,0,0.5)');
+    top.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = top;
+    c.fillRect(0, deckH, W, span * 0.45);
+    const bounce = c.createLinearGradient(0, wTop - span * 0.3, 0, wTop);
+    bounce.addColorStop(0, 'rgba(120,205,215,0)');
+    bounce.addColorStop(1, th.bounce);
+    c.fillStyle = bounce;
+    c.fillRect(0, wTop - span * 0.3, W, span * 0.3);
+    const warm = c.createRadialGradient(cx, springY, rx * 0.6, cx, springY, rx * 2.1);
+    warm.addColorStop(0, th.wallWarm);
+    warm.addColorStop(1, 'rgba(255,186,110,0)');
+    c.fillStyle = warm;
+    c.fillRect(0, deckH, W, span);
+    const mossH = span * 0.18;
+    const moss = c.createLinearGradient(0, wTop - mossH, 0, wTop);
+    moss.addColorStop(0, th.moss[0]);
+    moss.addColorStop(1, th.moss[1]);
+    c.fillStyle = moss;
+    c.fillRect(0, wTop - mossH, W, mossH);
 
-    // --- road deck cap at the very top, with guardrail balusters ---
-    ctx.fillStyle = theme.deckCap;
-    ctx.fillRect(0, 0, W, deckH);
-    ctx.fillStyle = 'rgba(255,255,255,0.16)';
-    ctx.fillRect(0, deckH - 2, W, 2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 2;
-    for (let x = 6; x < W; x += 24) {
-      ctx.beginPath();
-      ctx.moveTo(x, deckH * 0.4);
-      ctx.lineTo(x, deckH - 3);
-      ctx.stroke();
+    // --- the opening: sky, low sun, far bank, haze lying on the water ---
+    c.save();
+    archPath(c, g);
+    c.clip();
+    const sky = c.createLinearGradient(0, crownY, 0, wTop);
+    sky.addColorStop(0, th.sky[0]);
+    sky.addColorStop(0.5, th.sky[1]);
+    sky.addColorStop(1, th.sky[2]);
+    c.fillStyle = sky;
+    c.fillRect(0, 0, W, wTop + 4);
+    const sun = c.createRadialGradient(cx, crownY + ry * 0.6, 4, cx, crownY + ry * 0.6, rx * 0.8);
+    sun.addColorStop(0, th.sun);
+    sun.addColorStop(1, 'rgba(255,248,224,0)');
+    c.fillStyle = sun;
+    c.fillRect(0, 0, W, wTop + 4);
+    // far bank: a low, hazy strip that stops at the waterline so the sky
+    // meets its own reflection cleanly instead of through a dark band
+    c.fillStyle = th.farBank;
+    c.beginPath();
+    c.moveTo(cx - rx, wTop);
+    for (let x = cx - rx; x <= cx + rx; x += 8) {
+      const y = wTop - 1 - Math.abs(Math.sin(x * 0.011 + 0.8)) * 13 - Math.abs(Math.sin(x * 0.043 + 2)) * 4;
+      c.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.beginPath(); ctx.moveTo(0, deckH * 0.4); ctx.lineTo(W, deckH * 0.4); ctx.stroke();
+    c.lineTo(cx + rx, wTop);
+    c.closePath();
+    c.fill();
+    const haze = c.createLinearGradient(0, wTop - ry * 0.5, 0, wTop);
+    haze.addColorStop(0, 'rgba(255,236,200,0)');
+    haze.addColorStop(1, th.haze);
+    c.fillStyle = haze;
+    c.fillRect(0, wTop - ry, W, ry + 4);
+    c.restore();
 
-    // shadow the bridge casts onto the water
-    const edgeGrad = ctx.createLinearGradient(0, wTop - 6, 0, wTop + 44);
-    edgeGrad.addColorStop(0, theme.bridgeShadow);
-    edgeGrad.addColorStop(1, theme.bridgeShadow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = edgeGrad;
-    ctx.fillRect(0, wTop - 6, W, 50);
+    // --- arch ring: a band of voussoirs framing the opening. Backlit, so
+    // the stone reads dark and only its inner edge catches the sky ---
+    const ringW = Math.max(14, W * 0.055);
+    c.save();
+    archPath(c, g, -ringW * 0.5, true);
+    c.lineWidth = ringW;
+    c.strokeStyle = th.ring;
+    c.stroke();
+    c.lineWidth = 1.2;
+    const joint = (ix, iy, ox, oy) => {
+      c.strokeStyle = 'rgba(0,0,0,0.45)';
+      c.beginPath(); c.moveTo(ix, iy); c.lineTo(ox, oy); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,0.06)';
+      c.beginPath(); c.moveTo(ix + 1.5, iy); c.lineTo(ox + 1.5, oy); c.stroke();
+    };
+    const arcJoints = 13;
+    for (let i = 0; i <= arcJoints; i++) {
+      const a = Math.PI + (Math.PI * i) / arcJoints;
+      joint(cx + rx * Math.cos(a), springY + ry * Math.sin(a),
+        cx + (rx + ringW) * Math.cos(a), springY + (ry + ringW) * Math.sin(a));
+    }
+    for (let y = springY + ringW * 1.1; y < wTop; y += ringW * 1.1) {
+      joint(cx - rx, y, cx - rx - ringW, y);
+      joint(cx + rx, y, cx + rx + ringW, y);
+    }
+    // keystone, a touch lighter than its neighbours
+    c.fillStyle = 'rgba(255,255,255,0.07)';
+    c.beginPath();
+    const ka = Math.PI * 1.5, kd = 0.12;
+    c.moveTo(cx + rx * Math.cos(ka - kd), springY + ry * Math.sin(ka - kd));
+    c.lineTo(cx + rx * Math.cos(ka + kd), springY + ry * Math.sin(ka + kd));
+    c.lineTo(cx + (rx + ringW) * Math.cos(ka + kd * 1.3), springY + (ry + ringW) * Math.sin(ka + kd * 1.3));
+    c.lineTo(cx + (rx + ringW) * Math.cos(ka - kd * 1.3), springY + (ry + ringW) * Math.sin(ka - kd * 1.3));
+    c.closePath();
+    c.fill();
+    // outer edge sinks into the vault; inner edge glows with the sky
+    archPath(c, g, -ringW - 1, true);
+    c.lineWidth = 3;
+    c.strokeStyle = 'rgba(0,0,0,0.35)';
+    c.stroke();
+    archPath(c, g, 1, true);
+    c.lineWidth = 2.2;
+    c.strokeStyle = th.ringRim;
+    c.stroke();
+    c.restore();
+
+    // --- deck beam along the top (mostly tucked under the status bar) ---
+    c.fillStyle = th.beam;
+    c.fillRect(0, 0, W, deckH);
+    c.fillStyle = 'rgba(255,255,255,0.07)';
+    c.fillRect(0, deckH - 2, W, 2);
+
+    // --- shadow the bridge throws on the water, except right under the
+    // opening where the light comes straight through ---
+    const shadowH = span * 0.5;
+    const sh = c.createLinearGradient(0, wTop, 0, wTop + shadowH);
+    sh.addColorStop(0, th.bridgeShadow);
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = sh;
+    c.fillRect(0, wTop, W, shadowH);
+    c.save();
+    c.globalCompositeOperation = 'destination-out';
+    const gap = c.createLinearGradient(cx - rx, 0, cx + rx, 0);
+    gap.addColorStop(0, 'rgba(0,0,0,0)');
+    gap.addColorStop(0.3, 'rgba(0,0,0,1)');
+    gap.addColorStop(0.7, 'rgba(0,0,0,1)');
+    gap.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = gap;
+    c.fillRect(cx - rx, wTop, rx * 2, shadowH);
+    c.restore();
+  }
+
+  function renderBridgeCache() {
+    bridgeCache = document.createElement('canvas');
+    bridgeCache.width = Math.max(1, Math.round(W * DPR));
+    bridgeCache.height = Math.max(1, Math.round(H * DPR));
+    const c = bridgeCache.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    applyZoom(c); // baked in, so the blit needs no scaling (stays crisp)
+    drawStoneBridge(c);
   }
 
   function drawSunRays(t) {
     const theme = THEME;
     const wTop = waterTop();
-    const cx = W * 0.5, topY = wTop * 0.55;
+    // Drawn before the bridge layer, so the shafts only ever show in the
+    // water: they fan out from just under the arch, apex hidden behind it.
+    const cx = W * 0.5, topY = wTop - 10;
+    const rx = bridgeGeom().rx;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const rayCount = 7;
     for (let i = 0; i < rayCount; i++) {
-      const angle = -Math.PI / 2 + (i - (rayCount - 1) / 2) * 0.1 + Math.sin(t * 0.15 + i) * 0.015;
+      // Origins spread across the opening and only a slight fan, so they
+      // read as parallel shafts of light entering the water rather than a
+      // spotlight cone converging on one hot spot.
+      const spread = (i - (rayCount - 1) / 2) / ((rayCount - 1) / 2);
+      const angle = -Math.PI / 2 + spread * 0.08 + Math.sin(t * 0.15 + i) * 0.015;
       const len = H * 0.8;
-      const w = 26 + Math.sin(t * 0.3 + i * 2) * 8;
+      const w = 22 + Math.sin(t * 0.3 + i * 2) * 7;
       ctx.save();
-      ctx.translate(cx, topY);
+      ctx.translate(cx + spread * rx * 0.75, topY);
       ctx.rotate(angle + Math.PI / 2);
-      const g = ctx.createLinearGradient(0, 0, 0, len);
-      g.addColorStop(0, theme.rayColor + '0.08)');
-      g.addColorStop(1, theme.rayColor + '0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.lineTo(w * 2, len); ctx.lineTo(-w * 2, len);
-      ctx.closePath(); ctx.fill();
+      // Stacked translucent strips of shrinking width: their overlap makes
+      // each shaft brightest along its centre and soft at the edges, no
+      // canvas blur filter needed (not supported everywhere).
+      for (let k = 0; k < 4; k++) {
+        const f = 1 - k * 0.22;
+        const g = ctx.createLinearGradient(0, 0, 0, len);
+        g.addColorStop(0, theme.rayColor + '0.022)');
+        g.addColorStop(1, theme.rayColor + '0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(-w * f / 2, 0); ctx.lineTo(w * f / 2, 0); ctx.lineTo(w * 1.6 * f, len); ctx.lineTo(-w * 1.6 * f, len);
+        ctx.closePath(); ctx.fill();
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -395,6 +527,31 @@ function __zzhInit() {
     ctx.fillStyle = grad;
     ctx.fillRect(0, top, W, H - top);
 
+    // mirror of the bright opening: a warm column right under the arch,
+    // narrowing with depth, its edges wobbling with the surface
+    const g = bridgeGeom();
+    const reflH = (H - top) * 0.55;
+    const rxr = g.rx * 0.85;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(g.cx - rxr, top);
+    for (let y = top; y <= top + reflH; y += 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(g.cx - rxr * (1 - k * 0.35) + Math.sin(y * 0.09 + t * 1.3) * (3 + 7 * k), y);
+    }
+    for (let y = top + reflH; y >= top; y -= 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(g.cx + rxr * (1 - k * 0.35) + Math.sin(y * 0.1 + t * 1.1 + 2) * (3 + 7 * k), y);
+    }
+    ctx.closePath();
+    const rg = ctx.createLinearGradient(0, top, 0, top + reflH);
+    rg.addColorStop(0, theme.openingReflect + '0.24)');
+    rg.addColorStop(0.35, theme.openingReflect + '0.1)');
+    rg.addColorStop(1, theme.openingReflect + '0)');
+    ctx.fillStyle = rg;
+    ctx.fill();
+    ctx.restore();
+
     // reflections of the two piers, distorted by the waterline
     if (pierW) {
       ctx.save();
@@ -403,12 +560,12 @@ function __zzhInit() {
       [[0, pierW], [W - pierW, W]].forEach(([x0, x1]) => {
         ctx.beginPath();
         ctx.moveTo(x0, top);
-        for (let y = top; y <= top + 70; y += 8) {
-          const wob = Math.sin(y * 0.2 + t * 1.5) * 4;
+        for (let y = top; y <= top + 90; y += 4) {
+          const wob = Math.sin(y * 0.14 + t * 1.5) * 3;
           ctx.lineTo(x0 + wob, y);
         }
-        for (let y = top + 70; y >= top; y -= 8) {
-          const wob = Math.sin(y * 0.2 + t * 1.5) * 4;
+        for (let y = top + 90; y >= top; y -= 4) {
+          const wob = Math.sin(y * 0.14 + t * 1.5) * 3;
           ctx.lineTo(x1 + wob, y);
         }
         ctx.closePath();
@@ -580,7 +737,7 @@ function __zzhInit() {
     // ---- Water mask: instead of trying to fake "submerged" behind the
     // float with a ring/tint that has to stay perfectly synced to its bob
     // (fragile, and an encircling ring reads as a halo/UFO ring rather than
-    // water), just paint actual water color OVER the lower portion, same as
+    // water), just paint the actual water OVER the lower portion, same as
     // if the real water surface were sitting in front of it. A wavy top
     // edge (instead of a hard flat line) is what actually sells "water
     // surface" rather than "a rectangle was pasted on". ----
@@ -607,11 +764,16 @@ function __zzhInit() {
     }
     ctx.lineTo(bx + halfW, maskBottom);
     ctx.closePath();
-    const maskGrad = ctx.createLinearGradient(0, waterLineY, 0, maskBottom);
-    maskGrad.addColorStop(0, 'rgba(96,186,190,0.88)');
-    maskGrad.addColorStop(1, 'rgba(31,109,120,0.94)');
-    ctx.fillStyle = maskGrad;
-    ctx.fill();
+    ctx.clip();
+    // Not a fixed water colour (that only ever matched one spot of one
+    // version of the background): repaint the real water layers -- depth
+    // gradient, the opening's reflection, the light shafts -- clipped to
+    // the submerged part, so it's covered by exactly what surrounds it.
+    // Slightly translucent so the body still reads through the surface.
+    ctx.globalAlpha = 0.86;
+    drawWater(t);
+    drawSunRays(t);
+    ctx.globalAlpha = 1;
     // a couple of short, subtle ripple accents sitting on the mask itself
     // (not encircling the float) for a touch of surface texture
     ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -639,17 +801,24 @@ function __zzhInit() {
   }
 
   const ZOOM = 1.18;
+  function applyZoom(c) {
+    const anchorX = W * 0.5, anchorY = H * 0.24;
+    c.translate(anchorX, anchorY);
+    c.scale(ZOOM, ZOOM);
+    c.translate(-anchorX, -anchorY);
+  }
   function renderLoop(now) {
     const t = now / 1000;
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    const anchorX = W * 0.5, anchorY = H * 0.24;
-    ctx.translate(anchorX, anchorY);
-    ctx.scale(ZOOM, ZOOM);
-    ctx.translate(-anchorX, -anchorY);
+    applyZoom(ctx);
     drawWater(t);
-    drawStoneBridge(t);
     drawSunRays(t);
+    ctx.restore();
+    if (!bridgeCache) renderBridgeCache();
+    ctx.drawImage(bridgeCache, 0, 0, W, H);
+    ctx.save();
+    applyZoom(ctx);
     drawSparkles(t);
     maybeSpawnIdleFish(t);
     drawIdleFish(t);
@@ -659,14 +828,12 @@ function __zzhInit() {
   }
   requestAnimationFrame(renderLoop);
 
-  // ================= Fishing loop (no species/tiers yet -- one test fish
-  // just to prove the cast -> bite -> reel -> result loop works end to end) =================
+  // ================= Fishing loop (cast -> bite -> reel -> result) =================
   const TAP_ZONE_TOP_FRAC = 0.38;    // matches .reel-gauge's `top` in style.css
   const TAP_ZONE_BOTTOM_FRAC = 0.82; // matches .reel-gauge's `top + height`
 
-  // Real species/tier data lives in fish-data.js (loaded before this file)
-  // as window.FishData -- FishData.DUMMY_TEST_FISH is kept only as an
-  // unused reference now that the live loop picks from FishData.pickCatch().
+  // Species/tier data lives in fish-data.js (loaded before this file) as
+  // window.FishData; the live loop picks from FishData.pickCatch().
   //
   // Hit tolerance scales with the casting bar's actual current speed
   // (reel.period) rather than being fixed -- a slow sweep is more
@@ -806,7 +973,19 @@ function __zzhInit() {
   }
   function loadSave() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      let raw = Platform.storage.get(SAVE_KEY);
+      const me = Platform.userKey;
+      if (raw && me) {
+        // Shared-device case (a different Toss account than the one whose
+        // progress sits in the main slot): park theirs under their own key
+        // and pull this account's own save back out, if it has one. A save
+        // with no owner yet (made before identity existed) is simply adopted.
+        const owner = JSON.parse(raw).userKey;
+        if (owner && owner !== me) {
+          Platform.storage.set(SAVE_KEY + ':' + owner, raw);
+          raw = Platform.storage.get(SAVE_KEY + ':' + me);
+        }
+      }
       if (raw) {
         const migrated = migrateSave(JSON.parse(raw));
         if (migrated && migrated.schemaVersion === SAVE_SCHEMA_VERSION) return { ...defaultSave(), ...migrated };
@@ -819,9 +998,9 @@ function __zzhInit() {
   }
   function persist() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({
-        schemaVersion: SAVE_SCHEMA_VERSION, shells, rod, gems, stats, caughtFish, nextFishUid, catches, hasCastBefore,
-        hasReeledBefore, baits, equippedBait, gachaPity
+      Platform.storage.set(SAVE_KEY, JSON.stringify({
+        schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
+        catches, hasCastBefore, hasReeledBefore, baits, equippedBait, gachaPity
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1157,6 +1336,7 @@ function __zzhInit() {
       persist();
     }
     sfx.bite();
+    Platform.haptic('basicMedium');
     showStatus('입질이 왔어요!', 'icons/result/bite.svg');
     const shouldSkipReel = skipLowTier && SKIP_TIERS_BY_GRADE[rod.grade].includes(currentCatch.tier);
     biteTimer = setTimeout(shouldSkipReel ? resolveSkippedCatch : startReel, 500);
@@ -1183,11 +1363,11 @@ function __zzhInit() {
     hideStatus();
     state = 'reeling';
     bobberState = 'reeling';
-    // A bite can land while the player still has 미끼/메뉴 open from the
-    // waiting period -- close both so the full-screen tap catcher below
-    // isn't fighting an open dropdown for the reeling taps.
+    // A bite can land while the player still has the 미끼 picker open from
+    // the waiting period -- close it so the full-screen tap catcher below
+    // isn't fighting an open popup for the reeling taps.
     setBaitMenuOpen(false);
-    setMenuOpen(false);
+    gameEl.classList.add('reeling'); // slides the tab bar away (style.css)
     reelTapCatcherEl.classList.remove('hidden');
     if (!hasReeledBefore) {
       hasReeledBefore = true;
@@ -1436,8 +1616,10 @@ function __zzhInit() {
     bobberState = 'hidden';
     sfx.splash();
     sfx.success();
+    Platform.haptic('success');
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
+    gameEl.classList.remove('reeling');
     hideReelTutorial();
     const c = currentCatch;
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
@@ -1465,8 +1647,10 @@ function __zzhInit() {
     state = 'result';
     bobberState = 'hidden';
     sfx.fail();
+    Platform.haptic('error');
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
+    gameEl.classList.remove('reeling');
     hideReelTutorial();
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/result/miss.svg');
   }
@@ -1591,6 +1775,9 @@ function __zzhInit() {
   function setBaitMenuOpen(open) {
     baitMenu.classList.toggle('open', open);
     baitMenuBackdrop.classList.toggle('open', open);
+    // The picker's translucent panel sits right on top of the tab labels,
+    // which otherwise ghost through it -- blank the tabs while it's open.
+    document.getElementById('tab-bar').classList.toggle('picker-open', open);
     if (open) {
       updateBaitMenuPadding();
       // Land on whatever's currently equipped rather than always opening
@@ -1724,21 +1911,8 @@ function __zzhInit() {
     gachaActionBtn.onclick = () => cards.forEach((card, i) => revealCard(card, results[i]));
   }
 
-  // ================= Slide-out menu (상점 / 보관함 / 설정) =================
-  const menuToggleBtn = document.getElementById('menu-toggle-btn');
-  const sideMenu = document.getElementById('side-menu');
-  const menuBackdrop = document.getElementById('menu-backdrop');
-
-  function setMenuOpen(open) {
-    sideMenu.classList.toggle('open', open);
-    menuBackdrop.classList.toggle('open', open);
-  }
-  menuToggleBtn.addEventListener('click', () => setMenuOpen(!sideMenu.classList.contains('open')));
-  menuBackdrop.addEventListener('click', () => setMenuOpen(false));
-
   // ================= Shop (구매 / 판매 / 업그레이드) =================
   function openShop() {
-    setMenuOpen(false);
     switchShopTab('gacha');
     shopOverlay.classList.remove('hidden');
   }
@@ -1913,7 +2087,6 @@ function __zzhInit() {
 
   // ================= Bucket (보관함 / 도감) =================
   function openBucket() {
-    setMenuOpen(false);
     switchBucketTab('inventory');
     bucketOverlay.classList.remove('hidden');
   }
@@ -2029,7 +2202,6 @@ function __zzhInit() {
 
   // ================= Settings (왼손 모드 / 볼륨 / 데이터 삭제) =================
   function openSettings() {
-    setMenuOpen(false);
     settingsOverlay.classList.remove('hidden');
   }
   function closeSettings() { settingsOverlay.classList.add('hidden'); }
@@ -2039,15 +2211,14 @@ function __zzhInit() {
 
   // ---- Left-hand mode: mirrors the reeling HUD only (menu stays put) ----
   const LEFTY_KEY = 'zanzanhan-lefty-mode-v1';
-  let leftyMode = false;
-  try { leftyMode = localStorage.getItem(LEFTY_KEY) === '1'; } catch (e) { /* ignore */ }
+  let leftyMode = Platform.storage.get(LEFTY_KEY) === '1';
   function applyLeftyMode() {
     gameEl.classList.toggle('lefty-mode', leftyMode);
     leftyToggleBtn.setAttribute('aria-checked', String(leftyMode));
   }
   leftyToggleBtn.addEventListener('click', () => {
     leftyMode = !leftyMode;
-    try { localStorage.setItem(LEFTY_KEY, leftyMode ? '1' : '0'); } catch (e) { /* ignore */ }
+    Platform.storage.set(LEFTY_KEY, leftyMode ? '1' : '0');
     applyLeftyMode();
   });
   applyLeftyMode();
@@ -2055,44 +2226,69 @@ function __zzhInit() {
   // ---- Skip low tiers the rod has outgrown (see SKIP_TIERS_BY_GRADE) ----
   const SKIP_LOWTIER_KEY = 'zanzanhan-skip-lowtier-v1';
   let skipLowTier = true;
-  try {
-    const stored = localStorage.getItem(SKIP_LOWTIER_KEY);
-    if (stored !== null) skipLowTier = stored === '1';
-  } catch (e) { /* ignore */ }
+  const storedSkip = Platform.storage.get(SKIP_LOWTIER_KEY);
+  if (storedSkip !== null) skipLowTier = storedSkip === '1';
   function applySkipLowTier() {
     skipLowTierToggleBtn.setAttribute('aria-checked', String(skipLowTier));
   }
   skipLowTierToggleBtn.addEventListener('click', () => {
     skipLowTier = !skipLowTier;
-    try { localStorage.setItem(SKIP_LOWTIER_KEY, skipLowTier ? '1' : '0'); } catch (e) { /* ignore */ }
+    Platform.storage.set(SKIP_LOWTIER_KEY, skipLowTier ? '1' : '0');
     applySkipLowTier();
   });
   applySkipLowTier();
+
+  // ---- Mute checkboxes, one per channel (left of each volume dial) ----
+  const SFX_ON_KEY = 'zanzanhan-sfx-on-v1';
+  const BGM_ON_KEY = 'zanzanhan-bgm-on-v1';
+  const sfxOnCheck = document.getElementById('sfx-on-check');
+  const bgmOnCheck = document.getElementById('bgm-on-check');
+  sfxOn = Platform.storage.get(SFX_ON_KEY) !== '0';
+  bgmOn = Platform.storage.get(BGM_ON_KEY) !== '0';
+  function applyChannelChecks() {
+    sfxOnCheck.checked = sfxOn;
+    bgmOnCheck.checked = bgmOn;
+    sfxOnCheck.parentElement.classList.toggle('muted', !sfxOn);
+    bgmOnCheck.parentElement.classList.toggle('muted', !bgmOn);
+  }
+  sfxOnCheck.addEventListener('change', () => {
+    sfxOn = sfxOnCheck.checked;
+    Platform.storage.set(SFX_ON_KEY, sfxOn ? '1' : '0');
+    applyChannelChecks();
+    // Checkboxes aren't buttons, so the delegated tap sound doesn't fire --
+    // play one by hand as audible confirmation that the channel is back.
+    if (sfxOn) { ensureAudio(); sfx.tap(); }
+  });
+  bgmOnCheck.addEventListener('change', () => {
+    bgmOn = bgmOnCheck.checked;
+    Platform.storage.set(BGM_ON_KEY, bgmOn ? '1' : '0');
+    applyChannelChecks();
+    // The click is itself a user gesture, so the pad can start right here
+    // instead of waiting for the next tap somewhere else.
+    if (bgmOn) { ensureAudio(); startBgm(); } else stopBgm();
+  });
+  applyChannelChecks();
 
   // ---- SFX volume slider ----
   const VOLUME_KEY = 'zanzanhan-sfx-volume-v1';
   // sfxVolume itself is declared up in the audio section, right next to
   // blip() (the only other thing that reads it).
-  try {
-    const storedVol = parseFloat(localStorage.getItem(VOLUME_KEY));
-    if (!isNaN(storedVol) && storedVol >= 0 && storedVol <= 1) sfxVolume = storedVol;
-  } catch (e) { /* ignore */ }
+  const storedVol = parseFloat(Platform.storage.get(VOLUME_KEY));
+  if (!isNaN(storedVol) && storedVol >= 0 && storedVol <= 1) sfxVolume = storedVol;
   volumeSliderEl.value = String(Math.round(sfxVolume * 100));
   volumeSliderEl.addEventListener('input', () => {
     sfxVolume = Math.max(0, Math.min(1, volumeSliderEl.value / 100));
-    try { localStorage.setItem(VOLUME_KEY, String(sfxVolume)); } catch (e) { /* ignore */ }
+    Platform.storage.set(VOLUME_KEY, String(sfxVolume));
   });
 
   // ---- BGM volume slider (independent of SFX) ----
   const BGM_VOLUME_KEY = 'zanzanhan-bgm-volume-v1';
-  try {
-    const storedBgmVol = parseFloat(localStorage.getItem(BGM_VOLUME_KEY));
-    if (!isNaN(storedBgmVol) && storedBgmVol >= 0 && storedBgmVol <= 1) bgmMasterVolume = storedBgmVol;
-  } catch (e) { /* ignore */ }
+  const storedBgmVol = parseFloat(Platform.storage.get(BGM_VOLUME_KEY));
+  if (!isNaN(storedBgmVol) && storedBgmVol >= 0 && storedBgmVol <= 1) bgmMasterVolume = storedBgmVol;
   bgmVolumeSliderEl.value = String(Math.round(bgmMasterVolume * 100));
   bgmVolumeSliderEl.addEventListener('input', () => {
     bgmMasterVolume = Math.max(0, Math.min(1, bgmVolumeSliderEl.value / 100));
-    try { localStorage.setItem(BGM_VOLUME_KEY, String(bgmMasterVolume)); } catch (e) { /* ignore */ }
+    Platform.storage.set(BGM_VOLUME_KEY, String(bgmMasterVolume));
     refreshBgmVolume();
   });
 
@@ -2125,9 +2321,38 @@ function __zzhInit() {
   resetConfirmOverlay.addEventListener('click', (e) => { if (e.target === resetConfirmOverlay) closeResetConfirm(); });
   resetConfirmBtn.addEventListener('click', () => {
     if (resetConfirmBtn.disabled) return;
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+    Platform.storage.remove(SAVE_KEY);
     location.reload();
   });
+
+  // ================= Host back button -> exit confirm =================
+  // The game has no pages of its own, so a system back press (Android
+  // button, the Toss shell's back gesture) would otherwise leave outright.
+  // One guard entry sits on top of the history stack: going back pops it,
+  // popstate fires here, the guard is pushed straight back, and the player
+  // gets asked first. Leaving for real is the host's job (Platform.exit).
+  const exitConfirmOverlay = document.getElementById('exit-confirm-overlay');
+  const exitCancelBtn = document.getElementById('exit-cancel-btn');
+  const exitConfirmBtn = document.getElementById('exit-confirm-btn');
+  const GUARD_STATE = { zzh: 'exit-guard' };
+  history.replaceState({ zzh: 'root' }, '');
+  history.pushState(GUARD_STATE, '');
+  window.addEventListener('popstate', () => {
+    history.pushState(GUARD_STATE, '');
+    exitConfirmOverlay.classList.remove('hidden');
+  });
+  function closeExitConfirm() { exitConfirmOverlay.classList.add('hidden'); }
+  exitCancelBtn.addEventListener('click', closeExitConfirm);
+  exitConfirmOverlay.addEventListener('click', (e) => { if (e.target === exitConfirmOverlay) closeExitConfirm(); });
+  exitConfirmBtn.addEventListener('click', () => {
+    closeExitConfirm();
+    Platform.exit();
+  });
+
+  Platform.lockPortrait();
+  // Apps in Toss overlays its own close button on the page's top-right
+  // corner -- the status bar reserves that space only there (style.css).
+  gameEl.classList.toggle('host-toss', Platform.name === 'apps-in-toss');
 
   // ================= Dev hook (inert without dev-mode.js) =================
   // dev-mode.js is gitignored -- it never leaves this machine on push. This
@@ -2202,6 +2427,20 @@ function __zzhInit() {
     document.addEventListener(evt, unlockAudioOnFirstGesture, { once: true, passive: true });
   });
 
+  // The launch title (index.html, shown from the first paint) goes on the
+  // same first gesture: it never swallows the tap, so a tap on the water
+  // is already the first cast while the wordmark fades out over it.
+  const titleOverlay = document.getElementById('title-overlay');
+  const dismissTitle = () => {
+    if (!gameEl.classList.contains('title-up')) return;
+    gameEl.classList.remove('title-up');
+    titleOverlay.classList.add('fading');
+    setTimeout(() => titleOverlay.classList.add('hidden'), 600);
+  };
+  ['pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, dismissTitle, { once: true, passive: true });
+  });
+
   // BGM is a continuous loop (unlike the one-shot SFX blips), so unlike
   // those it actually needs to stop when the tab/app goes to the
   // background and pick back up on return -- required by the Apps in
@@ -2226,18 +2465,23 @@ function __zzhInit() {
   });
 }
 
-try {
-  __zzhInit();
-} catch (err) {
-  // A silent failure here means NOTHING works -- no cast, no buttons -- with
-  // no clue why, since the canvas still renders (it's on its own rAF loop
-  // started before whatever threw). Surface it visibly instead of just
-  // logging, so whoever hits this can screenshot the actual error.
-  console.error('[잔잔한 낚시터] 초기화 실패:', err);
-  const banner = document.createElement('div');
-  banner.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#1a0f0f;color:#ffb3b3;'
-    + 'font:13px/1.5 monospace;padding:18px;overflow:auto;white-space:pre-wrap;';
-  banner.textContent = '게임 초기화 중 오류가 발생했습니다. 이 화면을 스크린샷해서 알려주세요:\n\n'
-    + (err && (err.stack || err.message) || String(err));
-  document.body.appendChild(banner);
-}
+// Platform.ready is immediate in a browser; on Apps in Toss it first pulls
+// the player's identity and save data over the bridge (platform.js there is
+// the Toss build), which is why the whole game waits on it.
+Platform.ready.then(() => {
+  try {
+    __zzhInit();
+  } catch (err) {
+    // A silent failure here means NOTHING works -- no cast, no buttons -- with
+    // no clue why, since the canvas still renders (it's on its own rAF loop
+    // started before whatever threw). Surface it visibly instead of just
+    // logging, so whoever hits this can screenshot the actual error.
+    console.error('[잔잔한 낚시터] 초기화 실패:', err);
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#1a0f0f;color:#ffb3b3;'
+      + 'font:13px/1.5 monospace;padding:18px;overflow:auto;white-space:pre-wrap;';
+    banner.textContent = '게임 초기화 중 오류가 발생했습니다. 이 화면을 스크린샷해서 알려주세요:\n\n'
+      + (err && (err.stack || err.message) || String(err));
+    document.body.appendChild(banner);
+  }
+});

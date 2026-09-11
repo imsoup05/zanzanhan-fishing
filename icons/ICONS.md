@@ -10,7 +10,6 @@
 |---|---|---|---|
 | `ui/location.svg` | 상단바 왼쪽, 현재 낚시터 이름("다리 밑") 옆 핀 아이콘 | `index.html`의 `.location-pill` | 흰색 지도 핀(물방울 모양 + 안쪽 원) |
 | `ui/shell.svg` | 상단바 오른쪽, 재화(조개) 개수 표시 옆 아이콘 | `index.html`의 `.shells-pill` | 조개 껍데기(주황빛, 부채꼴 줄무늬) |
-| `ui/menu.svg` | 상단바 오른쪽 끝, 햄버거 메뉴 버튼 | `index.html`의 `#menu-toggle-btn` | 흰색 가로줄 3개 |
 | `ui/shop.svg` | 햄버거 메뉴에서 아래로 펼쳐지는 세로 메뉴의 첫 항목 — 상점 | `index.html`의 `#menu-shop-btn` | 상점 차양(줄무늬 지붕) + 진열대 |
 | `ui/bucket.svg` | 세로 메뉴 두 번째 항목 — 보관함(잡은 물고기 보관) | `index.html`의 `#menu-bucket-btn` | 백팩(좌우 어깨끈 + 본체 + 앞주머니) |
 | `ui/settings.svg` | 세로 메뉴 세 번째 항목 — 설정 | `index.html`의 `#menu-settings-btn` | 톱니바퀴(원형 기어, Feather 아이콘 스타일) |
@@ -41,7 +40,6 @@
 |---|---|---|---|
 | `fish/<tier>/<id>.svg` (30개, 어종별) | 낚시 성공 결과창 아이콘, 상점 판매/보관함/도감 목록의 `sell-row-icon` | `game.js`의 `catchSuccess()`/`renderSellList()`/`renderBucketInventory()`/`renderLog()` — 전부 `FishData.speciesIconPath()`로 경로 조합 | 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`, 종 구분 없음) |
 | `fish/unknown.svg` | 도감에서 아직 못 잡은 종("???")의 자리를 채우는 공용 실루엣 — 실제 종 아이콘을 미리 보여주면 "???"로 이름을 가리는 의미가 없어지므로 미발견 상태에서만 사용 | `game.js`의 `renderLog()`가 `!record`일 때 사용 | 단색 검은 물고기 실루엣(디테일 없음, "정체불명"을 표현) |
-| `fish/fish.svg` | 이제 실제 UI 어디에서도 안 쓰임 — `DUMMY_TEST_FISH`(사용 안 하는 코드 참고용 더미)만 여전히 이 파일을 가리킴 | `fish-data.js`의 `DUMMY_TEST_FISH.icon` | 파란 옆모습 물고기 + 눈 |
 
 ## app/ — PWA 앱 아이콘
 

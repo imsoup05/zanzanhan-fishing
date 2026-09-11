@@ -10,11 +10,15 @@ const ASSETS = [
   './index.html',
   './style.css',
   './game.js',
+  './platform.js',
   './fish-data.js',
   './version.js',
   './manifest.json',
   './icons/app/icon-192.png',
-  './icons/app/icon-512.png'
+  './icons/app/icon-512.png',
+  './fonts/PretendardVariable-subset.woff2',
+  './fonts/MaruBuri-SemiBold-subset.woff2',
+  './fonts/MaruBuri-Bold-subset.woff2'
 ];
 
 self.addEventListener('install', (e) => {

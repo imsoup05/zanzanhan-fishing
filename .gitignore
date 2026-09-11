@@ -3,3 +3,6 @@ dev-mode.js
 
 # Local-only agent work-rules doc -- never pushed. See AGENT.md itself.
 AGENT.md
+
+# Local-only research notes for the Apps in Toss submission -- never pushed.
+APPS_IN_TOSS_GUIDE.md

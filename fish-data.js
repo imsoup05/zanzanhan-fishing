@@ -96,18 +96,6 @@
     { id: 'waterlogged_wood', name: '물에 불은 나무토막', desc: '물을 잔뜩 먹어 흐물흐물해진 나무토막.' }
   ];
 
-  // ---- Unused dummy reference, kept around per request -- not part of the
-  // live pick pool. See old startReel()/catchSuccess() history for how it
-  // used to drive the whole loop before species/tiers existed. ----
-  const DUMMY_TEST_FISH = {
-    name: '테스트 물고기', icon: 'icons/fish/fish.svg',
-    period: 1.0, zoneHeight: 22, maxMisses: 3,
-    periodShrink: 0.94, minPeriod: 0.6, timeLimit: 3.2,
-    hitsRequired: 4,
-    sizeRange: [20, 45], unit: 'cm',
-    desc: '작동 확인용 테스트 물고기.'
-  };
-
   // Per-species icon path -- icons/fish/<tier>/<speciesId>.svg, one hand
   // -drawn file per species (see icons/ICONS.md).
   function speciesIconPath(tierKey, speciesId) {
@@ -206,7 +194,6 @@
   // 일반(기본) bait excludes nothing (꽝 included, same as no bait). Reuses
   // ALL_TIER_KEYS + pickCatch's existing excludeTierKeys renormalization --
   // no separate probability-rebalancing code needed.
-  const BAIT_ORDER = ['common', 'rare', 'epic', 'legendary'];
   const BAITS = {
     common: { key: 'common', label: '일반 미끼', color: TIERS.common.color, desc: '효과 없음 (기본 미끼, 무한정 사용 가능).' },
     rare: { key: 'rare', label: '희귀 미끼', color: TIERS.rare.color, desc: '희귀 등급 이상의 물고기만 낚인다.' },
@@ -357,13 +344,15 @@
     return Math.round((300 * Math.pow(1.7, level)) / 100) * 100;
   }
 
+  // Only what game.js actually reads; internals (priceForCatch, rollGacha,
+  // the weight tables, grade order) stay private to this file.
   window.FishData = {
-    TIERS, FISH_BY_TIER, JUNK_ITEMS, DUMMY_TEST_FISH, pickCatch, priceForCatch, randSize, speciesIconPath, junkIconPath,
-    ROD_GRADE_ORDER, ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
+    TIERS, FISH_BY_TIER, JUNK_ITEMS, pickCatch, randSize, speciesIconPath, junkIconPath,
+    ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
     GEM_LABEL, ROD_GEM_DROP_CHANCE,
     PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,
-    BAIT_ORDER, BAITS, baitExcludeTiers,
-    GACHA_TABLE, GACHA_PULL_COST, GACHA_TEN_PULL_COST, LEGENDARY_PITY,
-    rollGacha, pullGachaWithPity, pullGachaTen
+    BAITS, baitExcludeTiers,
+    GACHA_PULL_COST, GACHA_TEN_PULL_COST, LEGENDARY_PITY,
+    pullGachaWithPity, pullGachaTen
   };
 })();

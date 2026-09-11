@@ -27,8 +27,10 @@
        imugi render at a different scale than its siblings wherever they're
        shown together (도감 grid, etc). Scaling the whole group down instead
        keeps that consistent and guarantees nothing can clip regardless of
-       exactly where a future edit pushes a coordinate. -->
-  <g transform="scale(0.94)">
+       exactly where a future edit pushes a coordinate.
+       The negative x scale mirrors the drawing: it was drawn facing right,
+       while every other fish icon in the set faces left. -->
+  <g transform="translate(48 0) scale(-0.94 0.94)">
   <!-- Legendary aura -->
   <ellipse cx="26" cy="16" rx="23" ry="15" fill="#ffcf6b" opacity="0.16"/>
   <ellipse cx="31" cy="10" rx="13" ry="9" fill="#ffe9b0" opacity="0.22"/>
