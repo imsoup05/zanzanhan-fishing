@@ -138,6 +138,10 @@
         </span>
         <span class="tab-label">미끼</span>
       </button>
+      <button id="menu-achievements-btn" class="tab-item" title="도전과제">
+        <img class="tab-icon" src="icons/ui/trophy.svg" alt="">
+        <span class="tab-label">도전과제</span>
+      </button>
       <button id="menu-settings-btn" class="tab-item" title="설정">
         <img class="tab-icon" src="icons/ui/settings.svg" alt="">
         <span class="tab-label">설정</span>
@@ -280,6 +284,27 @@
     </div>
   </div>
 
+  <!-- 도전과제 popup: opened from the tab bar. Rows come from
+       achievements-data.js; hidden ones stay "???" until cleared. -->
+  <div id="achievements-overlay" class="overlay hidden">
+    <div id="achievements-panel" class="shop-panel">
+      <div class="shop-header">
+        <h2 class="shop-title">도전과제</h2>
+        <span id="achievements-summary" class="achievements-summary"></span>
+        <button id="achievements-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
+        </button>
+      </div>
+      <div class="shop-body">
+        <div id="achievements-list" class="sell-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide-in "도전과제 달성" toasts, top-right under the status bar
+       (game.js queues one per unlock). -->
+  <div id="achievement-toasts" class="achievement-toasts"></div>
+
   <!-- Currency info: opened by tapping either currency pill in the top
        status bar. One overlay reused for both -- game.js fills in the
        icon/title/desc per which currency was tapped. -->
@@ -421,6 +446,7 @@
 </div>
 <script src="version.js"></script>
 <script src="fish-data.js"></script>
+<script src="achievements-data.js"></script>
 <script src="platform.js"></script>
 <script src="game.js"></script>
 <script src="dev-mode.js"></script>

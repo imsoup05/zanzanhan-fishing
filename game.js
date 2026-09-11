@@ -880,7 +880,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 6;
+  const SAVE_SCHEMA_VERSION = 7;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -889,7 +889,8 @@ function __zzhInit() {
       caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false,
       hasReeledBefore: false,
       baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
-      gachaPity: 0
+      gachaPity: 0,
+      achievements: Achievements.freshState()
     };
   }
   // Each step upgrades a save from exactly one schema to the next, so a
@@ -959,7 +960,15 @@ function __zzhInit() {
         return match ? { ...item, id: match.id } : item;
       });
       return { ...save, caughtFish, schemaVersion: 6 };
-    }
+    },
+    // schema 6 -> 7: 도전과제. Unlocks + counters live under `achievements`;
+    // for an existing save, rebuild the counters the 도감 already implies
+    // (species counts/bests) so old progress still counts toward them.
+    (save) => ({
+      ...save,
+      achievements: save.achievements || Achievements.stateFromLegacySave(save),
+      schemaVersion: 7
+    })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1000,7 +1009,7 @@ function __zzhInit() {
     try {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
-        catches, hasCastBefore, hasReeledBefore, baits, equippedBait, gachaPity
+        catches, hasCastBefore, hasReeledBefore, baits, equippedBait, gachaPity, achievements
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1016,6 +1025,14 @@ function __zzhInit() {
   // grade/level, bought straight with shells in the same 업그레이드 tab.
   let stats = initialSave.stats;
   let caughtFish = initialSave.caughtFish; // { uid, name, tier, size, price, desc } -- sold via the shop's 판매 tab
+  // 도전과제 progress: unlocked ids + the counters achievements-data.js
+  // reads. Merged over fresh defaults so a save from an older build never
+  // lacks a counter that was added later.
+  const achievements = initialSave.achievements;
+  const freshStats = Achievements.freshStats();
+  achievements.stats = { ...freshStats, ...achievements.stats };
+  achievements.stats.tierTotals = { ...freshStats.tierTotals, ...achievements.stats.tierTotals };
+  achievements.stats.baitsUsed = { ...freshStats.baitsUsed, ...achievements.stats.baitsUsed };
   let nextFishUid = initialSave.nextFishUid;
   // Per-species log for 보관함's 도감 tab -- { [speciesId]: { count, best } }.
   // Kept independent of caughtFish, which only holds still-unsold catches
@@ -1274,6 +1291,9 @@ function __zzhInit() {
     showStatus('입질을 기다리는 중...');
     const delay = 1600 + Math.random() * 2600;
     waitingTimer = setTimeout(triggerBite, delay);
+    achievements.stats.casts++;
+    if (equippedBait !== 'common') achievements.stats.baitsUsed[equippedBait] = true;
+    checkAchievements();
   }
 
   // Ordinal ladder for the hit-counter's rarity climb (junk sits at the
@@ -1349,6 +1369,7 @@ function __zzhInit() {
   function resolveSkippedCatch() {
     if (state !== 'bite') return;
     hideStatus();
+    reel = null; // no reeling happened -- keep a stale reel out of the 도전과제 checks
     catchSuccess();
   }
 
@@ -1607,6 +1628,7 @@ function __zzhInit() {
     if (!gradeInfo.next) return null; // already at the top grade
     if (Math.random() >= FishData.ROD_GEM_DROP_CHANCE) return null;
     gems += 1;
+    achievements.stats.gemsEarned++;
     const needed = FishData.ROD_GRADE_UP[gradeInfo.next].needed;
     return { count: gems, needed };
   }
@@ -1622,12 +1644,14 @@ function __zzhInit() {
     gameEl.classList.remove('reeling');
     hideReelTutorial();
     const c = currentCatch;
+    noteCatchForAchievements(c);
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
     let desc;
     let isNewSpecies = false;
     if (c.tier === 'junk') {
       desc = c.desc;
+      persist();
     } else {
       // Checked before recordCatch() creates/updates the entry.
       isNewSpecies = !catches[c.id];
@@ -1640,6 +1664,7 @@ function __zzhInit() {
       desc = `${c.desc} (${c.size}cm · 판매가 <img class="price-icon" src="icons/ui/shell.svg" alt="">${c.price.toLocaleString('ko-KR')})`;
     }
     showResult(true, title, desc, icon, c.tier, isNewSpecies);
+    checkAchievements();
   }
 
   function catchFail() {
@@ -1652,7 +1677,14 @@ function __zzhInit() {
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
     hideReelTutorial();
+    const s = achievements.stats;
+    s.fails++;
+    s.streak = 0;
+    s.sameSpeciesStreak = 0;
+    s.lastSpeciesId = null;
+    persist();
     showResult(false, '놓쳤어요...', '다음엔 타이밍을 맞춰보세요.', 'icons/result/miss.svg');
+    checkAchievements();
   }
 
   function showResult(isCatch, title, desc, icon, tier, isNewSpecies) {
@@ -1838,6 +1870,15 @@ function __zzhInit() {
       : FishData.pullGachaWithPity(1, gachaPity);
     const results = pulled.results;
     gachaPity = pulled.pity;
+    const s = achievements.stats;
+    s.pulls += results.length;
+    s.legendaryBaitPulls += results.filter((k) => k === 'legendary').length;
+    s.pityHits += pulled.forced || 0;
+    if (isTen) {
+      s.tenPulls++;
+      const epics = results.filter((k) => k === 'epic' || k === 'legendary').length;
+      if (epics > s.maxEpicInTen) s.maxEpicInTen = epics;
+    }
     // 일반 결과는 이미 무한정 사용 가능한 기본 미끼라 인벤토리에 쌓지 않음 --
     // 카드 연출에서는 그대로 보여주되 보유 개수만 늘지 않는다.
     results.forEach(key => { if (key !== 'common') baits[key] = (baits[key] || 0) + 1; });
@@ -1847,6 +1888,7 @@ function __zzhInit() {
     updateBaitButton();
     const sorted = results.slice().sort((a, b) => GACHA_REVEAL_ORDER.indexOf(a) - GACHA_REVEAL_ORDER.indexOf(b));
     openGachaReveal(sorted);
+    checkAchievements();
   }
   gachaPull1Btn.addEventListener('click', () => runGacha('single'));
   gachaPull10Btn.addEventListener('click', () => runGacha('ten'));
@@ -1961,11 +2003,17 @@ function __zzhInit() {
     const idx = caughtFish.findIndex(f => f.uid === uid);
     if (idx === -1) return;
     sfx.coin();
-    shells += caughtFish[idx].price;
+    const price = caughtFish[idx].price;
+    shells += price;
     caughtFish.splice(idx, 1);
+    const s = achievements.stats;
+    s.sells++;
+    s.shellsEarned += price;
+    if (price > s.maxSalePrice) s.maxSalePrice = price;
     persist();
     updateCurrencyDisplay();
     renderSellList();
+    checkAchievements();
   }
 
   // Discrete level pips, reused for the rod (10 boxes) and every player
@@ -2024,6 +2072,7 @@ function __zzhInit() {
       persist();
       updateCurrencyDisplay();
       renderUpgradeTab();
+      checkAchievements();
       return;
     }
     if (!gradeInfo.next) return;
@@ -2036,6 +2085,7 @@ function __zzhInit() {
     persist();
     updateCurrencyDisplay();
     renderUpgradeTab();
+    checkAchievements();
   });
 
   // ---- 근력 / 행운 / 정밀함: flat 0~5 stats, independent of the rod ----
@@ -2083,7 +2133,129 @@ function __zzhInit() {
     persist();
     updateCurrencyDisplay();
     renderUpgradeTab();
+    checkAchievements();
   });
+
+  // ================= 도전과제 =================
+  const achievementsOverlay = document.getElementById('achievements-overlay');
+  const achievementsListEl = document.getElementById('achievements-list');
+  const achievementsSummaryEl = document.getElementById('achievements-summary');
+  const achievementsCloseBtn = document.getElementById('achievements-close-btn');
+  const menuAchievementsBtn = document.getElementById('menu-achievements-btn');
+  const achievementToastsEl = document.getElementById('achievement-toasts');
+
+  function achievementCtx() {
+    return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats };
+  }
+
+  // Counters only a live catch can supply (streaks, size, time of day);
+  // the per-species records themselves come from recordCatch().
+  function noteCatchForAchievements(c) {
+    const s = achievements.stats;
+    if (c.tier === 'junk') {
+      s.junkTotal++;
+      s.junkStreak++;
+      if (s.junkStreak > s.maxJunkStreak) s.maxJunkStreak = s.junkStreak;
+      return;
+    }
+    s.junkStreak = 0;
+    s.catchTotal++;
+    s.tierTotals[c.tier] = (s.tierTotals[c.tier] || 0) + 1;
+    s.streak++;
+    if (s.streak > s.maxStreak) s.maxStreak = s.streak;
+    s.sameSpeciesStreak = s.lastSpeciesId === c.id ? s.sameSpeciesStreak + 1 : 1;
+    s.lastSpeciesId = c.id;
+    if (s.sameSpeciesStreak > s.maxSameSpeciesStreak) s.maxSameSpeciesStreak = s.sameSpeciesStreak;
+    if (c.size > s.maxSize) s.maxSize = c.size;
+    if (c.id === 'imugi' && c.size > s.biggestImugi) s.biggestImugi = c.size;
+    // `reel` is null for auto-caught (skipped) tiers, so these only ever
+    // read a reel that actually just happened.
+    if (reel && reel.misses === 0 && (c.tier === 'epic' || c.tier === 'legendary')) s.perfectEpic++;
+    if (reel && reel.maxMisses > 1 && reel.misses === reel.maxMisses - 1) s.clutchCatches++;
+  }
+
+  // One toast at a time, top-right, each sliding in for ~3s.
+  const toastQueue = [];
+  let toastShowing = false;
+  function pumpToasts() {
+    if (toastShowing || !toastQueue.length) return;
+    toastShowing = true;
+    const a = toastQueue.shift();
+    const el = document.createElement('div');
+    el.className = 'achievement-toast';
+    el.innerHTML = '<img class="achievement-toast-icon" src="icons/ui/trophy.svg" alt="">'
+      + '<div><div class="achievement-toast-label">도전과제 달성</div><div class="achievement-toast-title"></div></div>';
+    el.querySelector('.achievement-toast-title').textContent = a.title;
+    achievementToastsEl.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('in'));
+    setTimeout(() => {
+      el.classList.remove('in');
+      setTimeout(() => { el.remove(); toastShowing = false; pumpToasts(); }, 400);
+    }, 2800);
+  }
+
+  // Run after anything that could complete one. `silent` (startup, save
+  // migration) records the unlock without the toast/sound, so an old save
+  // doesn't get a burst of pop-ups for things it did long ago.
+  function checkAchievements(opts) {
+    const fresh = Achievements.evaluate(achievementCtx(), achievements.unlocked);
+    if (!fresh.length) return;
+    const now = Date.now();
+    fresh.forEach((id) => { achievements.unlocked[id] = now; });
+    persist();
+    if (!achievementsOverlay.classList.contains('hidden')) renderAchievements();
+    if (opts && opts.silent) return;
+    sfx.gem();
+    fresh.forEach((id) => toastQueue.push(Achievements.byId(id)));
+    pumpToasts();
+  }
+
+  function renderAchievements() {
+    const ctx = achievementCtx();
+    const total = Achievements.LIST.length;
+    const done = Achievements.LIST.filter((a) => achievements.unlocked[a.id]).length;
+    achievementsSummaryEl.textContent = `${done} / ${total}`;
+    achievementsListEl.innerHTML = '';
+    let lastCat = null;
+    Achievements.LIST.forEach((a) => {
+      if (a.cat !== lastCat) {
+        lastCat = a.cat;
+        const head = document.createElement('div');
+        head.className = 'achievement-section';
+        head.textContent = a.cat;
+        achievementsListEl.appendChild(head);
+      }
+      const unlockedAt = achievements.unlocked[a.id];
+      const secret = a.hidden && !unlockedAt;
+      const row = document.createElement('div');
+      row.className = 'sell-row achievement-row ' + (unlockedAt ? 'cleared' : 'locked');
+      row.innerHTML = '<div class="sell-row-icon"><img alt=""></div>'
+        + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div></div>'
+        + '<div class="achievement-state"></div>';
+      row.querySelector('img').src = secret ? 'icons/ui/lock.svg' : 'icons/ui/trophy.svg';
+      row.querySelector('.sell-row-name').textContent = secret ? '???' : a.title;
+      let meta = secret ? '숨겨진 도전과제' : a.desc;
+      if (!unlockedAt && !secret && a.progress) {
+        const [cur, max] = a.progress(ctx);
+        meta += ` · ${cur.toLocaleString('ko-KR')} / ${max.toLocaleString('ko-KR')}`;
+      }
+      row.querySelector('.sell-row-meta').textContent = meta;
+      if (unlockedAt) {
+        const d = new Date(unlockedAt);
+        row.querySelector('.achievement-state').innerHTML = '달성<small></small>';
+        row.querySelector('small').textContent = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+      }
+      achievementsListEl.appendChild(row);
+    });
+  }
+  function openAchievements() {
+    renderAchievements();
+    achievementsOverlay.classList.remove('hidden');
+  }
+  function closeAchievements() { achievementsOverlay.classList.add('hidden'); }
+  menuAchievementsBtn.addEventListener('click', openAchievements);
+  achievementsCloseBtn.addEventListener('click', closeAchievements);
+  achievementsOverlay.addEventListener('click', (e) => { if (e.target === achievementsOverlay) closeAchievements(); });
 
   // ================= Bucket (보관함 / 도감) =================
   function openBucket() {
@@ -2353,6 +2525,9 @@ function __zzhInit() {
   // Apps in Toss overlays its own close button on the page's top-right
   // corner -- the status bar reserves that space only there (style.css).
   gameEl.classList.toggle('host-toss', Platform.name === 'apps-in-toss');
+  // Anything an older save already qualifies for (or that a migration
+  // rebuilt) is granted quietly at startup, not announced.
+  checkAchievements({ silent: true });
 
   // ================= Dev hook (inert without dev-mode.js) =================
   // dev-mode.js is gitignored -- it never leaves this machine on push. This

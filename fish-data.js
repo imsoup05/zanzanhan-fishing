@@ -243,28 +243,30 @@
   function pullGachaWithPity(count, startPity) {
     const results = [];
     let pity = startPity || 0;
+    let forced = 0; // legendaries handed out by the pity ceiling (도전과제)
     for (let i = 0; i < count; i++) {
       pity++;
       let tier;
       if (pity >= LEGENDARY_PITY) {
         tier = 'legendary';
+        forced++;
       } else {
         tier = rollGacha();
       }
       if (tier === 'legendary') pity = 0;
       results.push(tier);
     }
-    return { results, pity };
+    return { results, pity, forced };
   }
   // 10뽑 전용: 10개 중 특급 이상(특급/전설)이 하나도 없으면 무작위 한 자리를
   // 특급으로 강제 교체 -- "10뽑엔 특급 하나 보장" 요구사항. 천장으로 이미 전설이
   // 강제됐다면(= 이미 특급 이상 포함) 이 보정은 자연히 건너뛴다.
   function pullGachaTen(startPity) {
-    const { results, pity } = pullGachaWithPity(10, startPity);
+    const { results, pity, forced } = pullGachaWithPity(10, startPity);
     if (!results.some((k) => k === 'epic' || k === 'legendary')) {
       results[Math.floor(Math.random() * results.length)] = 'epic';
     }
-    return { results, pity };
+    return { results, pity, forced };
   }
 
   // ================= Fishing rod (shop upgrade tab) =================

@@ -1357,6 +1357,47 @@ body {
 }
 .quiet-btn:active { transform: scale(0.97); }
 
+/* ================= 도전과제 ================= */
+.achievements-summary { margin-left: auto; margin-right: 4px; font-size: 14px; color: var(--accent); white-space: nowrap; }
+.achievement-section { font-size: 12.5px; opacity: 0.6; padding: 8px 2px 0; }
+.achievement-section:first-child { padding-top: 0; }
+.achievement-row.locked { opacity: 0.55; }
+.achievement-row.cleared { border-color: rgba(255, 207, 107, 0.45); background: rgba(255, 207, 107, 0.07); }
+.achievement-row.cleared .sell-row-icon { background: rgba(255, 207, 107, 0.2); }
+.achievement-state { font-size: 12px; color: var(--accent); white-space: nowrap; text-align: right; line-height: 1.3; flex-shrink: 0; }
+.achievement-state small { display: block; font-size: 10.5px; opacity: 0.7; }
+
+/* Unlock toasts: slide in from the right, stacked under the status bar
+   (clear of the Apps in Toss close pill, which sits level with the bar). */
+.achievement-toasts {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 56px);
+  right: 10px;
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.achievement-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 78vw;
+  padding: 10px 14px 10px 12px;
+  background: linear-gradient(180deg, rgba(24,54,60,0.97), rgba(15,38,44,0.95));
+  border: 1px solid rgba(255, 207, 107, 0.5);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.1), opacity 0.3s ease;
+}
+.achievement-toast.in { transform: translateX(0); opacity: 1; }
+.achievement-toast-icon { width: 22px; height: 22px; flex-shrink: 0; }
+.achievement-toast-label { font-size: 11px; color: var(--accent); letter-spacing: 0.2px; }
+.achievement-toast-title { font-size: 14px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ================= Result popup (ported as-is from the old version) ================= */
 .overlay {
   position: absolute;
