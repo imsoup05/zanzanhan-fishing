@@ -1,53 +1,104 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
   <defs>
+    <!-- 이무기 are traditionally blue/azure serpent-dragons, not gold;
+         gold is this game's LEGENDARY TIER color (badge/glow), which is a
+         separate concept from what color the creature itself is. Kept the
+         gold as an accent (horns/mane/whiskers/aura) so the tier read stays
+         intact, but the body itself is blue. -->
     <linearGradient id="imugiBody" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffdd8f"/>
-      <stop offset="55%" stop-color="#f0a824"/>
-      <stop offset="100%" stop-color="#c9740a"/>
+      <stop offset="0%" stop-color="#dff4fb"/>
+      <stop offset="45%" stop-color="#4fa9d9"/>
+      <stop offset="100%" stop-color="#173f66"/>
     </linearGradient>
+    <linearGradient id="imugiHead" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cdeaf8"/>
+      <stop offset="100%" stop-color="#2c7aab"/>
+    </linearGradient>
+    <radialGradient id="imugiEye" cx="0.35" cy="0.35" r="0.75">
+      <stop offset="0%" stop-color="#ffcf4d"/>
+      <stop offset="55%" stop-color="#e8580a"/>
+      <stop offset="100%" stop-color="#3a1204"/>
+    </radialGradient>
   </defs>
 
+  <!-- The whole drawing's rightmost points (snout tip, horn tips) reached
+       x~50, past this viewBox's own width of 48; every fish icon in this
+       set uses the same 0 0 48 32 viewBox, so widening it here would make
+       imugi render at a different scale than its siblings wherever they're
+       shown together (도감 grid, etc). Scaling the whole group down instead
+       keeps that consistent and guarantees nothing can clip regardless of
+       exactly where a future edit pushes a coordinate. -->
+  <g transform="scale(0.94)">
   <!-- Legendary aura -->
-  <ellipse cx="26" cy="15" rx="23" ry="16" fill="#ffcf6b" opacity="0.16"/>
-  <ellipse cx="30" cy="11" rx="14" ry="10" fill="#ffe9b0" opacity="0.2"/>
+  <ellipse cx="26" cy="16" rx="23" ry="15" fill="#ffcf6b" opacity="0.16"/>
+  <ellipse cx="31" cy="10" rx="13" ry="9" fill="#ffe9b0" opacity="0.22"/>
 
-  <!-- One continuous body: tapers from a thin tail up through a single
-       confident rise, widening the whole way into the neck and head so
-       there's no seam where a thin ribbon suddenly meets a round head. -->
-  <path d="M2 24C4 19 7 16.5 8 17.5C10 14 12.5 11.5 14 10
-           C16 8 18 6.3 20 5.6C23 4.8 25.3 4.7 27 4.8
-           C30 5 32.5 5.4 34 6.2C37 7.5 38.8 7.8 40 8.4
-           C41.5 5.5 43 2.6 44.5 2.5C47 2.4 49 8 49.5 13
-           C49 15.5 47.5 18.5 45 19.5C43 22 41.5 20.5 40 17.6
-           C38 16.8 35.5 15 34 14C32 12.6 30 11.5 27 11.3
-           C25 11.2 23 11 20 10.6C18 10.3 16 13.5 14 14.3
-           C12.5 15 10 17.5 8 20.5C6.5 22.5 4 23 2 24Z"
+  <!-- Whiskers stream backward over the neck, drawn first so the head's
+       edge overlaps their base; flowing WITH the body's motion instead
+       of crossing flat over it. -->
+  <path d="M40.5 15.4C35 14.6 29.5 15.8 24.5 18.2" stroke="#d4a017" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <path d="M41.2 12.6C35.6 11.4 29.8 11.9 24.3 14.4" stroke="#ffe9b0" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- One continuous body: tapers from a thin tail through a confident
+       S-curve into the neck, widening the whole way so there's no seam
+       where a thin ribbon meets the head. -->
+  <path d="M2 25C3.5 20 6 16.8 8 17.2C9.8 14 12 11 14.5 9.2
+           C17 7.4 19.8 6.1 22.5 5.6C25.5 5 28.5 5.2 31 6.4
+           C33.8 7.7 36 9.8 38.5 10.4
+           C39.6 8.7 40.8 8 41.8 8.4C42.7 8.8 42.6 10.4 41.5 11.6
+           C42.4 12.2 42.6 13.3 41.7 14
+           C42.6 14.7 42.5 15.9 41.3 16.4C39.6 17.1 37.5 16.2 36 14.8
+           C33.2 15.4 30.5 15.2 28 14
+           C25 12.5 22.5 11.7 20 12.4C17.7 13 15.8 15.5 14 17.8
+           C12 20.3 9.8 22.6 8 23.4C6 24.3 3.8 24.8 2 25Z"
         fill="url(#imugiBody)"/>
 
-  <!-- Spine highlight along the top edge. -->
-  <path d="M8.3 16.9C11 13.6 13 11.3 14.3 9.8C16.4 7.6 18.6 5.9 20.5 5.1
-           C23.2 4.3 25.5 4.2 27.3 4.3"
-        stroke="#fff0cf" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <!-- Spine highlight along the top edge; bolder, follows the S all the way through. -->
+  <path d="M8.5 17.6C10.2 14.4 12.3 11.6 14.8 9.7C17.3 7.8 20 6.5 22.6 6
+           C25.4 5.4 28.2 5.6 30.6 6.7C33.2 7.9 35.3 9.8 37.6 10.6"
+        stroke="#eefaff" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.9"/>
 
-  <!-- Mane spikes along the back of the neck. -->
-  <path d="M31 6.4l1.1-3l0.9 2.8M35.5 7.8l1.1-2.9l0.9 2.7" fill="#c9740a"/>
+  <!-- Belly-side shadow band for a rounder, less flat body. -->
+  <path d="M9 22.6C11.3 20.4 13.4 17.8 15.6 15.6C18.2 13 21 11.1 24 12.6
+           C26.5 13.8 29 14.6 31.8 14.2"
+        stroke="#0d2f4c" stroke-width="1.1" fill="none" stroke-linecap="round" opacity="0.4"/>
 
-  <!-- Whiskers streaming back from the snout, over the neck. -->
-  <path d="M46 9C41 7.4 35 8 29.5 10.2" stroke="#a85f08" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.85"/>
-  <path d="M46.6 12.4C41.6 13 36 14.6 29.8 14.6" stroke="#ffe9b0" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <!-- Dorsal mane: thin flowing strands trailing back over the neck, like
+       hair caught in motion; not a jagged crown sitting on top of it. -->
+  <path d="M39.5 6.6C34.5 6 29.5 7 25 9" stroke="#e8b84b" stroke-width="0.8" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <path d="M40.3 8.3C35.3 8.2 30.3 9.2 25.8 11.4" stroke="#d4a017" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <path d="M38.6 5C34 4.2 29.6 5 25.6 6.8" stroke="#ffcf6b" stroke-width="0.6" fill="none" stroke-linecap="round" opacity="0.6"/>
 
-  <!-- Jaw line + a couple of small teeth. -->
-  <path d="M48.7 11.8C49 14 47.9 16.6 45.6 18.4" stroke="#a85f08" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.85"/>
-  <path d="M44.6 18.3l0.55 1.5l0.65-1.4M42.3 19.3l0.55 1.5l0.65-1.4" stroke="#fff8e6" stroke-width="0.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Head: one continuous outline from the neck, up over a modest
+       forehead, out along a tapering snout to a real point;
+       elongated seahorse-dragon profile instead of a round blob. -->
+  <path d="M37 8.8C38.6 6.2 40.3 4.4 42.3 4.2C44.2 4 45.7 5.1 45.4 6.8
+           C47.2 7.4 48.9 8.7 49.7 10.4C50 11.2 49.5 11.9 48.7 12
+           C47.6 12.7 45.7 12.5 43.8 13.2C41.3 14.2 39.2 15.1 37.5 14.7
+           C37.2 12.7 37 10.7 37 8.8Z"
+        fill="url(#imugiHead)"/>
 
-  <!-- Two horns off the crown, swept well back. -->
-  <path d="M43.4 3.4C43.1 1.9 43.7 0.6 45.4 0.1C45.3 1.2 45.9 2.2 47 3
-           C45.7 2.7 44.4 2.9 43.4 3.4Z" fill="#8a4e06"/>
-  <path d="M45.7 2.7C45.6 1.2 46.4 0 48 -0.4C47.9 0.6 48.4 1.6 49.4 2.3
-           C48.1 2 46.8 2.2 45.7 2.7Z" fill="#a85f08"/>
+  <!-- Nostril + mouth line + a couple of small fangs along the snout. -->
+  <circle cx="47.6" cy="9.6" r="0.4" fill="#0d2f4c" opacity="0.6"/>
+  <path d="M48.6 11.6C46.6 12.6 44.4 13 42.3 13.7" stroke="#173f66" stroke-width="0.6" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <path d="M43.3 13.6l0.3 1.5l0.55-1.35M41.5 14l0.3 1.4l0.5-1.25"
+        fill="#fff8e6"/>
 
-  <!-- Brow + big expressive eye. -->
-  <path d="M42.6 5.4q2.6-1.7 5.2-0.6" stroke="#a85f08" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.85"/>
-  <circle cx="45.9" cy="7.6" r="1.7" fill="#241405"/>
-  <circle cx="46.4" cy="7.05" r="0.52" fill="#fff" opacity="0.95"/>
+  <!-- Two horns: sharp, thin blades swept back off the forehead
+       (straight-ish edges meeting at a real point reads as a horn; two
+       smoothly-rounded curves meeting just looked like a floppy leaf). -->
+  <path d="M41.3 5.2Q41.8 2.5 43.6 0.4Q44.3 2.6 44.8 4.3Q43 3.8 41.3 5.2Z" fill="#b8860b"/>
+  <path d="M43.6 4.6Q44.1 1.7 46.3 0.15Q46.9 2.4 47.6 4Q45.8 3.5 43.6 4.6Z" fill="#d4a017"/>
+
+  <!-- Brow ridge; angular, gives the eye somewhere to sit instead of
+       floating on a round head. -->
+  <path d="M40.6 7.2Q42.6 5.6 45.2 6.3" stroke="#b8860b" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Narrow, alert eye (not a big round cute circle); a slit-shaped
+       almond with a glowing amber-red iris reads as fierce, not cuddly. -->
+  <path d="M41.4 8.9C42.6 8.1 44.1 8.1 45 8.9C43.9 9.6 42.4 9.6 41.4 8.9Z"
+        fill="url(#imugiEye)"/>
+  <path d="M41.4 8.9C42.6 8.1 44.1 8.1 45 8.9" stroke="#2a0f02" stroke-width="0.32" fill="none" opacity="0.7"/>
+  <circle cx="43.9" cy="8.6" r="0.32" fill="#fff" opacity="0.95"/>
+  </g>
 </svg>
