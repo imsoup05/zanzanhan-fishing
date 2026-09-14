@@ -60,16 +60,6 @@
 
   <p id="status-text" class="status-text hidden"></p>
 
-  <!-- First-time-only onboarding hint: shown until the player's very first
-       cast, then hidden forever (see game.js's hasCastBefore). Purely
-       visual -- pointer-events:none so it never blocks the tap itself. -->
-  <div id="tutorial-hint" class="tutorial-hint hidden">
-    <p class="tutorial-hint-text">화면 중앙을 클릭해보세요</p>
-    <span class="tutorial-hint-ring"></span>
-    <span class="tutorial-hint-ring tutorial-hint-ring2"></span>
-    <span class="tutorial-hint-dot"></span>
-  </div>
-
   <!-- Reeling gauge: vertical, left side, thumb sweeps top-bottom.
        Left-to-right: position gauge, per-hit time limit, then fish (hits)
        + chances (misses) stacked together in one column. -->
@@ -83,18 +73,6 @@
       <div id="gauge-track-v" class="gauge-track-v">
         <div id="gauge-zone-v" class="gauge-zone-v"></div>
         <div id="gauge-indicator-v" class="gauge-indicator-v"></div>
-      </div>
-      <!-- One-time callout, docked directly onto the gauge it's pointing
-           at rather than floating as a separate popup elsewhere -- shown
-           only through the player's very first-ever reel (see game.js's
-           hasReeledBefore/startReel/catchSuccess/catchFail), same visual
-           family (light callout + pulsing highlight) as #tutorial-hint so
-           the two feel like one onboarding moment, not two different UI
-           languages. Stays up for the whole first reel, not just the first
-           tap -- hidden only once that first catch actually resolves. -->
-      <div id="reel-tutorial-hint" class="reel-tutorial-hint hidden">
-        <span class="reel-tutorial-hint-arrow"></span>
-        <span class="reel-tutorial-hint-text">밝게 빛나는 구간에<br>맞춰 눌러보세요</span>
       </div>
     </div>
     <div id="time-track-v" class="time-track-v">
@@ -290,6 +268,8 @@
     <div id="achievements-panel" class="shop-panel">
       <div class="shop-header">
         <h2 class="shop-title">도전과제</h2>
+        <!-- Only shown where the host has a leaderboard (Apps in Toss). -->
+        <button id="leaderboard-btn" class="leaderboard-btn hidden">랭킹</button>
         <span id="achievements-summary" class="achievements-summary"></span>
         <button id="achievements-close-btn" class="shop-close-btn" title="닫기">
           <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
@@ -360,16 +340,26 @@
         <div class="settings-row">
           <div class="settings-row-label">효과음 볼륨</div>
           <div class="volume-control">
-            <input type="checkbox" id="sfx-on-check" class="sound-check" checked aria-label="효과음 켜기">
+            <label class="sound-check-wrap">
+              <input type="checkbox" id="sfx-on-check" class="sound-check" checked aria-label="효과음 켜기">
+              <span class="sound-check-label">켜짐</span>
+            </label>
             <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="80">
           </div>
         </div>
         <div class="settings-row">
           <div class="settings-row-label">배경음악 볼륨</div>
           <div class="volume-control">
-            <input type="checkbox" id="bgm-on-check" class="sound-check" checked aria-label="배경음악 켜기">
+            <label class="sound-check-wrap">
+              <input type="checkbox" id="bgm-on-check" class="sound-check" checked aria-label="배경음악 켜기">
+              <span class="sound-check-label">켜짐</span>
+            </label>
             <input type="range" id="bgm-volume-slider" class="volume-slider" min="0" max="100" value="60">
           </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">낚시 방법 다시 보기<span class="settings-row-note">던지기부터 물고기를 낚기까지 단계별로 다시 안내</span></div>
+          <button id="tutorial-replay-btn" class="quiet-btn">다시 보기</button>
         </div>
         <button id="reset-data-btn" class="danger-btn">진행 데이터 전체 삭제</button>
       </div>
@@ -402,6 +392,33 @@
         <button id="exit-confirm-btn" class="quiet-btn">나가기</button>
       </div>
     </div>
+  </div>
+
+  <!-- Guided first-play tutorial (see game.js "Tutorial"): a dimming mask
+       with one clear cut-out over the thing to tap next, a callout, and a
+       skip button. The 낚시 방법 part runs until tutorialDone and can be
+       replayed from 설정; the 시스템 소개 part after it (shop, free 10뽑,
+       upgrades) runs once ever (introDone).
+       The mask's clip-path hole is set from JS; taps in the hole fall
+       through to the real UI, taps on the dimmed part are swallowed. -->
+  <div id="tutorial-layer" class="tutorial-layer hidden">
+    <div id="tutorial-mask" class="tutorial-mask"></div>
+    <div id="tutorial-ring" class="tutorial-ring hidden"></div>
+    <div id="tutorial-hand" class="tutorial-hand hidden">
+      <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
+        <path d="M9 3v10l-2.2-2.2a1.6 1.6 0 0 0-2.3 2.3L9.5 18c1 1.2 2.5 2 4.2 2H15a5 5 0 0 0 5-5v-4.5a1.5 1.5 0 0 0-3 0V9a1.5 1.5 0 0 0-3 0V8a1.5 1.5 0 0 0-3 0V3a1.5 1.5 0 0 0-3 0z" fill="#fff" stroke="#e2564a" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div id="tutorial-callout" class="tutorial-callout hidden">
+      <p id="tutorial-callout-text" class="tutorial-callout-text"></p>
+      <button id="tutorial-next-btn" class="tutorial-next-btn hidden">다음</button>
+    </div>
+    <div id="tutorial-card" class="tutorial-card hidden">
+      <h2 class="tutorial-card-title">준비 끝!</h2>
+      <p class="tutorial-card-text">조개껍질을 모아 뽑기와 강화를 하면서<br>더 크고 귀한 물고기를 노려 보세요.<br>이제 자유롭게 낚시해 보세요.</p>
+      <button id="tutorial-finish-btn" class="main-btn">낚시하러 가기</button>
+    </div>
+    <button id="tutorial-skip-btn" class="tutorial-skip-btn">안내 건너뛰기</button>
   </div>
 
   <!-- Result popup: same look as the old version's catch/miss card -->

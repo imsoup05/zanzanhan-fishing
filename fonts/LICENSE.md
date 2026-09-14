@@ -5,5 +5,3 @@
 
 - **Pretendard Variable** (`PretendardVariable-subset.woff2`) — © Kil Hyung-jin,
   SIL Open Font License 1.1. https://github.com/orioncactus/pretendard
-- **마루 부리 SemiBold / Bold** (`MaruBuri-*-subset.woff2`) — © NAVER Corporation,
-  네이버가 무료로 배포하는 글꼴. https://hangeul.naver.com/fonts/maruburi

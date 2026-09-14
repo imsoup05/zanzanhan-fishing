@@ -19,10 +19,6 @@ GAME = os.path.dirname(HERE)
 SOURCES = {
     'PretendardVariable-subset.woff2':
         'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2',
-    'MaruBuri-SemiBold-subset.woff2':
-        'https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-SemiBold.woff2',
-    'MaruBuri-Bold-subset.woff2':
-        'https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri-Bold.woff2',
 }
 TEXT_SOURCES = ('index.html', 'game.js', 'fish-data.js', 'version.js')
 SYMBOLS = ('·…—–‘’“”※→←↑↓×÷°℃㎝㎏㎜㎞○●◎□■△▲▽▼☆★♪♡♥・ㆍ‥「」『』【】〈〉《》〔〕'

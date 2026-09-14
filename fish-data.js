@@ -286,9 +286,9 @@
   // +1 life once the rod's grade has reached (or passed) each of these
   // milestones, rather than one fixed lookup per exact grade name -- the
   // grade-up ladder isn't finalized yet, so this stays correct even if
-  // more grades get inserted later, as long as 희귀/특급 remain on it
-  // somewhere. Currently: common=+0, rare=+1, epic=+2.
-  const ROD_MISS_MILESTONES = ['rare', 'epic'];
+  // more grades get inserted later. Only the top grade grants one now
+  // (희귀's +1 was dropped): common=+0, rare=+0, epic=+1.
+  const ROD_MISS_MILESTONES = ['epic'];
   function rodMissBonus(gradeKey) {
     const idx = ROD_GRADE_ORDER.indexOf(gradeKey);
     return ROD_MISS_MILESTONES.reduce((sum, m) => sum + (idx >= ROD_GRADE_ORDER.indexOf(m) ? 1 : 0), 0);

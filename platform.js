@@ -45,6 +45,11 @@ window.Platform = {
     }
     history.go(-2);
   },
+  // Leaderboard (누적 판매 조개) exists only where the host runs one --
+  // Apps in Toss's 게임센터. Nothing to show or send anywhere else.
+  hasLeaderboard: false,
+  submitScore() {},
+  openLeaderboard() {},
   // Resolves once the host is ready for the game to start; immediate here,
   // async on Toss (identity + storage hydration happen first).
   ready: Promise.resolve(),

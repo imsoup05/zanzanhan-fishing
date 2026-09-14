@@ -880,13 +880,13 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 7;
+  const SAVE_SCHEMA_VERSION = 9;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
       shells: 0, rod: { grade: 'common', level: 1 }, gems: 0,
       stats: { strength: 0, luck: 0, precision: 0 },
-      caughtFish: [], nextFishUid: 1, catches: {}, hasCastBefore: false,
+      caughtFish: [], nextFishUid: 1, catches: {}, tutorialDone: false, introDone: false,
       hasReeledBefore: false,
       baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
       gachaPity: 0,
@@ -968,7 +968,20 @@ function __zzhInit() {
       ...save,
       achievements: save.achievements || Achievements.stateFromLegacySave(save),
       schemaVersion: 7
-    })
+    }),
+    // schema 7 -> 8: the one-shot cast/reel hints became the guided
+    // tutorial, gated by `tutorialDone`. Anyone who had already cast or
+    // reeled under the old hints has seen the game -- don't walk them
+    // through it now. hasCastBefore had no other reader, so it's dropped.
+    (save) => {
+      const { hasCastBefore, ...rest } = save;
+      return { ...rest, tutorialDone: !!(hasCastBefore || save.hasReeledBefore), schemaVersion: 8 };
+    },
+    // schema 8 -> 9: the tutorial split into the replayable 낚시 방법 part
+    // (tutorialDone) and the once-only 시스템 소개 (shop / free 10뽑 /
+    // upgrades, introDone). Whoever had finished or skipped the old
+    // all-in-one tutorial has had their one intro.
+    (save) => ({ ...save, introDone: !!save.tutorialDone, schemaVersion: 9 })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1009,7 +1022,7 @@ function __zzhInit() {
     try {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
-        catches, hasCastBefore, hasReeledBefore, baits, equippedBait, gachaPity, achievements
+        catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1048,13 +1061,15 @@ function __zzhInit() {
   // Pulls since the last legendary (natural or pity-forced) -- see
   // FishData.LEGENDARY_PITY / pullGachaWithPity().
   let gachaPity = initialSave.gachaPity;
-  // Gates the first-cast onboarding hint (#tutorial-hint) -- flips true and
-  // stays true forever once the player's very first cast() actually fires.
-  let hasCastBefore = initialSave.hasCastBefore;
-  // Same idea, for the first-reel hint (#reel-tutorial-hint) -- flips true
-  // the moment startReel() first runs, independent of hasCastBefore since a
-  // rod outgrowing 꽝/일반 (see resolveSkippedCatch()) can let several
-  // casts go by before the player ever actually reaches reeling.
+  // Guided tutorial (see the "Tutorial" section) has run to the end or been
+  // skipped. false = owed: it starts as soon as the launch title clears.
+  let tutorialDone = initialSave.tutorialDone;
+  // The once-only 시스템 소개 (shop, free 10뽑, upgrades) that follows the
+  // first tutorial catch. Never replayed -- 설정's 다시 보기 covers only the
+  // 낚시 방법 part, so the free pull can't be farmed.
+  let introDone = initialSave.introDone;
+  // Flips true the moment startReel() first runs -- the first-ever bite is
+  // forced to 희귀 (see triggerBite()) so the first fight is a real one.
   let hasReeledBefore = initialSave.hasReeledBefore;
   // Set in catchSuccess() when a grade-up material drops, consumed by
   // closeResult() right after the catch result popup closes.
@@ -1063,8 +1078,6 @@ function __zzhInit() {
   const shellsCountEl = document.getElementById('shells-count');
   const gemsCountTopEl = document.getElementById('gems-count-top');
   const statusTextEl = document.getElementById('status-text');
-  const tutorialHintEl = document.getElementById('tutorial-hint');
-  const reelTutorialHintEl = document.getElementById('reel-tutorial-hint');
   const reelGaugeEl = document.getElementById('reel-gauge');
   const reelTapCatcherEl = document.getElementById('reel-tap-catcher');
   const gaugeTrackEl = document.getElementById('gauge-track-v');
@@ -1118,6 +1131,7 @@ function __zzhInit() {
 
   const gachaPull1Btn = document.getElementById('gacha-pull1-btn');
   const gachaPull10Btn = document.getElementById('gacha-pull10-btn');
+  const gachaPull10CostEl = gachaPull10Btn.querySelector('.gacha-pull-cost');
 
   const gachaOverlay = document.getElementById('gacha-overlay');
   const gachaRevealPanel = document.getElementById('gacha-reveal-panel');
@@ -1279,11 +1293,6 @@ function __zzhInit() {
   });
 
   function cast(x, y) {
-    if (!hasCastBefore) {
-      hasCastBefore = true;
-      tutorialHintEl.classList.add('hidden');
-      persist();
-    }
     sfx.cast();
     bobber = { x, y };
     state = 'waiting';
@@ -1294,6 +1303,7 @@ function __zzhInit() {
     achievements.stats.casts++;
     if (equippedBait !== 'common') achievements.stats.baitsUsed[equippedBait] = true;
     checkAchievements();
+    if (tutorial.step === 'cast') tutorialGo('wait');
   }
 
   // Ordinal ladder for the hit-counter's rarity climb (junk sits at the
@@ -1336,7 +1346,9 @@ function __zzhInit() {
     // "nothing" and "the easiest possible fish". Gated on hasReeledBefore
     // (flips true in startReel(), right after this) so it only ever fires
     // once, the same moment the reel hint itself only ever shows once.
-    const forcedFirstCatch = hasReeledBefore ? null : 'rare';
+    // Tutorial: a 일반 fish -- real and sellable, but the easiest fight.
+    // Outside it, the first-ever reel is still forced to 희귀 (see above).
+    const forcedFirstCatch = tutorial.active ? 'common' : (!hasReeledBefore ? 'rare' : null);
     const baitExclude = FishData.baitExcludeTiers(equippedBait);
     currentCatch = FishData.pickCatch(devForceTier || forcedFirstCatch, baitExclude, stats.luck);
     devForceTier = null;
@@ -1358,7 +1370,7 @@ function __zzhInit() {
     sfx.bite();
     Platform.haptic('basicMedium');
     showStatus('입질이 왔어요!', 'icons/result/bite.svg');
-    const shouldSkipReel = skipLowTier && SKIP_TIERS_BY_GRADE[rod.grade].includes(currentCatch.tier);
+    const shouldSkipReel = !tutorial.active && skipLowTier && SKIP_TIERS_BY_GRADE[rod.grade].includes(currentCatch.tier);
     biteTimer = setTimeout(shouldSkipReel ? resolveSkippedCatch : startReel, 500);
   }
 
@@ -1371,12 +1383,6 @@ function __zzhInit() {
     hideStatus();
     reel = null; // no reeling happened -- keep a stale reel out of the 도전과제 checks
     catchSuccess();
-  }
-
-  function hideReelTutorial() {
-    reelTutorialHintEl.classList.add('hidden');
-    gaugeTrackEl.classList.remove('tutorial-glow');
-    gaugeZoneEl.classList.remove('tutorial-glow');
   }
 
   function startReel() {
@@ -1393,9 +1399,6 @@ function __zzhInit() {
     if (!hasReeledBefore) {
       hasReeledBefore = true;
       persist();
-      reelTutorialHintEl.classList.remove('hidden');
-      gaugeTrackEl.classList.add('tutorial-glow');
-      gaugeZoneEl.classList.add('tutorial-glow');
     }
     const f = getEffectiveReel(currentCatch.tier);
     // Hit count is random per catch: HITS_BASE_BY_TIER's floor, plus 0~1.
@@ -1415,7 +1418,13 @@ function __zzhInit() {
       timeLimit: f.timeLimit,
       timeStart: performance.now() / 1000,
       fromBottom: Math.random() < 0.5,
-      colorSeq
+      colorSeq,
+      // Tutorial reel: no clock, and the thumb parks itself inside the zone
+      // and waits for the tap (see reelTick()/attemptHit()).
+      tutorial: tutorial.active,
+      frozen: tutorial.active, // thumb holds still through the HUD walkthrough
+      paused: false,
+      pausedPos: 0
     };
     renderHitsCounter();
     renderChanceLights();
@@ -1429,6 +1438,7 @@ function __zzhInit() {
     void timeFillEl.offsetHeight;
     timeFillEl.style.transition = '';
     reelGaugeEl.classList.remove('hidden');
+    if (tutorial.step === 'wait') tutorialGo('reelGauge');
   }
 
   function randomZoneTop(height) {
@@ -1539,7 +1549,24 @@ function __zzhInit() {
   }
 
   function reelTick() {
-    if (state === 'reeling' && reel) {
+    if (state === 'reeling' && reel && reel.tutorial) {
+      if (reel.frozen) {
+        gaugeIndicatorEl.style.top = (reel.fromBottom ? 100 : 0) + '%';
+      } else if (!reel.paused) {
+        const pos = currentIndicatorPos();
+        gaugeIndicatorEl.style.top = pos + '%';
+        const center = reel.zoneTop + reel.zoneHeight / 2;
+        // First window: let the thumb sweep for a second before it parks,
+        // so the instruction callout is actually readable before "지금!".
+        const armed = reel.hits > 0 || performance.now() / 1000 - reel.startT >= 1.0;
+        if (armed && Math.abs(pos - center) <= Math.max(2, reel.zoneHeight * 0.2)) {
+          reel.paused = true;
+          reel.pausedPos = pos;
+          tutorialReelPrompt();
+        }
+      }
+      timeFillEl.style.height = '100%';
+    } else if (state === 'reeling' && reel) {
       const now = performance.now() / 1000;
       const elapsed = now - reel.startT;
       const pos = indicatorPercent(elapsed, reel.period, reel.fromBottom);
@@ -1561,6 +1588,7 @@ function __zzhInit() {
   requestAnimationFrame(reelTick);
 
   function currentIndicatorPos() {
+    if (reel.paused) return reel.pausedPos;
     const now = performance.now() / 1000;
     const elapsed = now - reel.startT;
     return indicatorPercent(elapsed, reel.period, reel.fromBottom);
@@ -1568,6 +1596,9 @@ function __zzhInit() {
 
   function attemptHit() {
     if (state !== 'reeling' || !reel) return;
+    // Tutorial: taps only count while the thumb is parked in the zone, so
+    // an early/late tap is simply nothing rather than a miss.
+    if (reel.tutorial && (reel.frozen || !reel.paused)) return;
     const pos = currentIndicatorPos();
     const tolerance = hitToleranceForPeriod(reel.period);
     const inZone = pos >= reel.zoneTop - tolerance && pos <= reel.zoneTop + reel.zoneHeight + tolerance;
@@ -1594,6 +1625,7 @@ function __zzhInit() {
       reel.timeStart = performance.now() / 1000;
       reel.fromBottom = !reel.fromBottom;
       positionZone();
+      if (reel.tutorial) { reel.paused = false; tutorialReelPrompt(); }
     } else {
       reel.misses++;
       sfx.miss();
@@ -1642,7 +1674,7 @@ function __zzhInit() {
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
-    hideReelTutorial();
+    tutorialReelEnd();
     const c = currentCatch;
     noteCatchForAchievements(c);
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
@@ -1676,7 +1708,7 @@ function __zzhInit() {
     reelGaugeEl.classList.add('hidden');
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
-    hideReelTutorial();
+    tutorialReelEnd();
     const s = achievements.stats;
     s.fails++;
     s.streak = 0;
@@ -1718,6 +1750,9 @@ function __zzhInit() {
     reel = null;
     currentCatch = null;
     hideStatus();
+    // Tutorial: straight on to the shop step; a gem popup (if one dropped)
+    // waits until the tutorial is over (see tutorialFinish()).
+    if (tutorial.step === 'reel') { tutorialGo(introDone ? 'finish' : 'shopTab'); return; }
     if (pendingMaterial) {
       showMaterialPopup(pendingMaterial);
       pendingMaterial = null;
@@ -1846,8 +1881,12 @@ function __zzhInit() {
   // here -- this just keeps the two pull buttons' disabled state in sync
   // with the current shell count.
   function renderGachaTab() {
+    const freeTen = tutorial.step === 'gacha'; // tutorial's one free 10뽑
     gachaPull1Btn.disabled = shells < FishData.GACHA_PULL_COST;
-    gachaPull10Btn.disabled = shells < FishData.GACHA_TEN_PULL_COST;
+    gachaPull10Btn.disabled = !freeTen && shells < FishData.GACHA_TEN_PULL_COST;
+    gachaPull10CostEl.innerHTML = freeTen
+      ? '무료'
+      : `<img class="price-icon" src="icons/ui/shell.svg" alt="">${FishData.GACHA_TEN_PULL_COST.toLocaleString('ko-KR')}`;
   }
 
   // Card grid order is always worst -> best regardless of roll order, so
@@ -1857,7 +1896,8 @@ function __zzhInit() {
 
   function runGacha(kind) {
     const isTen = kind === 'ten';
-    const cost = isTen ? FishData.GACHA_TEN_PULL_COST : FishData.GACHA_PULL_COST;
+    const free = isTen && tutorial.step === 'gacha';
+    const cost = free ? 0 : (isTen ? FishData.GACHA_TEN_PULL_COST : FishData.GACHA_PULL_COST);
     if (shells < cost) return;
     // Casting is the only other place this fires -- a player who opens the
     // shop and pulls before ever casting a line would otherwise get total
@@ -1865,9 +1905,9 @@ function __zzhInit() {
     ensureAudio();
     sfx.coin();
     shells -= cost;
-    const pulled = isTen
-      ? FishData.pullGachaTen(gachaPity)
-      : FishData.pullGachaWithPity(1, gachaPity);
+    const pulled = free
+      ? tutorialTenPull()
+      : (isTen ? FishData.pullGachaTen(gachaPity) : FishData.pullGachaWithPity(1, gachaPity));
     const results = pulled.results;
     gachaPity = pulled.pity;
     const s = achievements.stats;
@@ -1884,11 +1924,21 @@ function __zzhInit() {
     results.forEach(key => { if (key !== 'common') baits[key] = (baits[key] || 0) + 1; });
     persist();
     updateCurrencyDisplay();
+    if (free) tutorialGo('gachaReveal'); // before the re-render so the 무료 label goes back to the price
     renderGachaTab();
     updateBaitButton();
     const sorted = results.slice().sort((a, b) => GACHA_REVEAL_ORDER.indexOf(a) - GACHA_REVEAL_ORDER.indexOf(b));
     openGachaReveal(sorted);
     checkAchievements();
+  }
+  // The tutorial's free 10뽑: one 특급 guaranteed, nothing above it, and the
+  // other nine split 희귀/일반 at their normal relative odds. Leaves the
+  // legendary pity counter alone -- it isn't a real paid pull.
+  function tutorialTenPull() {
+    const results = [];
+    for (let i = 0; i < 9; i++) results.push(Math.random() < 0.34 ? 'rare' : 'common');
+    results.splice(Math.floor(Math.random() * 10), 0, 'epic');
+    return { results, pity: gachaPity, forced: 0 };
   }
   gachaPull1Btn.addEventListener('click', () => runGacha('single'));
   gachaPull10Btn.addEventListener('click', () => runGacha('ten'));
@@ -1906,7 +1956,10 @@ function __zzhInit() {
     gachaActionBtn.textContent = '전체 공개';
     gachaActionBtn.classList.add('gacha-secondary-btn');
 
-    function closeReveal() { gachaOverlay.classList.add('hidden'); }
+    function closeReveal() {
+      gachaOverlay.classList.add('hidden');
+      if (tutorial.step === 'gachaReveal') tutorialGo('baitInfo');
+    }
 
     function updateActionButton() {
       const allRevealed = cards.every((card) => card.classList.contains('revealed'));
@@ -1955,8 +2008,9 @@ function __zzhInit() {
 
   // ================= Shop (구매 / 판매 / 업그레이드) =================
   function openShop() {
-    switchShopTab('gacha');
+    switchShopTab(tutorial.step === 'shopTab' ? 'sell' : 'gacha');
     shopOverlay.classList.remove('hidden');
+    if (tutorial.step === 'shopTab') tutorialGo('sell');
   }
   function closeShop() { shopOverlay.classList.add('hidden'); }
   menuShopBtn.addEventListener('click', openShop);
@@ -1969,6 +2023,8 @@ function __zzhInit() {
     if (key === 'gacha') renderGachaTab();
     if (key === 'sell') renderSellList();
     if (key === 'upgrade') renderUpgradeTab();
+    if (tutorial.step === 'gachaTab' && key === 'gacha') tutorialGo('gacha');
+    if (tutorial.step === 'upgradeTab' && key === 'upgrade') tutorialGo('upRod');
   }
   shopTabs.forEach(btn => btn.addEventListener('click', () => switchShopTab(btn.dataset.tab)));
 
@@ -2014,6 +2070,8 @@ function __zzhInit() {
     updateCurrencyDisplay();
     renderSellList();
     checkAchievements();
+    submitLeaderboardScore();
+    if (tutorial.step === 'sell') tutorialGo('shells');
   }
 
   // Discrete level pips, reused for the rod (10 boxes) and every player
@@ -2273,6 +2331,17 @@ function __zzhInit() {
   achievementsCloseBtn.addEventListener('click', closeAchievements);
   achievementsOverlay.addEventListener('click', (e) => { if (e.target === achievementsOverlay) closeAchievements(); });
 
+  // ---- 랭킹 (host leaderboard, Apps in Toss only) ----
+  // Score = 누적 판매 조개, the same counter 도전과제 keeps. Sent after every
+  // sale and once at startup (covers a submission the last session lost).
+  const leaderboardBtn = document.getElementById('leaderboard-btn');
+  leaderboardBtn.classList.toggle('hidden', !Platform.hasLeaderboard);
+  leaderboardBtn.addEventListener('click', () => Platform.openLeaderboard());
+  function submitLeaderboardScore() {
+    if (!Platform.hasLeaderboard || achievements.stats.shellsEarned <= 0) return;
+    Platform.submitScore(achievements.stats.shellsEarned);
+  }
+
   // ================= Bucket (보관함 / 도감) =================
   function openBucket() {
     switchBucketTab('inventory');
@@ -2388,6 +2457,281 @@ function __zzhInit() {
   speciesDetailCloseBtn.addEventListener('click', closeSpeciesDetail);
   speciesDetailOverlay.addEventListener('click', (e) => { if (e.target === speciesDetailOverlay) closeSpeciesDetail(); });
 
+  // ================= Tutorial (guided first play) =================
+  // Tap steps each own one tap: cast -> wait -> reel -> shopTab -> sell ->
+  // gachaTab -> gacha (one free 10뽑) -> gachaReveal -> upgradeTab; the
+  // game's normal handlers advance them (cast(), startReel(), closeResult(),
+  // openShop(), sellFish(), switchShopTab(), runGacha(), closeReveal()) so
+  // the tutorial never fakes any game logic. Info stops (TUTORIAL_INFO) just
+  // spotlight something and wait for the callout's own 다음. The layer
+  // (index.html #tutorial-layer) dims everything except the cut-out.
+  // Two parts: 낚시 방법 (cast .. reel, replayable from 설정, `tutorialDone`)
+  // and the 시스템 소개 that follows the first catch (shopTab .. upStats,
+  // shown once ever, `introDone`). Finishing or skipping marks both.
+  const tutorial = { active: false, step: null, hole: null };
+  const tutorialLayer = document.getElementById('tutorial-layer');
+  const tutorialMask = document.getElementById('tutorial-mask');
+  const tutorialRing = document.getElementById('tutorial-ring');
+  const tutorialHand = document.getElementById('tutorial-hand');
+  const tutorialCallout = document.getElementById('tutorial-callout');
+  const tutorialCalloutText = document.getElementById('tutorial-callout-text');
+  const tutorialNextBtn = document.getElementById('tutorial-next-btn');
+  const tutorialCard = document.getElementById('tutorial-card');
+  const tutorialSkipBtn = document.getElementById('tutorial-skip-btn');
+  const tutorialFinishBtn = document.getElementById('tutorial-finish-btn');
+  const tutorialReplayBtn = document.getElementById('tutorial-replay-btn');
+  const CLIP_PATH_OK = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('clip-path', 'path("M0 0h1v1z")');
+  const TUTORIAL_INFO = {
+    reelGauge: { hud: true, el: () => gaugeTrackEl, next: 'reelHits',
+      text: '낚시가 시작됐어요. 하얀 막대가 노란 구간에 왔을 때 화면을 누르면 성공이에요' },
+    reelHits: { hud: true, el: () => hitsCounterEl, next: 'reelLives',
+      text: '물고기 표시는 성공해야 하는 횟수예요. 다 채우면 물고기를 낚아요' },
+    reelLives: { hud: true, el: () => chanceLightsEl, next: 'reel', nextLabel: '계속하기',
+      text: '파란 불은 목숨이에요. 타이밍을 놓치면 하나씩 꺼지고, 다 꺼지면 물고기가 도망가요. 안내 중에는 줄지 않아요' },
+    shells: { el: () => document.querySelector('.shop-balances'), next: 'gachaTab',
+      text: '받은 조개껍질이에요. 조개껍질로는 미끼 뽑기와 낚싯대·능력치 강화를 할 수 있어요' },
+    baitInfo: { el: () => baitBtn, next: 'upgradeTab',
+      text: '뽑은 미끼는 아래 미끼 탭에서 장착해요. 좋은 미끼일수록 귀한 물고기가 와요' },
+    upRod: { scroll: true, el: () => document.querySelector('.upgrade-rod-info'), next: 'upGem',
+      text: '낚싯대예요. 칸이 레벨(1~10)이고, 조개껍질로 레벨을 올리면 노란 구간이 넓어져 낚시가 쉬워져요' },
+    upGem: { scroll: true, el: () => rodMaterialEl, next: 'upStats',
+      text: '보석이에요. 물고기를 낚을 때 가끔 나와요. 레벨 10을 찍은 뒤 보석을 모으면 낚싯대 등급이 올라요. 특급 낚싯대는 목숨이 하나 늘어요' },
+    upStats: { scroll: true, el: () => statsListEl, next: 'finish',
+      text: '근력·행운·정밀함 같은 능력치 강화도 있어요. 조개껍질이 모이면 살펴보세요' }
+  };
+  // Where the float is drawn -- callouts keep clear of it (see placeCallout).
+  const floatRect = () => (bobber ? { x: bobber.x - 34, y: bobber.y - 50, w: 68, h: 90 } : null);
+
+  function gameRectOf(el) {
+    const g = gameEl.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: r.left - g.left, y: r.top - g.top, w: r.width, h: r.height };
+  }
+  function padRect(r, p) { return { x: r.x - p, y: r.y - p, w: r.w + p * 2, h: r.h + p * 2 }; }
+  function roundedRectPath(r, rad) {
+    const k = Math.min(rad, r.w / 2, r.h / 2);
+    return `M${r.x + k} ${r.y}H${r.x + r.w - k}A${k} ${k} 0 0 1 ${r.x + r.w} ${r.y + k}V${r.y + r.h - k}`
+      + `A${k} ${k} 0 0 1 ${r.x + r.w - k} ${r.y + r.h}H${r.x + k}A${k} ${k} 0 0 1 ${r.x} ${r.y + r.h - k}`
+      + `V${r.y + k}A${k} ${k} 0 0 1 ${r.x + k} ${r.y}Z`;
+  }
+  // Cuts the hole out of the mask. Even-odd fill makes the inner rect a
+  // hole, and clip-path also clips hit-testing, so the hole is tap-through.
+  function setMaskHole(r) {
+    tutorial.hole = r;
+    if (!r) { tutorialMask.style.clipPath = 'none'; tutorialRing.classList.add('hidden'); return; }
+    if (CLIP_PATH_OK) {
+      tutorialMask.style.clipPath = `path(evenodd, "M0 0H${W}V${H}H0Z ${roundedRectPath(r, 16)}")`;
+    } else {
+      tutorialMask.style.clipPath = `polygon(evenodd, 0 0, ${W}px 0, ${W}px ${H}px, 0 ${H}px, 0 0, `
+        + `${r.x}px ${r.y}px, ${r.x}px ${r.y + r.h}px, ${r.x + r.w}px ${r.y + r.h}px, ${r.x + r.w}px ${r.y}px, ${r.x}px ${r.y}px)`;
+    }
+    tutorialRing.classList.remove('hidden');
+    tutorialRing.style.left = r.x + 'px'; tutorialRing.style.top = r.y + 'px';
+    tutorialRing.style.width = r.w + 'px'; tutorialRing.style.height = r.h + 'px';
+  }
+  // Callout goes above the anchor when there's room, else below it; `side`
+  // docks it beside the anchor instead (reel HUD). Either way the bubble is
+  // centred on the anchor (clamped to the screen) and the arrow is moved to
+  // the anchor's own x/y, so it always points at the thing. `avoid` is a
+  // rect to stay off (the float): the bubble flips to the other side of the
+  // anchor, or slides past the rect, rather than covering it.
+  function placeCallout(text, anchor, opts = {}) {
+    tutorialCalloutText.textContent = text;
+    tutorialCallout.className = 'tutorial-callout' + (opts.now ? ' now' : '') + (opts.withNext ? ' with-next' : '');
+    tutorialCallout.style.left = '0px'; tutorialCallout.style.top = '0px';
+    const w = tutorialCallout.offsetWidth;
+    const h = tutorialCallout.offsetHeight;
+    const cx = anchor.x + anchor.w / 2;
+    const cy = anchor.y + anchor.h / 2;
+    const clampX = (v) => Math.max(8, Math.min(W - w - 8, v));
+    const clampY = (v) => Math.max(8, Math.min(H - h - 8, v));
+    const a = opts.avoid;
+    const hits = (l, t) => !!a && l < a.x + a.w && l + w > a.x && t < a.y + a.h && t + h > a.y;
+    let left, top;
+    if (opts.side) {
+      left = clampX(opts.side === 'left' ? anchor.x - w - 14 : anchor.x + anchor.w + 14);
+      top = clampY(cy - h / 2);
+      if (hits(left, top)) {
+        const under = a.y + a.h + 10;
+        top = clampY(under + h <= H - 8 ? under : a.y - h - 10);
+      }
+      tutorialCallout.classList.add(opts.side === 'left' ? 'side-left' : 'side-right');
+      tutorialCallout.style.setProperty('--arrow-y', Math.max(14, Math.min(h - 14, cy - top)) + 'px');
+    } else {
+      left = clampX(cx - w / 2);
+      const aboveTop = anchor.y - h - 16;
+      const belowTop = anchor.y + anchor.h + 16;
+      let below = opts.below || aboveTop < 8 + 44;
+      top = below ? belowTop : aboveTop;
+      if (hits(left, top)) {
+        const alt = below ? aboveTop : belowTop;
+        if (alt >= 8 && alt + h <= H - 8 && !hits(left, alt)) {
+          top = alt;
+        } else {
+          // Both sides land on the float: slide just past it instead.
+          const under = a.y + a.h + 10;
+          top = clampY(under + h <= H - 8 ? under : a.y - h - 10);
+        }
+        below = top > cy; // arrow direction follows where the bubble ended up
+      }
+      tutorialCallout.classList.add(below ? 'below' : 'above');
+      tutorialCallout.style.setProperty('--arrow-x', Math.max(14, Math.min(w - 14, cx - left)) + 'px');
+    }
+    tutorialCallout.style.left = left + 'px';
+    tutorialCallout.style.top = top + 'px';
+  }
+  function tutorialLayout() {
+    if (!tutorial.active) return;
+    tutorialMask.classList.remove('clear');
+    tutorialRing.classList.remove('blocking');
+    tutorialHand.classList.add('hidden');
+    tutorialCallout.classList.add('hidden');
+    tutorialNextBtn.classList.add('hidden');
+    tutorialCard.classList.add('hidden');
+    tutorialSkipBtn.classList.remove('hidden');
+    const step = tutorial.step;
+    const info = TUTORIAL_INFO[step];
+    if (info) {
+      const el = info.el();
+      if (!el) { tutorialGo(info.next); return; }
+      // Only the upgrade list scrolls; 'nearest' keeps the page itself put
+      // (a 'center' scroll shifted the whole game for the reel HUD stops).
+      if (info.scroll) el.scrollIntoView({ block: 'nearest' });
+      setMaskHole(padRect(gameRectOf(el), 8));
+      tutorialRing.classList.add('blocking');
+      tutorialNextBtn.textContent = info.nextLabel || '다음';
+      tutorialNextBtn.classList.remove('hidden');
+      tutorialCallout.classList.remove('hidden');
+      shopOverlay.classList.toggle('tutorial-peek', step === 'baitInfo');
+      // HUD stops pass the float's rect so the bubble lands above or below
+      // the element without sitting on the float in mid-screen.
+      placeCallout(info.text, tutorial.hole, { withNext: true, avoid: info.hud ? floatRect() : null });
+      return;
+    }
+    shopOverlay.classList.remove('tutorial-peek');
+    if (step === 'cast') {
+      const hole = { x: W * 0.18, y: H * 0.44, w: W * 0.64, h: H * 0.26 };
+      setMaskHole(hole);
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('밝은 곳을 눌러 낚싯대를 던져요', hole);
+      tutorialHand.classList.remove('hidden');
+      tutorialHand.style.left = (hole.x + hole.w / 2) + 'px';
+      tutorialHand.style.top = (hole.y + hole.h / 2) + 'px';
+    } else if (step === 'wait') {
+      setMaskHole(null);
+      const b = bobber || { x: W / 2, y: H * 0.55 };
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('찌가 흔들릴 때까지 잠깐 기다려요', { x: b.x, y: b.y - 20, w: 0, h: 40 }, { below: true, avoid: floatRect() });
+    } else if (step === 'reel') {
+      setMaskHole(null);
+      tutorialMask.classList.add('clear'); // the whole screen is the reel's tap target
+      const ring = padRect(gameRectOf(gaugeTrackEl), 8);
+      tutorialRing.classList.remove('hidden');
+      tutorialRing.style.left = ring.x + 'px'; tutorialRing.style.top = ring.y + 'px';
+      tutorialRing.style.width = ring.w + 'px'; tutorialRing.style.height = ring.h + 'px';
+      tutorialCallout.classList.remove('hidden');
+      tutorialReelPrompt();
+    } else if (step === 'shopTab') {
+      setMaskHole(padRect(gameRectOf(menuShopBtn), 6));
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('물고기를 팔면 조개껍질을 받을 수 있어요. 상점을 눌러 보세요', tutorial.hole);
+    } else if (step === 'sell') {
+      const btn = sellListEl.querySelector('.sell-btn');
+      if (!btn) { tutorialGo('finish'); return; } // nothing to sell (shouldn't happen) -- wrap up
+      setMaskHole(padRect(gameRectOf(btn), 8));
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('이 버튼을 눌러 팔아요', tutorial.hole);
+    } else if (step === 'gachaTab' || step === 'upgradeTab') {
+      const tab = shopPanel.querySelector(`.shop-tab[data-tab="${step === 'gachaTab' ? 'gacha' : 'upgrade'}"]`);
+      setMaskHole(padRect(gameRectOf(tab), 4));
+      tutorialCallout.classList.remove('hidden');
+      placeCallout(step === 'gachaTab' ? '먼저 뽑기예요. 뽑기 탭을 눌러요' : '이번엔 강화예요. 업그레이드 탭을 눌러요', tutorial.hole);
+    } else if (step === 'gacha') {
+      renderGachaTab(); // enables 10뽑 and labels it 무료 for this one pull
+      setMaskHole(padRect(gameRectOf(gachaPull10Btn), 6));
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('첫 10뽑은 무료예요!', tutorial.hole);
+    } else if (step === 'gachaReveal') {
+      setMaskHole(null);
+      tutorialMask.classList.add('clear'); // the reveal overlay wants the taps
+      tutorialCallout.classList.remove('hidden');
+      placeCallout('카드를 눌러 어떤 미끼가 나왔는지 확인해요', gameRectOf(gachaCardGridEl));
+    } else if (step === 'finish') {
+      setMaskHole(null);
+      tutorialSkipBtn.classList.add('hidden');
+      tutorialCard.classList.remove('hidden');
+    }
+  }
+  // Reel step's callout follows the thumb: instruction while it sweeps,
+  // "지금!" while it's parked in the zone waiting for the tap.
+  function tutorialReelPrompt() {
+    if (tutorial.step !== 'reel' || !reel) return;
+    const track = gameRectOf(reelGaugeEl); // whole cluster, so the callout clears the fish/chance column
+    const side = leftyMode ? 'left' : 'right';
+    const avoid = floatRect();
+    if (reel.paused) {
+      placeCallout('지금 눌러요!', track, { side, now: true, avoid });
+    } else if (reel.hits === 0) {
+      placeCallout('하얀 막대가 노란 구간에 오면 멈춰요. 그때 화면을 눌러요', track, { side, avoid });
+    } else {
+      placeCallout(`잘했어요! ${reel.hitsRequired - reel.hits}번 더`, track, { side, avoid });
+    }
+  }
+  function tutorialReelEnd() {
+    gaugeTrackEl.classList.remove('tutorial-glow');
+    gaugeZoneEl.classList.remove('tutorial-glow');
+    if (tutorial.step === 'reel') { tutorialRing.classList.add('hidden'); tutorialCallout.classList.add('hidden'); }
+  }
+  function tutorialGo(step) {
+    tutorial.active = true;
+    tutorial.step = step;
+    tutorialLayer.classList.remove('hidden');
+    if (step === 'reel') {
+      gaugeTrackEl.classList.add('tutorial-glow');
+      gaugeZoneEl.classList.add('tutorial-glow');
+      if (reel && reel.frozen) {
+        reel.frozen = false;
+        reel.startT = performance.now() / 1000;
+        reel.timeStart = reel.startT;
+      }
+    }
+    // Shop/sell rects need the overlay laid out first.
+    requestAnimationFrame(tutorialLayout);
+  }
+  function tutorialFinish() {
+    if (reel && reel.tutorial) {
+      // Skipped mid-reel: hand the fight back to the normal clock from now.
+      reel.tutorial = false;
+      reel.frozen = false;
+      reel.paused = false;
+      reel.startT = performance.now() / 1000;
+      reel.timeStart = performance.now() / 1000;
+    }
+    tutorialReelEnd();
+    tutorial.active = false;
+    tutorial.step = null;
+    tutorialLayer.classList.add('hidden');
+    shopOverlay.classList.remove('tutorial-peek');
+    gameEl.classList.remove('tutorial-pending');
+    tutorialDone = true;
+    introDone = true;
+    persist();
+    renderGachaTab(); // drops the 무료 label if the tutorial was skipped on that step
+    if (state === 'idle' && pendingMaterial) {
+      showMaterialPopup(pendingMaterial);
+      pendingMaterial = null;
+    }
+  }
+  tutorialSkipBtn.addEventListener('click', tutorialFinish);
+  tutorialNextBtn.addEventListener('click', () => { const info = TUTORIAL_INFO[tutorial.step]; if (info) tutorialGo(info.next); });
+  tutorialFinishBtn.addEventListener('click', () => { closeShop(); tutorialFinish(); });
+  tutorialReplayBtn.addEventListener('click', () => {
+    closeSettings();
+    tutorialDone = false;
+    tutorialGo(state === 'idle' ? 'cast' : 'wait');
+  });
+  window.addEventListener('resize', () => requestAnimationFrame(tutorialLayout));
+
   // ================= Settings (왼손 모드 / 볼륨 / 데이터 삭제) =================
   function openSettings() {
     settingsOverlay.classList.remove('hidden');
@@ -2434,10 +2778,11 @@ function __zzhInit() {
   sfxOn = Platform.storage.get(SFX_ON_KEY) !== '0';
   bgmOn = Platform.storage.get(BGM_ON_KEY) !== '0';
   function applyChannelChecks() {
-    sfxOnCheck.checked = sfxOn;
-    bgmOnCheck.checked = bgmOn;
-    sfxOnCheck.parentElement.classList.toggle('muted', !sfxOn);
-    bgmOnCheck.parentElement.classList.toggle('muted', !bgmOn);
+    [[sfxOnCheck, sfxOn], [bgmOnCheck, bgmOn]].forEach(([box, on]) => {
+      box.checked = on;
+      box.closest('.volume-control').classList.toggle('muted', !on);
+      box.nextElementSibling.textContent = on ? '켜짐' : '음소거';
+    });
   }
   sfxOnCheck.addEventListener('change', () => {
     sfxOn = sfxOnCheck.checked;
@@ -2544,6 +2889,7 @@ function __zzhInit() {
   // Anything an older save already qualifies for (or that a migration
   // rebuilt) is granted quietly at startup, not announced.
   checkAchievements({ silent: true });
+  submitLeaderboardScore();
 
   // ================= Dev hook (inert without dev-mode.js) =================
   // dev-mode.js is gitignored -- it never leaves this machine on push. This
@@ -2580,6 +2926,11 @@ function __zzhInit() {
     updateCurrencyDisplay();
     if (!shopOverlay.classList.contains('hidden')) renderUpgradeTab();
   };
+  // Read-only: where the float is (dev tests check callouts keep clear of it).
+  window.__zzhDevFloat = function () {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return null; } catch (e) { return null; }
+    return bobber ? { x: bobber.x, y: bobber.y } : null;
+  };
   window.__zzhDevGiveShells = function (amount) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
     shells += amount || 1000;
@@ -2605,7 +2956,9 @@ function __zzhInit() {
 
   updateCurrencyDisplay();
   updateBaitButton();
-  if (!hasCastBefore) tutorialHintEl.classList.remove('hidden');
+  // Tutorial owed: the title swallows its own tap (style.css) so the first
+  // cast happens inside step 1, not underneath the fading wordmark.
+  if (!tutorialDone) gameEl.classList.add('tutorial-pending');
 
   // Browsers refuse to start any audio (WebAudio included) before the page
   // has seen a real user gesture -- no way around that, so this is as
@@ -2626,7 +2979,10 @@ function __zzhInit() {
     if (!gameEl.classList.contains('title-up')) return;
     gameEl.classList.remove('title-up');
     titleOverlay.classList.add('fading');
-    setTimeout(() => titleOverlay.classList.add('hidden'), 600);
+    setTimeout(() => {
+      titleOverlay.classList.add('hidden');
+      if (!tutorialDone && !tutorial.active) tutorialGo('cast');
+    }, 600);
   };
   ['pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
     document.addEventListener(evt, dismissTitle, { once: true, passive: true });
