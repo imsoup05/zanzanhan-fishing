@@ -1304,6 +1304,17 @@ body {
 }
 .settings-row-label { font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
 .settings-row-note { font-size: 12px; opacity: 0.6; font-weight: normal; }
+/* Full-width action row (낚시 방법 다시 보기): title + note stacked inside
+   the button itself, same footprint as the 삭제 button below it. */
+.settings-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  flex: none;
+}
+.settings-action-btn .settings-row-note { white-space: normal; text-align: center; }
 
 /* Left-hand mode: a true mirror of the reeling HUD (the one asymmetric,
    thumb-reach cluster in the playing screen), not just a relocation --

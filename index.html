@@ -357,10 +357,9 @@
             <input type="range" id="bgm-volume-slider" class="volume-slider" min="0" max="100" value="60">
           </div>
         </div>
-        <div class="settings-row">
-          <div class="settings-row-label">낚시 방법 다시 보기<span class="settings-row-note">던지기부터 물고기를 낚기까지 단계별로 다시 안내</span></div>
-          <button id="tutorial-replay-btn" class="quiet-btn">다시 보기</button>
-        </div>
+        <!-- One full-width button, not a label + side button: the side
+             button wrapped/clipped on narrow phone widths. -->
+        <button id="tutorial-replay-btn" class="quiet-btn settings-action-btn">낚시 방법 다시 보기<span class="settings-row-note">던지기부터 물고기를 낚기까지 단계별로 다시 안내</span></button>
         <button id="reset-data-btn" class="danger-btn">진행 데이터 전체 삭제</button>
       </div>
     </div>
