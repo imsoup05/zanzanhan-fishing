@@ -1300,9 +1300,11 @@ function __zzhInit() {
     showStatus('입질을 기다리는 중...');
     const delay = 1600 + Math.random() * 2600;
     waitingTimer = setTimeout(triggerBite, delay);
-    achievements.stats.casts++;
-    if (equippedBait !== 'common') achievements.stats.baitsUsed[equippedBait] = true;
-    checkAchievements();
+    if (!tutorial.practice) {
+      achievements.stats.casts++;
+      if (equippedBait !== 'common') achievements.stats.baitsUsed[equippedBait] = true;
+      checkAchievements();
+    }
     if (tutorial.step === 'cast') tutorialGo('wait');
   }
 
@@ -1351,6 +1353,11 @@ function __zzhInit() {
     const forcedFirstCatch = tutorial.active ? 'common' : (!hasReeledBefore ? 'rare' : null);
     const baitExclude = FishData.baitExcludeTiers(equippedBait);
     currentCatch = FishData.pickCatch(devForceTier || forcedFirstCatch, baitExclude, stats.luck);
+    // 설정 > 다시 보기 run: the fish is practice only -- it never reaches the
+    // bucket, the 도감 or the 도전과제 counters (see catchSuccess/catchFail).
+    // Tagged on the catch itself so it holds even if the guide is skipped
+    // mid-reel and the fight finishes as a normal one.
+    currentCatch.practice = !!tutorial.practice;
     devForceTier = null;
     // Bait is spent here, once the fish has actually taken it -- NOT back
     // in cast(). Consuming it at the tap meant the auto-revert-to-common
@@ -1362,7 +1369,7 @@ function __zzhInit() {
     // way through bite+reeling, and only catches up to the (possibly now
     // auto-reverted) equippedBait once the result is shown (showResult()),
     // so the player can see what they were fishing with for the whole cast.
-    if (equippedBait !== 'common') {
+    if (equippedBait !== 'common' && !currentCatch.practice) {
       baits[equippedBait] = Math.max(0, (baits[equippedBait] || 0) - 1);
       if (baits[equippedBait] <= 0) equippedBait = 'common';
       persist();
@@ -1676,9 +1683,14 @@ function __zzhInit() {
     gameEl.classList.remove('reeling');
     tutorialReelEnd();
     const c = currentCatch;
-    noteCatchForAchievements(c);
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
+    if (c.practice) {
+      // Practice catch: shown, then gone. Nothing recorded, nothing persisted.
+      showResult(true, title, `${c.desc} (연습 낚시라 보관함에 담기지 않아요)`, icon, c.tier, false);
+      return;
+    }
+    noteCatchForAchievements(c);
     let desc;
     let isNewSpecies = false;
     if (c.tier === 'junk') {
@@ -1709,6 +1721,10 @@ function __zzhInit() {
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
     tutorialReelEnd();
+    if (currentCatch && currentCatch.practice) {
+      showResult(false, '놓쳤어요...', '연습 낚시라 기록에는 남지 않아요.', 'icons/result/miss.svg');
+      return;
+    }
     const s = achievements.stats;
     s.fails++;
     s.streak = 0;
@@ -2468,7 +2484,7 @@ function __zzhInit() {
   // Two parts: 낚시 방법 (cast .. reel, replayable from 설정, `tutorialDone`)
   // and the 시스템 소개 that follows the first catch (shopTab .. upStats,
   // shown once ever, `introDone`). Finishing or skipping marks both.
-  const tutorial = { active: false, step: null, hole: null };
+  const tutorial = { active: false, step: null, hole: null, practice: false };
   const tutorialLayer = document.getElementById('tutorial-layer');
   const tutorialMask = document.getElementById('tutorial-mask');
   const tutorialRing = document.getElementById('tutorial-ring');
@@ -2710,6 +2726,7 @@ function __zzhInit() {
     tutorialReelEnd();
     tutorial.active = false;
     tutorial.step = null;
+    tutorial.practice = false;
     tutorialLayer.classList.add('hidden');
     shopOverlay.classList.remove('tutorial-peek');
     gameEl.classList.remove('tutorial-pending');
@@ -2728,6 +2745,7 @@ function __zzhInit() {
   tutorialReplayBtn.addEventListener('click', () => {
     closeSettings();
     tutorialDone = false;
+    tutorial.practice = true; // replay = practice: nothing it catches counts
     tutorialGo(state === 'idle' ? 'cast' : 'wait');
   });
   window.addEventListener('resize', () => requestAnimationFrame(tutorialLayout));
