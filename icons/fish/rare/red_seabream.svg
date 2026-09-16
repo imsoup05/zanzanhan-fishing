@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M6.32,16.5 C10.02,6.4 14.94,7.32 18.64,7.32 C25.19,7.32 30.29,13.59 33.2,13.59 L33.2,19.41 C30.29,19.41 25.19,24.79 18.64,24.79 C14.94,24.79 10.02,25.62 6.32,16.5 Z"/></clipPath></defs>
+<path d="M32.7,13.59 L41.2,9.51 L37.2,16.5 L41.2,23.49 L32.7,19.41 Z" fill="#cc8fa0" stroke="#5a2f44" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M12.64,9.12 L13.94,3.72 L15.24,8.32 L16.54,4.12 L17.84,8.32 L19.14,4.52 L20.44,8.32 L21.74,4.92 L23.04,8.32 L24.34,5.32 L25.64,8.32 Z" fill="#cc8fa0" stroke="#5a2f44" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
+<path d="M17.32,23.59 L19.32,26.79 L22.32,23.79 Z" fill="#cc8fa0" opacity="0.9"/>
+<path d="M6.32,16.5 C10.02,6.4 14.94,7.32 18.64,7.32 C25.19,7.32 30.29,13.59 33.2,13.59 L33.2,19.41 C30.29,19.41 25.19,24.79 18.64,24.79 C14.94,24.79 10.02,25.62 6.32,16.5 Z" fill="#f6e6ea"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.82" fill="#cc8fa0"/>
+<rect x="0" y="0" width="48" height="12.37" fill="#5a2f44" opacity="0.22"/>
+<circle cx="14.92" cy="13.19" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="19.76" cy="19.07" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="22.99" cy="14.3" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="27.29" cy="17.97" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="17.61" cy="21.64" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="25.14" cy="11.72" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="29.97" cy="15.03" r="1" fill="#5cc9e8" opacity="0.9"/><circle cx="12.77" cy="18.7" r="1" fill="#5cc9e8" opacity="0.9"/>
+</g>
+<path d="M6.32,16.5 C10.02,6.4 14.94,7.32 18.64,7.32 C25.19,7.32 30.29,13.59 33.2,13.59 L33.2,19.41 C30.29,19.41 25.19,24.79 18.64,24.79 C14.94,24.79 10.02,25.62 6.32,16.5 Z" fill="none" stroke="#5a2f44" stroke-width="0.8" opacity="0.55"/>
+<path d="M15.32,10.99 Q13.82,16.5 15.82,21.47" stroke="#5a2f44" stroke-width="0.8" fill="none" opacity="0.45"/>
+<path d="M16.32,17 Q21.82,18 20.32,21 Q17.32,20.5 16.32,17 Z" fill="#cc8fa0" stroke="#5a2f44" stroke-width="0.6" opacity="0.95"/>
+<circle cx="12.32" cy="14.5" r="2" fill="#f6f4ea"/><circle cx="12.62" cy="14.5" r="1.1" fill="#0d161a"/><circle cx="11.82" cy="13.8" r="0.5" fill="#fff"/>
+<path d="M6.92,17.3 l2.6,0.9" stroke="#5a2f44" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+</svg>

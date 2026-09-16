@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M6.71,16.5 C10.24,4.86 14.94,5.92 18.47,5.92 C24.82,5.92 29.76,13.68 32.58,13.68 L32.58,19.32 C29.76,19.32 24.82,26.38 18.47,26.38 C14.94,26.38 10.24,27.37 6.71,16.5 Z"/></clipPath><radialGradient id="halo"><stop offset="0" stop-color="#c9b8ff" stop-opacity="0.55"/><stop offset="0.6" stop-color="#c9b8ff" stop-opacity="0.18"/><stop offset="1" stop-color="#c9b8ff" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="24" cy="16" rx="23.5" ry="15.5" fill="url(#halo)"/>
+<path d="M32.08,13.68 L35.58,10.86 L35.28,16.5 L35.58,22.14 L32.08,19.32 Z" fill="#a48ed6" stroke="#4a3a7a" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M13.47,7.52 L15.47,0.22 L25.47,7.12 Z" fill="#a48ed6" stroke="#4a3a7a" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
+<path d="M13.47,25.58 L15.47,33.38 L25.47,25.98 Z" fill="#a48ed6" stroke="#4a3a7a" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M6.71,16.5 C10.24,4.86 14.94,5.92 18.47,5.92 C24.82,5.92 29.76,13.68 32.58,13.68 L32.58,19.32 C29.76,19.32 24.82,26.38 18.47,26.38 C14.94,26.38 10.24,27.37 6.71,16.5 Z" fill="#e6ddf5"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="19.27" fill="#a48ed6"/>
+<rect x="0" y="0" width="48" height="11.74" fill="#4a3a7a" opacity="0.22"/>
+<circle cx="14.99" cy="12.69" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="19.65" cy="19.46" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="22.75" cy="13.96" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="26.89" cy="18.19" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="17.58" cy="22.43" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="24.82" cy="11" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="29.48" cy="14.81" r="1.2" fill="#d8ccf0" opacity="0.8"/><circle cx="12.92" cy="19.04" r="1.2" fill="#d8ccf0" opacity="0.8"/>
+</g>
+<path d="M6.71,16.5 C10.24,4.86 14.94,5.92 18.47,5.92 C24.82,5.92 29.76,13.68 32.58,13.68 L32.58,19.32 C29.76,19.32 24.82,26.38 18.47,26.38 C14.94,26.38 10.24,27.37 6.71,16.5 Z" fill="none" stroke="#4a3a7a" stroke-width="0.8" opacity="0.55"/>
+<path d="M15.71,10.15 Q14.21,16.5 16.21,22.43" stroke="#4a3a7a" stroke-width="0.8" fill="none" opacity="0.45"/>
+<path d="M16.71,17 Q22.21,18 20.71,21 Q17.71,20.5 16.71,17 Z" fill="#a48ed6" stroke="#4a3a7a" stroke-width="0.6" opacity="0.95"/>
+<circle cx="13.01" cy="14.4" r="1.6" fill="#f6f4ea"/><circle cx="13.31" cy="14.4" r="0.88" fill="#0d161a"/><circle cx="12.51" cy="13.7" r="0.5" fill="#fff"/>
+<path d="M7.31,17.3 l2.6,0.9" stroke="#4a3a7a" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+</svg>

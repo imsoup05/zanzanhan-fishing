@@ -535,6 +535,177 @@ function __zzhInit() {
     ctx.restore();
   }
 
+  // ================= 바다 scene =================
+  // Noon at the end of a breakwater: high sun, cumulus clouds, a distant
+  // island with a lighthouse, gulls; tetrapods piled in the foreground
+  // corners. Deep blue water with a glitter path and drifting whitecaps.
+  const SEA = {
+    sky: ['#2f6fb8', '#79bde6', '#c8e6f4', '#e6f2f8'],
+    sunGlow: 'rgba(255,250,225,',
+    cloud: 'rgba(255,255,255,',
+    island: '#7d9fb8', islandFar: '#a6c0d3',
+    lighthouse: '#f2f0ea', lighthouseBand: '#d9483b', lighthouseRoof: '#3a3f47',
+    tetra: '#8b949c', tetraDark: '#5f6870', tetraLight: '#aab2b9',
+    foam: 'rgba(255,255,255,',
+    water: ['#bfe4ef', '#4aaccb', '#1a7695', '#083a52'],
+    waveA: '#f2fbfd', waveB: '#0a3b50',
+    sparkle: '#ffffff',
+    ray: 'rgba(230,246,255,',
+    glitter: 'rgba(255,255,255,',
+    waterline: '#f4fdff'
+  };
+  const SEA_SUN_X = 0.32;
+
+  function tetrapod(c, x, y, s, th) {
+    // three legs of a tetrapod seen from the side: a Y with a stub
+    const leg = (a, len, w, color) => {
+      c.save(); c.translate(x, y); c.rotate(a);
+      c.fillStyle = color;
+      c.beginPath(); c.moveTo(-w, 0); c.lineTo(w, 0); c.lineTo(w * 0.7, -len); c.lineTo(-w * 0.7, -len); c.closePath(); c.fill();
+      c.restore();
+    };
+    leg(-0.5, s, s * 0.28, th.tetraDark);
+    leg(2.2, s * 0.9, s * 0.28, th.tetraDark);
+    leg(0.9, s * 0.95, s * 0.28, th.tetra);
+    leg(-2.6, s * 0.7, s * 0.26, th.tetraLight);
+    c.fillStyle = th.tetra;
+    c.beginPath(); c.arc(x, y, s * 0.34, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.12)';
+    c.beginPath(); c.arc(x - s * 0.1, y - s * 0.1, s * 0.16, 0, Math.PI * 2); c.fill();
+  }
+  function cloud(c, x, y, s, color) {
+    c.fillStyle = color;
+    [[0, 0, 1], [-0.9, 0.15, 0.7], [0.95, 0.2, 0.75], [-0.4, -0.35, 0.8], [0.45, -0.3, 0.85], [1.6, 0.35, 0.5], [-1.5, 0.4, 0.45]].forEach(([dx, dy, r]) => {
+      c.beginPath(); c.arc(x + dx * s, y + dy * s, s * r, 0, Math.PI * 2); c.fill();
+    });
+    [[-1.2, 0.45, 0.45], [0.2, 0.5, 0.5], [1.2, 0.5, 0.42]].forEach(([dx, dy, r]) => {
+      c.beginPath(); c.arc(x + dx * s, y + dy * s, s * r, 0, Math.PI * 2); c.fill();
+    });
+  }
+
+  function drawSeaStatic(c) {
+    const wTop = waterTop();
+    const th = SEA;
+    // sky
+    const sky = c.createLinearGradient(0, 0, 0, wTop);
+    sky.addColorStop(0, th.sky[0]);
+    sky.addColorStop(0.5, th.sky[1]);
+    sky.addColorStop(0.85, th.sky[2]);
+    sky.addColorStop(1, th.sky[3]);
+    c.fillStyle = sky;
+    c.fillRect(0, 0, W, wTop + 4);
+    // high sun: a bright glare rather than a disc (it sits under the status bar)
+    const sx = W * SEA_SUN_X, sy = wTop * 0.18;
+    const glow = c.createRadialGradient(sx, sy, 2, sx, sy, W * 0.5);
+    glow.addColorStop(0, th.sunGlow + '0.85)');
+    glow.addColorStop(0.25, th.sunGlow + '0.3)');
+    glow.addColorStop(1, th.sunGlow + '0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, W, wTop + 4);
+    // clouds
+    cloud(c, W * 0.62, wTop * 0.4, W * 0.06, th.cloud + '0.92)');
+    cloud(c, W * 0.2, wTop * 0.56, W * 0.045, th.cloud + '0.85)');
+    cloud(c, W * 0.86, wTop * 0.62, W * 0.035, th.cloud + '0.8)');
+    // distant island with a lighthouse (right), hazy headland (left)
+    c.fillStyle = th.islandFar;
+    c.beginPath(); c.moveTo(-10, wTop + 2); c.quadraticCurveTo(W * 0.08, wTop - H * 0.03, W * 0.2, wTop + 2); c.closePath(); c.fill();
+    c.fillStyle = th.island;
+    c.beginPath(); c.moveTo(W * 0.68, wTop + 2); c.quadraticCurveTo(W * 0.8, wTop - H * 0.045, W * 0.9, wTop - H * 0.02); c.quadraticCurveTo(W * 0.97, wTop - H * 0.01, W + 10, wTop + 2); c.closePath(); c.fill();
+    const lx = W * 0.84, lh = H * 0.075, lw = W * 0.022;
+    c.fillStyle = th.lighthouse;
+    c.beginPath(); c.moveTo(lx - lw, wTop - H * 0.018); c.lineTo(lx + lw, wTop - H * 0.018); c.lineTo(lx + lw * 0.7, wTop - H * 0.018 - lh); c.lineTo(lx - lw * 0.7, wTop - H * 0.018 - lh); c.closePath(); c.fill();
+    c.fillStyle = th.lighthouseBand;
+    c.fillRect(lx - lw * 0.85, wTop - H * 0.018 - lh * 0.55, lw * 1.7, lh * 0.18);
+    c.fillStyle = th.lighthouseRoof;
+    c.fillRect(lx - lw * 0.8, wTop - H * 0.018 - lh - lh * 0.16, lw * 1.6, lh * 0.16);
+    c.fillStyle = '#fff3b0';
+    c.fillRect(lx - lw * 0.5, wTop - H * 0.018 - lh - lh * 0.02, lw, lh * 0.1);
+    // gulls
+    c.strokeStyle = 'rgba(40,50,70,0.6)';
+    c.lineWidth = 1.2;
+    [[0.5, 0.3, 6], [0.56, 0.26, 5], [0.44, 0.35, 4]].forEach(([fx, fy, s]) => {
+      const bx = W * fx, by = wTop * fy;
+      c.beginPath(); c.moveTo(bx - s, by); c.quadraticCurveTo(bx - s * 0.5, by - s * 0.9, bx, by - s * 0.2); c.quadraticCurveTo(bx + s * 0.5, by - s * 0.9, bx + s, by); c.stroke();
+    });
+    // horizon haze lying on the water
+    const hz = c.createLinearGradient(0, wTop, 0, wTop + H * 0.06);
+    hz.addColorStop(0, 'rgba(230,242,248,0.45)');
+    hz.addColorStop(1, 'rgba(230,242,248,0)');
+    c.fillStyle = hz;
+    c.fillRect(0, wTop, W, H * 0.06);
+    // foreground tetrapods in both bottom corners, with foam at their feet
+    // (the bottom ~10% of the frame sits under the tab bar, so the pile
+    // peaks around 0.8H and only its feet are hidden)
+    const tS = W * 0.07;
+    tetrapod(c, W * 0.05, H * 0.8, tS, th);
+    tetrapod(c, W * 0.15, H * 0.86, tS * 1.1, th);
+    tetrapod(c, W * 0.0, H * 0.9, tS * 0.9, th);
+    tetrapod(c, W * 0.95, H * 0.82, tS, th);
+    tetrapod(c, W * 0.86, H * 0.88, tS * 1.05, th);
+    c.strokeStyle = th.foam + '0.55)';
+    c.lineWidth = 2;
+    [[0.02, 0.77, 0.12], [0.1, 0.74, 0.08], [0.88, 0.79, 0.1], [0.94, 0.76, 0.06]].forEach(([fx, fy, fw]) => {
+      c.beginPath(); c.moveTo(W * fx, H * fy); c.quadraticCurveTo(W * (fx + fw * 0.5), H * fy - 5, W * (fx + fw), H * fy); c.stroke();
+    });
+  }
+
+  function drawSeaWater(t) {
+    const th = SEA;
+    const top = waterTop();
+    fillWaterGradient(th.water, top);
+    // glitter path under the sun: a wobbling column of light
+    const sx = W * SEA_SUN_X;
+    const reflH = (H - top) * 0.45;
+    const halfW = W * 0.1;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(sx - halfW, top);
+    for (let y = top; y <= top + reflH; y += 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(sx - halfW * (1 - k * 0.5) + Math.sin(y * 0.11 + t * 1.6) * (3 + 8 * k), y);
+    }
+    for (let y = top + reflH; y >= top; y -= 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(sx + halfW * (1 - k * 0.5) + Math.sin(y * 0.1 + t * 1.3 + 2) * (3 + 8 * k), y);
+    }
+    ctx.closePath();
+    const rg = ctx.createLinearGradient(0, top, 0, top + reflH);
+    rg.addColorStop(0, th.glitter + '0.35)');
+    rg.addColorStop(0.4, th.glitter + '0.12)');
+    rg.addColorStop(1, th.glitter + '0)');
+    ctx.fillStyle = rg;
+    ctx.fill();
+    ctx.restore();
+    // bright band right at the horizon
+    const band = ctx.createLinearGradient(0, top, 0, top + H * 0.1);
+    band.addColorStop(0, 'rgba(255,255,255,0.28)');
+    band.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = band;
+    ctx.fillRect(0, top, W, H * 0.1);
+    drawWaveLines(t, top, th.waveA, th.waveB);
+    // drifting whitecaps: short foam strokes sliding left, each on its own lane
+    ctx.save();
+    ctx.strokeStyle = th.foam + '0.55)';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+      const lane = 0.06 + (i * 0.37) % 1 * 0.6;
+      const speed = 0.012 + (i % 3) * 0.006;
+      const x = ((i * 0.23 + 1 - (t * speed) % 1) % 1) * W;
+      const y = top + (H - top) * lane + Math.sin(t * 1.2 + i) * 2;
+      const len = 14 + (i % 4) * 8;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + len * 0.5, y - 3, x + len, y); ctx.stroke();
+    }
+    ctx.restore();
+    // waterline
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = th.waterline;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, top + 1); ctx.lineTo(W, top + 1); ctx.stroke();
+    ctx.restore();
+  }
+
   // ---- Scenes: one per 낚시터 (FishData.STAGES). Each supplies the static
   // backdrop (painted once into the cache), the animated water layers
   // (drawn under the backdrop each frame, and re-used by the float's
@@ -544,6 +715,11 @@ function __zzhInit() {
       paintStatic: (c) => drawLakeStatic(c),
       paintWater: (t) => { drawLakeWater(t); drawLightShafts(t, W * LAKE_SUN_X, waterTop() - 10, W * 0.22, LAKE.ray, 5); },
       paintAbove: (t) => { drawSparkles(t, LAKE.sparkle); maybeSpawnIdleFish(t); drawIdleFish(t); }
+    },
+    sea: {
+      paintStatic: (c) => drawSeaStatic(c),
+      paintWater: (t) => { drawSeaWater(t); drawLightShafts(t, W * SEA_SUN_X, waterTop() - 10, W * 0.26, SEA.ray, 6); },
+      paintAbove: (t) => { drawSparkles(t, SEA.sparkle); maybeSpawnIdleFish(t); drawIdleFish(t); }
     }
   };
   function scene() { return SCENES[stage] || SCENES.lake; }
@@ -2420,7 +2596,7 @@ function __zzhInit() {
     pumpToasts();
   }
 
-  const ACHIEVEMENT_CATEGORIES = ['낚시', '도감', '상점', '뽑기', '강화'];
+  const ACHIEVEMENT_CATEGORIES = ['낚시', '도감', '상점', '뽑기', '강화', '낚시터'];
   function renderAchievements() {
     const ctx = achievementCtx();
     const total = Achievements.LIST.length;

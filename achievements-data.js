@@ -49,7 +49,7 @@
   // achievement is -- roughly 조개 100~300 for the freebies, 300~500 or a
   // couple of 희귀 미끼 for mid goals, 1,000~2,000 or 특급 미끼 for the
   // long grinds, and 보석/전설 미끼 for the capstones. Totals across all
-  // 55: 조개 24,950 · 보석 11 · 희귀 미끼 8 · 특급 미끼 19 · 전설 미끼 5.
+  // 58: 조개 25,450 · 보석 13 · 희귀 미끼 8 · 특급 미끼 22 · 전설 미끼 5.
   const REWARDS = {
     // 낚시
     first_cast: { shells: 100 }, casts_100: { shells: 500 }, first_fish: { shells: 150 },
@@ -77,7 +77,9 @@
     // 히든
     hidden_first_legendary: { gems: 1 }, hidden_biggest_imugi: { bait: { legendary: 1 } },
     hidden_same_species_5: { shells: 1000 }, hidden_pulls_300: { bait: { epic: 3 } },
-    hidden_ten_epics: { shells: 3000 }
+    hidden_ten_epics: { shells: 3000 },
+    // 낚시터
+    stage_sea: { shells: 500 }, dex_sea_all: { bait: { epic: 3 } }, first_haeryong: { gems: 2 }
   };
   // Flattens a reward into renderable parts: [{ icon, text }] in a fixed
   // order (조개, 보석, then baits low -> high) so every row reads the same.
@@ -105,6 +107,11 @@
   const speciesTotal = () => TIER_ORDER.reduce((n, t) => n + FishData.FISH_BY_TIER[t].length, 0);
   const maxSpeciesCount = (c) => Object.keys(c.catches).reduce((m, id) => Math.max(m, c.catches[id].count || 0), 0);
   const statLevels = (c) => Object.keys(FishData.PLAYER_STATS).map((k) => c.playerStats[k] || 0);
+  // Per-stage 도감 (바다/심해 goals); the lake ones above keep FISH_BY_TIER.
+  const stagePools = (st) => Object.values(FishData.FISH_BY_STAGE[st] || {});
+  const stageTotal = (st) => stagePools(st).reduce((n, a) => n + a.length, 0);
+  const discoveredStage = (c, st) => stagePools(st).reduce((n, a) => n + a.filter((sp) => c.catches[sp.id]).length, 0);
+  const caughtCount = (c, id) => (c.catches[id] && c.catches[id].count) || 0;
 
   // Counting goals get a progress readout; flags just flip.
   const counter = (get, goal) => ({ test: (c) => get(c) >= goal, progress: (c) => [Math.min(get(c), goal), goal] });
@@ -166,6 +173,10 @@
     { id: 'rod_max', cat: '강화', title: '낚싯대 완성', desc: '특급 낚싯대 Lv.10 달성', ...flag((c) => c.rod.grade === 'epic' && c.rod.level >= FishData.ROD_MAX_LEVEL) },
     { id: 'stat_max_one', cat: '강화', title: '스탯 하나 만렙', desc: '근력·행운·정밀함 중 하나를 최대까지 올렸다', ...flag((c) => statLevels(c).some((v) => v >= FishData.PLAYER_STAT_MAX_LEVEL)) },
     { id: 'stat_max_all', cat: '강화', title: '모든 스탯 만렙', desc: '근력·행운·정밀함을 전부 최대까지 올렸다', ...counter((c) => statLevels(c).reduce((a, b) => a + b, 0), FishData.PLAYER_STAT_MAX_LEVEL * Object.keys(FishData.PLAYER_STATS).length) },
+    // ---- 낚시터 ----
+    { id: 'stage_sea', cat: '낚시터', title: '바다로!', desc: '바다 낚시터를 열었다', ...flag((c) => (c.stagesUnlocked || []).includes('sea')) },
+    { id: 'dex_sea_all', cat: '낚시터', title: '바다 도감 완성', desc: '바다의 모든 물고기를 낚았다', ...counter((c) => discoveredStage(c, 'sea'), stageTotal('sea')) },
+    { id: 'first_haeryong', cat: '낚시터', title: '해룡을 낚았다!', desc: '바다의 전설, 해룡을 처음 낚았다', ...counter((c) => caughtCount(c, 'haeryong'), 1) },
     // ---- 히든: invisible until cleared, then listed in their own category
     // with a badge. The panel only ever shows how many are still unfound.
     { id: 'hidden_first_legendary', cat: '낚시', hidden: true, title: '전설급 물고기를 처음으로 낚았다!', desc: '이무기를 처음 낚았다', ...flag((c) => c.s.tierTotals.legendary >= 1) },

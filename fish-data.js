@@ -114,7 +114,7 @@
   const STAGES = {
     lake: {
       key: 'lake', name: '호수', tagline: '새벽 안개, 잔잔한 물결',
-      desc: '호숫가 낡은 돌다리 아래. 민물고기가 산다.',
+      desc: '새벽 안개가 깔린 호숫가. 민물고기가 산다.',
       priceMult: 1, unlock: null
     },
     sea: {
@@ -131,12 +131,50 @@
   // FISH_BY_TIER / JUNK_ITEMS above ARE the 호수 pools (kept under their old
   // names: the 도감 achievements and legacy-save rebuild read them as the
   // lake's roster on purpose). 바다/심해 pools get filled by later steps.
+  // ---- 바다 (방파제) ----
+  const SEA_FISH = {
+    common: [
+      { id: 'jack_mackerel', name: '전갱이', sizeRange: [15, 35], desc: '방파제 주변을 떼로 도는 흔한 바닷고기. 옆줄의 비늘이 까칠하다.' },
+      { id: 'chub_mackerel', name: '고등어', sizeRange: [20, 40], desc: '등의 물결무늬가 선명한 등푸른 생선. 힘차게 당긴다.' },
+      { id: 'sardine', name: '정어리', sizeRange: [10, 20], desc: '은빛 무리를 이루어 다니는 작은 물고기.' },
+      { id: 'yellowfin_goby', name: '문절망둑', sizeRange: [10, 25], desc: '방파제 바닥에 붙어 사는 망둑어. 무엇이든 문다.' },
+      { id: 'sillago', name: '보리멸', sizeRange: [12, 25], desc: '모래 바닥을 좋아하는 연한 빛깔의 물고기.' },
+      { id: 'halfbeak', name: '학꽁치', sizeRange: [20, 35], desc: '아래턱이 부리처럼 길게 뻗은 날렵한 물고기.' },
+      { id: 'filefish', name: '쥐치', sizeRange: [12, 25], desc: '머리 위 가시를 세우는 납작한 물고기. 미끼를 잘 따먹는다.' },
+      { id: 'mullet', name: '숭어', sizeRange: [25, 60], desc: '수면을 뛰어오르는 큰 물고기. 방파제의 단골.' },
+      { id: 'herring', name: '청어', sizeRange: [20, 35], desc: '푸른 등과 큰 눈을 가진 은빛 물고기.' },
+      { id: 'wrasse', name: '놀래기', sizeRange: [12, 25], desc: '알록달록한 띠무늬가 있는 갯바위 물고기.' }
+    ],
+    rare: [
+      { id: 'black_seabream', name: '감성돔', sizeRange: [25, 50], desc: '갯바위 낚시꾼의 로망. 검푸른 몸에 희미한 세로줄.' },
+      { id: 'red_seabream', name: '참돔', sizeRange: [30, 70], desc: '붉은 몸에 푸른 점이 박힌 바다의 귀족.' },
+      { id: 'sea_bass', name: '농어', sizeRange: [40, 90], desc: '입질이 거칠고 몸집이 큰 은빛 포식자.' },
+      { id: 'flounder', name: '넙치', sizeRange: [30, 80], desc: '바닥에 납작 엎드려 있다가 덮치는 물고기. 두 눈이 한쪽에 있다.' },
+      { id: 'rockfish', name: '조피볼락', sizeRange: [20, 45], desc: '테트라포드 틈에 숨어 사는 우럭. 입이 크다.' },
+      { id: 'yellowtail', name: '방어', sizeRange: [50, 110], desc: '옆구리의 노란 줄이 선명한 회유어. 힘이 어마어마하다.' },
+      { id: 'cuttlefish', name: '갑오징어', sizeRange: [15, 30], desc: '줄무늬를 바꾸며 미끼를 껴안는 영리한 두족류.' }
+    ],
+    epic: [
+      { id: 'blue_marlin', name: '청새치', sizeRange: [200, 350], desc: '창처럼 긴 주둥이로 파도를 가르는 바다의 검객. 방파제에서 잡힐 크기가 아니다.' },
+      { id: 'golden_seabream', name: '황금 참돔', sizeRange: [60, 110], desc: '비늘이 금빛으로 빛나는 참돔. 어부들 사이에 소문만 무성했다.' },
+      { id: 'sunfish', name: '개복치', sizeRange: [150, 300], desc: '지느러미만 달린 거대한 원반. 물 위에 누워 햇볕을 쬔다.' },
+      { id: 'great_white', name: '백상아리', sizeRange: [350, 550], desc: '이빨이 톱니 같은 바다의 지배자. 낚싯줄이 버틴 게 기적이다.' }
+    ],
+    legendary: [
+      { id: 'haeryong', name: '해룡', sizeRange: [400, 800], desc: '폭풍이 오기 전 수평선에 나타난다는 바다의 용. 지느러미가 산호처럼 붉다.' }
+    ]
+  };
+  const SEA_JUNK = [
+    { id: 'tangled_net', name: '엉킨 그물', desc: '누군가 버린 그물 뭉치. 풀다가 손만 아프다.' },
+    { id: 'plastic_bottle', name: '플라스틱 병', desc: '파도에 떠밀려 온 빈 페트병. 바다에 두면 안 된다.' },
+    { id: 'seaweed_clump', name: '해초 뭉치', desc: '바늘에 걸린 미역 줄기. 먹을 수는 있다.' }
+  ];
   const FISH_BY_STAGE = {
     lake: FISH_BY_TIER,
-    sea: { common: [], rare: [], epic: [], legendary: [] },
+    sea: SEA_FISH,
     abyss: { common: [], rare: [], epic: [], legendary: [] }
   };
-  const JUNK_BY_STAGE = { lake: JUNK_ITEMS, sea: [], abyss: [] };
+  const JUNK_BY_STAGE = { lake: JUNK_ITEMS, sea: SEA_JUNK, abyss: [] };
   function stageReady(stageKey) {
     const pools = FISH_BY_STAGE[stageKey];
     return !!pools && ['common', 'rare', 'epic', 'legendary'].every((t) => pools[t] && pools[t].length) && (JUNK_BY_STAGE[stageKey] || []).length > 0;

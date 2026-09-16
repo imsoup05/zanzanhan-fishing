@@ -1,5 +1,5 @@
 // Parametric fish icon generator -> icons/fish/<tier>/<id>.svg (48x32, fish faces left).
-// Run: node tools/fish-icons.js  -- regenerates the 호수 fish + 꽝 icons.
+// Run: node tools/fish-icons.js  -- regenerates the 호수/바다 fish + 꽝 icons.
 // Each species picks a body silhouette, tail, dorsal fin, pattern, extras and a
 // two-tone palette so they read as different animals at 24-34px. 특급 add
 // halo/sheen/teeth/lure/horns/sparkles; the 전설 이무기 is drawn by hand below.
@@ -101,6 +101,7 @@ function fish(sp) {
   parts.push(`<path d="${tail(sp.tail, b, sp.tailLen)}" fill="${fin}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round" opacity="${sp.finA || 0.95}"/>`);
   if (sp.dorsal && sp.dorsal !== 'none') parts.push(`<path d="${dorsal(sp.dorsal, b)}" fill="${fin}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round" opacity="${sp.finA || 1}"/>`);
   if (sp.anal) parts.push(`<path d="M${f(mx + 1)},${f(cy + bh - 0.6)} L${f(mx + 4)},${f(cy + bh + 3.2)} L${f(tx - 3)},${f(cy + b.tbh + 0.2)} Z" fill="${fin}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round"/>`);
+  if (sp.analTall) parts.push(`<path d="M${f(mx - 5)},${f(cy + bh - 0.8)} L${f(mx - 3)},${f(cy + bh + 7)} L${f(mx + 7)},${f(cy + bh - 0.4)} Z" fill="${fin}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round"/>`);
   if (sp.analLong) parts.push(`<path d="M${f(mx - 2)},${f(cy + bh - 0.8)} Q${f((mx + tx) / 2)},${f(cy + bh + 3.6)} ${f(tx - 1)},${f(cy + b.tbh)} Z" fill="${fin}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round"/>`);
   if (sp.pelvic !== false) parts.push(`<path d="M${f(nx + 11)},${f(cy + bh - 1.2)} L${f(nx + 13)},${f(cy + bh + 2)} L${f(nx + 16)},${f(cy + bh - 1)} Z" fill="${fin}" opacity="0.9"/>`);
   if (sp.horns) parts.push(`<path d="M${f(nx + 9)},${f(cy - th + 1)} C${f(nx + 6)},${f(cy - th - 5)} ${f(nx + 10)},${f(cy - th - 8)} ${f(nx + 13)},${f(cy - th - 6)} C${f(nx + 11)},${f(cy - th - 4)} ${f(nx + 11)},${f(cy - th - 1)} ${f(nx + 12)},${f(cy - th + 1)} Z M${f(nx + 15)},${f(cy - th + 0.5)} C${f(nx + 13)},${f(cy - th - 4)} ${f(nx + 16)},${f(cy - th - 7)} ${f(nx + 19)},${f(cy - th - 5)} C${f(nx + 17)},${f(cy - th - 3)} ${f(nx + 17)},${f(cy - th - 1)} ${f(nx + 18)},${f(cy - th + 0.5)} Z" fill="${sp.horns}" stroke="${outline}" stroke-width="0.6" stroke-linejoin="round"/>`);
@@ -127,6 +128,10 @@ function fish(sp) {
   } else if (sp.mouth !== 'none') parts.push(`<path d="M${f(nx + 0.6)},${f(cy + (b.nh ? b.nh * 0.3 : 0.8))} l${sp.mouth === 'up' ? '2.4,-1.6' : '2.6,0.9'}" stroke="${outline}" stroke-width="0.9" fill="none" stroke-linecap="round"/>`);
   if (sp.barbels) parts.push(barbels(b, sp.barbelColor || outline, sp.barbels, sp.barbelOpt));
   if (sp.lure) parts.push(`<path d="M${f(nx + 9)},${f(cy - th + 1)} C${f(nx + 8)},${f(cy - th - 6)} ${f(nx + 2)},${f(cy - th - 7)} ${f(nx - 1)},${f(cy - th - 3)}" stroke="${outline}" stroke-width="1" fill="none" stroke-linecap="round"/><circle cx="${f(nx - 1)}" cy="${f(cy - th - 2.5)}" r="4" fill="${sp.lure}" opacity="0.35"/><circle cx="${f(nx - 1)}" cy="${f(cy - th - 2.5)}" r="2" fill="${sp.lure}"/><circle cx="${f(nx - 1.6)}" cy="${f(cy - th - 3.1)}" r="0.7" fill="#ffffff"/>`);
+  if (sp.bill) parts.push(`<path d="M${f(nx + 1)},${f(cy - 1)} L${f(nx - 7)},${f(cy - 3.2)}" stroke="${outline}" stroke-width="1.6" stroke-linecap="round"/>`);
+  if (sp.beak) parts.push(`<path d="M${f(nx + 1)},${f(cy + 1.2)} L${f(nx - 6)},${f(cy + 2.6)}" stroke="${sp.beak}" stroke-width="1.4" stroke-linecap="round"/>`);
+  if (sp.tentacles) parts.push([[-1, 4], [-3, 6.5], [-4, 2], [-2.5, 8.5], [0.5, 7.5]].map(([dx, dy], i) => `<path d="M${f(nx + 2)},${f(cy + 1 + i * 0.6)} q${f(dx * 1.4)},${f(dy * 0.5)} ${f(dx * 2.2)},${f(dy)}" stroke="${sp.tentacles}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`).join(''));
+  if (sp.gillSlits) parts.push([0, 2, 4, 6].map((d) => `<path d="M${f(nx + 11 + d)},${f(cy - th * 0.35)} q-0.8,${f(th * 0.5)} 0,${f(th * 0.95)}" stroke="${outline}" stroke-width="0.9" fill="none" opacity="0.7"/>`).join(''));
   if (sp.sparkles) parts.push(sparkles(sp.sparkles, sp.sparkleColor || '#ffffff'));
   parts.push(`</svg>\n`);
   return parts.join('\n');
@@ -170,6 +175,68 @@ const EPIC = [
   { id: 'black_dragon_catfish', shape: 'flat', tail: 'pointed', dorsal: 'spiny', base: '#2c1f44', belly: '#4b3a6b', dark: '#0d0718', back: '#1a1030', backA: 0.5, barbels: 2, barbelColor: '#d9b04c', barbelOpt: { len: 1.6, w: 1.5 }, horns: '#d9b04c', eye: '#ff3d3d', sclera: '#ffb3b3', analLong: true, pelvic: false, scale: 1.12, tailLen: 10, halo: '#6b3fa0', aura: '#8a5cc7' }
 ];
 
+// ---- 바다 species ----
+const SEA_COMMON = [
+  { id: 'jack_mackerel', shape: 'slender', tail: 'fork', dorsal: 'short', pattern: 'lateral', base: '#86c9a6', belly: '#eef8f2', dark: '#2b5a48', back: '#4f8f7a', backA: 0.4, patternExtra: { w: 1.6 }, tailLen: 9 },
+  { id: 'chub_mackerel', shape: 'torpedo', tail: 'fork', dorsal: 'short', pattern: 'bars', base: '#6fc2a4', belly: '#f1faf5', dark: '#1f4d3f', back: '#2f7a63', backA: 0.55, scale: 1.05, tailLen: 9 },
+  { id: 'sardine', shape: 'slender', tail: 'fork', dorsal: 'short', pattern: 'spots', base: '#a9d9c5', belly: '#f6fbf8', dark: '#3a6a5a', back: '#5f9f8a', backA: 0.45, patternExtra: { spotR: 0.9, spotA: 0.5 }, scale: 0.85 },
+  { id: 'yellowfin_goby', shape: 'goby', tail: 'round', dorsal: 'spiny', pattern: 'saddles', base: '#9dbf8a', belly: '#e9eed6', dark: '#3d5a34', fin: '#d9c46a' },
+  { id: 'sillago', shape: 'slender', tail: 'fork', dorsal: 'short', pattern: 'band', base: '#c9dcb0', belly: '#f7f7ea', dark: '#5a6a44', patternColor: '#a9b98a', scale: 0.9 },
+  { id: 'halfbeak', shape: 'slender', tail: 'fork', dorsal: 'back', pattern: 'lateral', base: '#b5dccb', belly: '#f5fbf8', dark: '#2a5a4a', back: '#3f8f7a', backA: 0.5, beak: '#d9483b', scale: 1.08, patternExtra: { w: 1.5 } },
+  { id: 'filefish', shape: 'round', tail: 'truncate', dorsal: 'tall', pattern: 'blotches', base: '#8fbf9b', belly: '#e0ead8', dark: '#3a5a3a', patternExtra: { a: 0.25 }, scale: 0.9, tailLen: 5, eyeR: 1.6 },
+  { id: 'mullet', shape: 'torpedo', tail: 'fork', dorsal: 'back', pattern: 'lateral', base: '#a8cfbf', belly: '#f5f9f6', dark: '#2f5a4c', back: '#4a7c6c', backA: 0.45, scale: 1.05, tailLen: 9 },
+  { id: 'herring', shape: 'slender', tail: 'fork', dorsal: 'short', base: '#b7dcd0', belly: '#f9fdfb', dark: '#2f5a5a', back: '#3f7f9a', backA: 0.5, bigEye: true },
+  { id: 'wrasse', shape: 'torpedo', tail: 'round', dorsal: 'long', pattern: 'bars', base: '#79c39c', belly: '#efe9d3', dark: '#2f5a44', patternColor: '#d97b5a', scale: 0.9 }
+];
+const SEA_RARE = [
+  { id: 'black_seabream', shape: 'deep', tail: 'fork', dorsal: 'spiny', pattern: 'bars', base: '#5f8fa8', belly: '#d8e6ec', dark: '#1a3a4c', patternColor: '#173040' },
+  { id: 'red_seabream', shape: 'deep', tail: 'fork', dorsal: 'spiny', pattern: 'spots', base: '#cc8fa0', belly: '#f6e6ea', dark: '#5a2f44', patternColor: '#5cc9e8', patternExtra: { spotR: 1, spotA: 0.9 } },
+  { id: 'sea_bass', shape: 'torpedo', tail: 'fork', dorsal: 'spiny', pattern: 'lateral', base: '#8fb9cf', belly: '#eef4f7', dark: '#1f4a63', back: '#3b6f8c', backA: 0.5, scale: 1.1, tailLen: 9 },
+  { id: 'flounder', shape: 'round', tail: 'round', dorsal: 'long', pattern: 'spots', base: '#7e9fb3', belly: '#d9e3ea', dark: '#26404f', analLong: true, pelvic: false, eyeR: 1.5, eyeDy: -2.5, eyeDx: 1, scale: 1.05, tailLen: 6 },
+  { id: 'rockfish', shape: 'torpedo', tail: 'round', dorsal: 'spiny', pattern: 'blotches', base: '#5b7f96', belly: '#c9d6de', dark: '#1d3442', mouth: 'up' },
+  { id: 'yellowtail', shape: 'torpedo', tail: 'fork', dorsal: 'short', pattern: 'lateral', base: '#6aa8c9', belly: '#f2f7fa', dark: '#1f4a63', back: '#2f6f90', backA: 0.5, patternColor: '#e8c25a', patternExtra: { w: 1.9 }, scale: 1.15, tailLen: 10 },
+  { id: 'cuttlefish', shape: 'blob', tail: 'round', dorsal: 'long', pattern: 'bars', base: '#8fb1cf', belly: '#e4ecf3', dark: '#2a4a63', tentacles: '#6f93b3', mouth: 'none', gill: false, pelvic: false, bigEye: true, eyeDx: 2, scale: 0.9, tailLen: 4 }
+];
+const SEA_EPIC = [
+  { id: 'blue_marlin', shape: 'torpedo', tail: 'fork', dorsal: 'sail', pattern: 'bars', base: '#6f6fd6', belly: '#e8e6fb', dark: '#2a2a80', back: '#3a3aa0', backA: 0.5, patternColor: '#b8b8ff', bill: true, scale: 1.1, tailLen: 10, halo: '#9b8cf0' },
+  { id: 'golden_seabream', shape: 'deep', tail: 'fork', dorsal: 'spiny', pattern: 'scales', base: '#f0d27a', belly: '#fff6dc', dark: '#8a6a1a', patternColor: '#b8922e', sheen: '#ffe9a8', halo: '#ffd9a0', sparkles: [[8, 6, 1.4], [42, 9, 1.2], [39, 26, 1.3]], sparkleColor: '#fff8d0' },
+  { id: 'sunfish', shape: 'round', tail: 'truncate', dorsal: 'tall', analTall: true, pattern: 'spots', base: '#a48ed6', belly: '#e6ddf5', dark: '#4a3a7a', patternColor: '#d8ccf0', patternExtra: { spotR: 1.2, spotA: 0.8 }, pelvic: false, eyeR: 1.6, scale: 1.05, tailLen: 3, halo: '#c9b8ff' },
+  { id: 'great_white', shape: 'torpedo', tail: 'fork', dorsal: 'tall', base: '#7c7ca8', belly: '#f4f2fa', dark: '#2a2a4a', back: '#4d4d7a', backA: 0.5, gillSlits: true, mouth: 'big', eyeR: 1.4, eye: '#0a0a14', scale: 1.18, tailLen: 11, halo: '#b3a4ea', pelvic: false }
+];
+// ---- 전설 해룡: a sea dragon with coral-red fins, drawn by hand ----
+const HAERYONG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <defs>
+    <radialGradient id="halo"><stop offset="0" stop-color="#ffd76a" stop-opacity="0.6"/><stop offset="0.6" stop-color="#ffd76a" stop-opacity="0.2"/><stop offset="1" stop-color="#ffd76a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bodyg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f7f8a"/><stop offset="0.55" stop-color="#3fb0b8"/><stop offset="1" stop-color="#cdeff0"/></linearGradient>
+  </defs>
+  <ellipse cx="24" cy="16" rx="23.5" ry="15.5" fill="url(#halo)"/>
+  <!-- tail fin: a coral-red fan -->
+  <path d="M39 15c4-3 7-2 8 1-2 0-3 1-3 3 2 1 3 3 2 5-3-2-5-2-7-1 1-3 1-5 0-8z" fill="#f0664a" stroke="#8a2a1a" stroke-width="0.6" stroke-linejoin="round"/>
+  <!-- body S-curve -->
+  <path d="M9 15c5-6 10 8 16 3s8-9 15 1" stroke="#0f4f5a" stroke-width="8.2" fill="none" stroke-linecap="round"/>
+  <path d="M9 15c5-6 10 8 16 3s8-9 15 1" stroke="url(#bodyg)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M10 16.5c5-5 9.5 7 15.5 2.5s8-8 14.5 1.5" stroke="#e6fbfb" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <!-- coral frills along the back -->
+  <path d="M14 10c1-3 3-3 4-1-1 0-2 1-2 3zM19 12.5c1-3 3-3 4-1-1 0-2 1-2 3zM26 14.5c1-3 3-3 4-1-1 0-2 1-2 3zM31 10.5c1-3 3-3 4-1-1 0-2 1-2 3zM35 9.5c1-3 3-3 4-1-1 0-2 1-2 3z" fill="#f0664a" stroke="#8a2a1a" stroke-width="0.5" stroke-linejoin="round"/>
+  <!-- scales -->
+  <path d="M13 13q1.5 2 3 0M17 17q1.5 2 3 0M21 20q1.5 2 3 0M25 19q1.5 2 3 0M29 16q1.5 2 3 0M33 14q1.5 2 3 0M37 15.5q1.5 2 3 0" stroke="#0f4f5a" stroke-width="0.7" fill="none" opacity="0.6"/>
+  <!-- head -->
+  <path d="M3 15c0-3 2.5-5 6-5 3.5 0 6 2.5 6 5.5S12 20 9 20c-3.5 0-6-2-6-5z" fill="#2f9aa6" stroke="#0f4f5a" stroke-width="0.8"/>
+  <path d="M3.5 16.5c1.5 2 4 3 6.5 2.5" stroke="#e6fbfb" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <!-- head fins (like a lionfish crest) and pearl -->
+  <path d="M8 10.5c-1-3 0.5-5 2.5-6-0.5 2 0 3.5 1 4.5zM11.5 10.5c0.5-3 2-4.5 4-5-1 2-1 3.5-0.5 5zM14 12c2-1 4 0 4.5 2-1.5 0-3 1-4 2.5z" fill="#f0664a" stroke="#8a2a1a" stroke-width="0.6" stroke-linejoin="round"/>
+  <circle cx="2.2" cy="20.5" r="2" fill="#fff6e8"/><circle cx="1.6" cy="19.9" r="0.7" fill="#ffffff"/>
+  <!-- whiskers -->
+  <path d="M4 17c-2 1-3 3-2 5" stroke="#f0664a" stroke-width="1" fill="none" stroke-linecap="round"/>
+  <!-- eye, nostril, mouth -->
+  <circle cx="6.5" cy="14.2" r="2" fill="#fff6d6"/><circle cx="6.8" cy="14.2" r="1.1" fill="#8a2a1a"/><circle cx="6.1" cy="13.6" r="0.5" fill="#fff"/>
+  <path d="M3.4 15.6l2.6 1" stroke="#0f4f5a" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+  <circle cx="4.2" cy="14" r="0.5" fill="#0f4f5a"/>
+  <!-- sparkles -->
+  <path d="M42 5l0.5 1.5 1.5 0.5-1.5 0.5-0.5 1.5-0.5-1.5-1.5-0.5 1.5-0.5zM7 5l0.4 1.2 1.2 0.4-1.2 0.4-0.4 1.2-0.4-1.2-1.2-0.4 1.2-0.4zM44 27l0.4 1.2 1.2 0.4-1.2 0.4-0.4 1.2-0.4-1.2-1.2-0.4 1.2-0.4z" fill="#fff3c4"/>
+</svg>
+`;
+
 // ---- 전설 이무기: a horned serpent, drawn by hand ----
 const IMUGI = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
   <defs>
@@ -205,11 +272,12 @@ const IMUGI = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
 `;
 
 let n = 0;
-for (const [tier, list] of [['common', COMMON], ['rare', RARE], ['epic', EPIC]]) {
+for (const [tier, list] of [['common', COMMON], ['rare', RARE], ['epic', EPIC], ['common', SEA_COMMON], ['rare', SEA_RARE], ['epic', SEA_EPIC]]) {
   const dir = path.join(ROOT, 'icons/fish', tier);
   for (const sp of list) { fs.writeFileSync(path.join(dir, sp.id + '.svg'), fish(sp)); n++; }
 }
 fs.writeFileSync(path.join(ROOT, 'icons/fish/legendary/imugi.svg'), IMUGI); n++;
+fs.writeFileSync(path.join(ROOT, 'icons/fish/legendary/haeryong.svg'), HAERYONG); n++;
 // ---- 꽝 items: hand-drawn, two-tone with highlights ----
 const junk = {
   old_boot: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
@@ -247,5 +315,31 @@ const junk = {
 </svg>
 `
 };
+junk.tangled_net = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <path d="M10 10c6-5 14-6 22-3 6 2 8 8 5 14-3 5-10 7-17 5-8-2-13-9-10-16z" fill="#6d8a79" opacity="0.9"/>
+  <path d="M12 12l24 8M10 18l26-4M14 8l16 18M22 7l6 20M30 8l-10 18M16 24l20-14" stroke="#e8f1e6" stroke-width="0.9" opacity="0.8"/>
+  <path d="M12 12l24 8M10 18l26-4M14 8l16 18M22 7l6 20M30 8l-10 18M16 24l20-14" stroke="#2f4a3e" stroke-width="0.5" opacity="0.6"/>
+  <circle cx="34" cy="9" r="2.4" fill="#f0a24a"/><circle cx="34" cy="9" r="1.1" fill="#fff0c8"/>
+  <path d="M8 22c2-1 4 0 5 1" stroke="#2f4a3e" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+</svg>
+`;
+junk.plastic_bottle = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <path d="M8 13l7-4c1-1 3-1 4 0l3 2h14c3 0 5 2 5 5s-2 5-5 5H22l-3 2c-1 1-3 1-4 0l-7-4c-1-1-1-5 0-6z" fill="#bfe6f2" opacity="0.85"/>
+  <path d="M22 11h14c3 0 5 2 5 5H22z" fill="#e0f4fa" opacity="0.7"/>
+  <rect x="36" y="9" width="6" height="14" rx="2" fill="#4a9ad6"/>
+  <path d="M25 13h8v6h-8z" fill="#f2f6f8" opacity="0.8"/>
+  <path d="M27 15h4M27 17h3" stroke="#7fa6b8" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M10 14l3-1M10 19l3 1" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="6" cy="9" r="1" fill="#bfe6f2" opacity="0.7"/><circle cx="44" cy="27" r="0.8" fill="#bfe6f2" opacity="0.6"/>
+</svg>
+`;
+junk.seaweed_clump = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+  <path d="M14 27c-2-6 0-12 4-16 2 4 1 9-1 14 3-5 8-8 13-8-3 3-5 7-5 11 2-4 6-6 10-6-3 2-4 5-4 8H14z" fill="#3f7a4f"/>
+  <path d="M18 11c1 4 0 8-1 12M30 17c-2 3-3 6-3 9M40 22c-2 1-3 3-3 5" stroke="#8fd4a0" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <path d="M10 27c3-3 5-8 4-13 3 3 3 8 2 13z" fill="#2f5e3d"/>
+  <ellipse cx="22" cy="28" rx="12" ry="1.6" fill="#1f3f2b" opacity="0.6"/>
+  <path d="M26 8q2 3 4 0M34 12q2 3 4 0" stroke="#7fd0dc" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+</svg>
+`;
 for (const [id, svg] of Object.entries(junk)) { fs.writeFileSync(path.join(ROOT, 'icons/result/junk', id + '.svg'), svg); n++; }
 console.log('wrote', n, 'icons');
