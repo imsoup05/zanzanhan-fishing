@@ -1,9 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M4 10.6C4 7.8 7.1 6 12 6s8 1.8 8 4.6V11H4v-0.4z" fill="#8a5a2a"/>
-  <rect x="4" y="11" width="16" height="8" rx="1.6" fill="#a5703a"/>
-  <rect x="4" y="11" width="16" height="8" rx="1.6" fill="none" stroke="#5c3a1a" stroke-width="0.8"/>
-  <path d="M4 11h16" stroke="#5c3a1a" stroke-width="0.8"/>
-  <circle cx="12" cy="13.8" r="1.7" fill="#ffcf6b" stroke="#5c3a1a" stroke-width="0.6"/>
+  <defs>
+    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a5703a"/><stop offset="1" stop-color="#6e4520"/></linearGradient>
+    <linearGradient id="box" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b57a40"/><stop offset="1" stop-color="#8a5a2a"/></linearGradient>
+  </defs>
+  <path d="M4 10.6C4 7.8 7.1 6 12 6s8 1.8 8 4.6V11H4v-0.4z" fill="url(#lid)" stroke="#4a2c12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M7.2 6.6v4.4M16.8 6.6v4.4" stroke="#ffcf6b" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M4.4 11h15.2" stroke="#fff0b8" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+  <rect x="4" y="11" width="16" height="8" rx="1.6" fill="url(#box)" stroke="#4a2c12" stroke-width="0.8"/>
+  <path d="M7.2 11.4v7.2M16.8 11.4v7.2" stroke="#ffcf6b" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="10.2" y="11.6" width="3.6" height="4.2" rx="0.8" fill="#ffcf6b" stroke="#4a2c12" stroke-width="0.6"/>
+  <circle cx="12" cy="13.3" r="0.7" fill="#4a2c12"/><path d="M12 13.6v1.2" stroke="#4a2c12" stroke-width="0.7" stroke-linecap="round"/>
   <path d="M9 2.6l0.9 2 2 0.9-2 0.9-0.9 2-0.9-2-2-0.9 2-0.9z" fill="#ffe1a8"/>
   <path d="M18.6 7.4l0.55 1.2 1.2 0.55-1.2 0.55-0.55 1.2-0.55-1.2-1.2-0.55 1.2-0.55z" fill="#ffe1a8"/>
+  <path d="M3.4 5.2l0.4 0.9 0.9 0.4-0.9 0.4-0.4 0.9-0.4-0.9-0.9-0.4 0.9-0.4z" fill="#ffe1a8" opacity="0.8"/>
 </svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M2.29,16.5 C7.46,7.83 14.36,8.62 19.54,8.62 C27.3,8.62 33.33,13.54 36.78,13.54 L36.78,19.46 C33.33,19.46 27.3,23.4 19.54,23.4 C14.36,23.4 7.46,24.09 2.29,16.5 Z"/></clipPath></defs>
+<path d="M36.28,13.54 L45.78,9.4 L41.28,16.5 L45.78,23.6 L36.28,19.46 Z" fill="#6fa9c4" stroke="#1f4a5a" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M13.54,10.42 L14.84,5.02 L16.14,9.62 L17.44,5.42 L18.74,9.62 L20.04,5.82 L21.34,9.62 L22.64,6.22 L23.94,9.62 L25.24,6.62 L26.54,9.62 Z" fill="#6fa9c4" stroke="#1f4a5a" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
+<path d="M13.29,22.2 L15.29,25.4 L18.29,22.4 Z" fill="#6fa9c4" opacity="0.9"/>
+<path d="M2.29,16.5 C7.46,7.83 14.36,8.62 19.54,8.62 C27.3,8.62 33.33,13.54 36.78,13.54 L36.78,19.46 C33.33,19.46 27.3,23.4 19.54,23.4 C14.36,23.4 7.46,24.09 2.29,16.5 Z" fill="#e6f1f5"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.43" fill="#6fa9c4"/>
+<rect x="0" y="0" width="48" height="12.95" fill="#1f4a5a" opacity="0.22"/>
+<path d="M7.29,17 Q19.54,15.3 36.78,16.5" stroke="#173a48" stroke-width="5.52" fill="none" opacity="0.4" stroke-linecap="round"/>
+</g>
+<path d="M2.29,16.5 C7.46,7.83 14.36,8.62 19.54,8.62 C27.3,8.62 33.33,13.54 36.78,13.54 L36.78,19.46 C33.33,19.46 27.3,23.4 19.54,23.4 C14.36,23.4 7.46,24.09 2.29,16.5 Z" fill="none" stroke="#1f4a5a" stroke-width="0.8" opacity="0.55"/>
+<path d="M11.29,11.77 Q9.79,16.5 11.79,20.64" stroke="#1f4a5a" stroke-width="0.8" fill="none" opacity="0.45"/>
+<path d="M12.29,17 Q17.79,18 16.29,21 Q13.29,20.5 12.29,17 Z" fill="#6fa9c4" stroke="#1f4a5a" stroke-width="0.6" opacity="0.95"/>
+<circle cx="8.89" cy="14.3" r="2" fill="#f6f4ea"/><circle cx="9.19" cy="14.3" r="1.1" fill="#0d161a"/><circle cx="8.39" cy="13.6" r="0.5" fill="#fff"/>
+<path d="M2.89,17.3 l2.4,-1.6" stroke="#1f4a5a" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+</svg>

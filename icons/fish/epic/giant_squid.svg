@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M3.18,10.86 C7.14,3.99 11.65,4.58 14.47,4.58 C22.38,4.58 28.52,13.74 32.04,13.74 L32.04,19.26 C28.52,19.26 22.38,27.54 14.47,27.54 C11.65,27.54 7.14,28.09 3.18,22.14 Q1.68,16.5 3.18,10.86 Z"/></clipPath><radialGradient id="halo"><stop offset="0" stop-color="#b48cf0" stop-opacity="0.55"/><stop offset="0.6" stop-color="#b48cf0" stop-opacity="0.18"/><stop offset="1" stop-color="#b48cf0" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="24" cy="16" rx="23.5" ry="15.5" fill="url(#halo)"/>
+<path d="M3.18,10.86 C7.14,3.99 11.65,4.58 14.47,4.58 C22.38,4.58 28.52,13.74 32.04,13.74 L32.04,19.26 C28.52,19.26 22.38,27.54 14.47,27.54 C11.65,27.54 7.14,28.09 3.18,22.14 Q1.68,16.5 3.18,10.86 Z" fill="#a58cd0"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="19.59" fill="#6b3fa0"/>
+<rect x="0" y="0" width="48" height="11.14" fill="#2a1040" opacity="0.22"/>
+</g>
+<path d="M3.18,10.86 C7.14,3.99 11.65,4.58 14.47,4.58 C22.38,4.58 28.52,13.74 32.04,13.74 L32.04,19.26 C28.52,19.26 22.38,27.54 14.47,27.54 C11.65,27.54 7.14,28.09 3.18,22.14 Q1.68,16.5 3.18,10.86 Z" fill="none" stroke="#2a1040" stroke-width="0.8" opacity="0.55"/>
+<circle cx="13.4" cy="15.16" r="2.6" fill="#f6f4ea"/><circle cx="13.7" cy="15.16" r="1.43" fill="#0d161a"/><circle cx="12.9" cy="14.46" r="0.5" fill="#fff"/>
+<path d="M5.18,17.5 q-1.4,2 -2.2,4" stroke="#5a3090" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M5.18,18.1 q-4.2,3.25 -6.6,6.5" stroke="#5a3090" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M5.18,18.7 q-5.6,1 -8.8,2" stroke="#5a3090" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M5.18,19.3 q-3.5,4.25 -5.5,8.5" stroke="#5a3090" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M5.18,19.9 q0.7,3.75 1.1,7.5" stroke="#5a3090" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+<path d="M18 7c-3-5-7-4-9 0 2-1 5-1 7 1zM26 7c3-5 7-4 9 0-2-1-5-1-7 1z" fill="#6b3fa0" stroke="#2a1040" stroke-width="0.6" stroke-linejoin="round"/>
+</svg>

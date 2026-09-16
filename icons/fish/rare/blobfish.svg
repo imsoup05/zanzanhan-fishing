@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M8.9,16.5 C11.92,6.52 15.95,7.43 18.98,7.43 C24.42,7.43 28.65,14.08 31.07,14.08 L31.07,18.92 C28.65,18.92 24.42,24.97 18.98,24.97 C15.95,24.97 11.92,25.81 8.9,16.5 Z"/></clipPath></defs>
+<path d="M30.57,14.08 Q35.67,11.9 35.07,16.5 Q35.67,21.1 30.57,18.92 Z" fill="#d0a0a0" stroke="#6a4040" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M8.9,16.5 C11.92,6.52 15.95,7.43 18.98,7.43 C24.42,7.43 28.65,14.08 31.07,14.08 L31.07,18.92 C28.65,18.92 24.42,24.97 18.98,24.97 C15.95,24.97 11.92,25.81 8.9,16.5 Z" fill="#f0d0d0"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.87" fill="#d0a0a0"/>
+<rect x="0" y="0" width="48" height="12.42" fill="#6a4040" opacity="0.22"/>
+</g>
+<path d="M8.9,16.5 C11.92,6.52 15.95,7.43 18.98,7.43 C24.42,7.43 28.65,14.08 31.07,14.08 L31.07,18.92 C28.65,18.92 24.42,24.97 18.98,24.97 C15.95,24.97 11.92,25.81 8.9,16.5 Z" fill="none" stroke="#6a4040" stroke-width="0.8" opacity="0.55"/>
+<path d="M17.9,11.06 Q16.4,16.5 18.4,21.58" stroke="#6a4040" stroke-width="0.8" fill="none" opacity="0.45"/>
+<path d="M18.9,17 Q24.4,18 22.9,21 Q19.9,20.5 18.9,17 Z" fill="#d0a0a0" stroke="#6a4040" stroke-width="0.6" opacity="0.95"/>
+<circle cx="14.3" cy="14.7" r="1.5" fill="#f6f4ea"/><circle cx="14.6" cy="14.7" r="0.83" fill="#0d161a"/><circle cx="13.8" cy="14" r="0.5" fill="#fff"/>
+<path d="M9.5,17.3 l2.6,0.9" stroke="#6a4040" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+<path d="M8 20c2 1 4 1 6 0" stroke="#6a4040" stroke-width="1" fill="none" stroke-linecap="round"/><ellipse cx="10" cy="17.5" rx="2" ry="1.4" fill="#e6b8b8"/>
+</svg>

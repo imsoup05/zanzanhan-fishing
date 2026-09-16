@@ -45,41 +45,42 @@
 
   // ---- 보상 (v1.1) ----
   // One reward per achievement, keyed by id: { shells }, { gems }, { bait:
-  // { rare|epic|legendary: n } }, or a combination. Tiered by how hard the
-  // achievement is -- roughly 조개 100~300 for the freebies, 300~500 or a
-  // couple of 희귀 미끼 for mid goals, 1,000~2,000 or 특급 미끼 for the
-  // long grinds, and 보석/전설 미끼 for the capstones. Totals across all
-  // 58: 조개 25,450 · 보석 13 · 희귀 미끼 8 · 특급 미끼 22 · 전설 미끼 5.
+  // { rare|epic|legendary: n } }, or a combination. Curve-shaped (v1.3):
+  // the freebies pay a token 30~50 so early income comes from fishing, not
+  // from ticking boxes; mid goals 80~300 or a 희귀 미끼; the long grinds
+  // 500~1,000 or 특급 미끼; capstones 보석/전설 미끼.
+  // Totals across all 61: 조개 9,720 · 보석 12 · 희귀 미끼 3 · 특급 미끼 12 · 전설 미끼 6.
   const REWARDS = {
     // 낚시
-    first_cast: { shells: 100 }, casts_100: { shells: 500 }, first_fish: { shells: 150 },
-    fish_10: { shells: 300 }, fish_50: { bait: { rare: 3 } }, fish_100: { shells: 1500 },
+    first_cast: { shells: 30 }, casts_100: { shells: 200 }, first_fish: { shells: 30 },
+    fish_10: { shells: 80 }, fish_50: { bait: { rare: 1 } }, fish_100: { shells: 500 },
     fish_500: { gems: 1 }, fish_1000: { bait: { legendary: 1 } },
-    first_junk: { shells: 100 }, junk_30: { shells: 800 },
-    first_rare: { bait: { rare: 2 } }, first_epic: { bait: { epic: 1 } }, epic_10: { bait: { epic: 3 } },
-    legendary_5: { gems: 2 }, streak_5: { shells: 400 }, streak_15: { bait: { epic: 2 } },
-    perfect_epic: { shells: 1000 }, first_fail: { shells: 100 }, clutch: { shells: 300 },
-    junk_streak_3: { shells: 200 }, big_100: { shells: 1000 }, same_species_3: { shells: 300 },
+    first_junk: { shells: 30 }, junk_30: { shells: 200 },
+    first_rare: { bait: { rare: 1 } }, first_epic: { bait: { epic: 1 } }, epic_10: { bait: { epic: 2 } },
+    legendary_5: { gems: 2 }, streak_5: { shells: 100 }, streak_15: { shells: 800 },
+    perfect_epic: { shells: 500 }, first_fail: { shells: 30 }, clutch: { shells: 100 },
+    junk_streak_3: { shells: 50 }, big_100: { shells: 500 }, same_species_3: { shells: 100 },
     // 도감
-    dex_5: { shells: 300 }, dex_10: { bait: { rare: 2 } }, dex_20: { bait: { epic: 2 } },
-    dex_common_all: { shells: 1500 }, dex_rare_all: { gems: 1 }, dex_epic_all: { gems: 1 },
-    dex_all: { bait: { legendary: 1 }, gems: 2 }, species_10: { shells: 500 }, species_50: { shells: 2000 },
+    dex_5: { shells: 80 }, dex_10: { bait: { rare: 1 } }, dex_20: { bait: { epic: 1 } },
+    dex_common_all: { shells: 500 }, dex_rare_all: { gems: 1 }, dex_epic_all: { gems: 1 },
+    dex_all: { bait: { legendary: 1 } }, species_10: { shells: 150 }, species_50: { shells: 800 },
     // 상점
-    first_sell: { shells: 100 }, shells_1000: { shells: 300 }, shells_10000: { shells: 1000 },
-    shells_100000: { gems: 2 }, earned_50000: { bait: { epic: 3 } }, sale_5000: { shells: 2000 },
-    first_gem: { shells: 500 },
+    first_sell: { shells: 30 }, shells_1000: { shells: 100 }, shells_10000: { shells: 300 },
+    shells_100000: { gems: 1 }, earned_50000: { bait: { epic: 2 } }, sale_5000: { shells: 800 },
+    first_gem: { shells: 150 },
     // 뽑기
-    first_pull: { bait: { rare: 1 } }, first_ten: { shells: 500 }, pulls_100: { bait: { epic: 2 } },
-    legendary_bait: { shells: 1000 }, pity: { gems: 1 }, bait_all_used: { shells: 800 },
+    first_pull: { shells: 30 }, first_ten: { shells: 100 }, pulls_100: { bait: { epic: 1 } },
+    legendary_bait: { shells: 300 }, pity: { gems: 1 }, bait_all_used: { shells: 300 },
     // 강화
-    rod_lv2: { shells: 200 }, rod_rare: { shells: 2000 }, rod_epic: { bait: { epic: 3 } },
-    rod_max: { bait: { legendary: 1 } }, stat_max_one: { shells: 1500 }, stat_max_all: { bait: { legendary: 1 } },
+    rod_lv2: { shells: 30 }, rod_rare: { shells: 800 }, rod_epic: { bait: { epic: 2 } },
+    rod_max: { bait: { legendary: 1 } }, stat_max_one: { shells: 500 }, stat_max_all: { bait: { legendary: 1 } },
+    // 낚시터
+    stage_sea: { shells: 200 }, dex_sea_all: { bait: { epic: 2 } }, first_sea_legendary: { gems: 1 },
+    stage_abyss: { gems: 1 }, dex_abyss_all: { bait: { legendary: 1 } }, first_abyss_legendary: { gems: 2 },
     // 히든
     hidden_first_legendary: { gems: 1 }, hidden_biggest_imugi: { bait: { legendary: 1 } },
-    hidden_same_species_5: { shells: 1000 }, hidden_pulls_300: { bait: { epic: 3 } },
-    hidden_ten_epics: { shells: 3000 },
-    // 낚시터
-    stage_sea: { shells: 500 }, dex_sea_all: { bait: { epic: 3 } }, first_haeryong: { gems: 2 }
+    hidden_same_species_5: { shells: 300 }, hidden_pulls_300: { bait: { epic: 1 } },
+    hidden_ten_epics: { shells: 1000 }
   };
   // Flattens a reward into renderable parts: [{ icon, text }] in a fixed
   // order (조개, 보석, then baits low -> high) so every row reads the same.
@@ -97,6 +98,29 @@
     return parts;
   }
   function rewardLabel(reward) { return rewardParts(reward).map((p) => p.text).join(' + '); }
+  // Trophy metal per achievement. Reward size already tracks how hard the
+  // thing is (the REWARDS table was tuned that way), so the tier is derived
+  // from a shell-equivalent value rather than tagged by hand:
+  //   동 <= 100, 은 <= 300, 금 <= 900, 백금 above that (legendary bait,
+  //   2 gems, 1,000 shells).
+  const TROPHY_TIERS = {
+    bronze: { key: 'bronze', label: '동', icon: 'icons/ui/trophy-bronze.svg' },
+    silver: { key: 'silver', label: '은', icon: 'icons/ui/trophy-silver.svg' },
+    gold: { key: 'gold', label: '금', icon: 'icons/ui/trophy-gold.svg' },
+    platinum: { key: 'platinum', label: '백금', icon: 'icons/ui/trophy-platinum.svg' }
+  };
+  const BAIT_VALUE = { rare: 150, epic: 500, legendary: 1500 };
+  function rewardValue(reward) {
+    if (!reward) return 0;
+    let v = reward.shells || 0;
+    v += (reward.gems || 0) * 900;
+    if (reward.bait) for (const k in reward.bait) v += (reward.bait[k] || 0) * (BAIT_VALUE[k] || 0);
+    return v;
+  }
+  function trophyTier(a) {
+    const v = rewardValue(a.reward);
+    return v <= 100 ? TROPHY_TIERS.bronze : v <= 300 ? TROPHY_TIERS.silver : v <= 900 ? TROPHY_TIERS.gold : TROPHY_TIERS.platinum;
+  }
 
   // ctx = { s: stats above, catches, shells, gems, rod, playerStats, stagesUnlocked }
   // discovered()/dex_*_all/dex_all read FISH_BY_TIER = the 호수 roster only,
@@ -112,6 +136,7 @@
   const stageTotal = (st) => stagePools(st).reduce((n, a) => n + a.length, 0);
   const discoveredStage = (c, st) => stagePools(st).reduce((n, a) => n + a.filter((sp) => c.catches[sp.id]).length, 0);
   const caughtCount = (c, id) => (c.catches[id] && c.catches[id].count) || 0;
+  const stageLegendaryCount = (c, st) => ((FishData.FISH_BY_STAGE[st] || {}).legendary || []).reduce((n, sp) => n + caughtCount(c, sp.id), 0);
 
   // Counting goals get a progress readout; flags just flip.
   const counter = (get, goal) => ({ test: (c) => get(c) >= goal, progress: (c) => [Math.min(get(c), goal), goal] });
@@ -132,7 +157,7 @@
     { id: 'first_rare', cat: '낚시', title: '첫 희귀 물고기!', desc: '희귀 등급 물고기를 처음 낚았다', ...counter((c) => c.s.tierTotals.rare, 1) },
     { id: 'first_epic', cat: '낚시', title: '첫 특급 물고기!', desc: '특급 등급 물고기를 처음 낚았다', ...counter((c) => c.s.tierTotals.epic, 1) },
     { id: 'epic_10', cat: '낚시', title: '특급 물고기 10마리', desc: '특급 등급 물고기를 10마리 낚았다', ...counter((c) => c.s.tierTotals.epic, 10) },
-    { id: 'legendary_5', cat: '낚시', title: '이무기를 5번 낚았다!', desc: '전설 등급 물고기를 5마리 낚았다', ...counter((c) => c.s.tierTotals.legendary, 5) },
+    { id: 'legendary_5', cat: '낚시', title: '전설 물고기 5마리', desc: '전설 등급 물고기를 5마리 낚았다', ...counter((c) => c.s.tierTotals.legendary, 5) },
     { id: 'streak_5', cat: '낚시', title: '5연속 낚기 성공!', desc: '놓치지 않고 5마리를 연속으로 낚았다', ...counter((c) => c.s.maxStreak, 5) },
     { id: 'streak_15', cat: '낚시', title: '15연속 낚기 성공!', desc: '놓치지 않고 15마리를 연속으로 낚았다', ...counter((c) => c.s.maxStreak, 15) },
     { id: 'perfect_epic', cat: '낚시', title: '완벽한 릴링', desc: '미스 없이 특급 이상 물고기를 낚았다', ...counter((c) => c.s.perfectEpic, 1) },
@@ -176,7 +201,10 @@
     // ---- 낚시터 ----
     { id: 'stage_sea', cat: '낚시터', title: '바다로!', desc: '바다 낚시터를 열었다', ...flag((c) => (c.stagesUnlocked || []).includes('sea')) },
     { id: 'dex_sea_all', cat: '낚시터', title: '바다 도감 완성', desc: '바다의 모든 물고기를 낚았다', ...counter((c) => discoveredStage(c, 'sea'), stageTotal('sea')) },
-    { id: 'first_haeryong', cat: '낚시터', title: '해룡을 낚았다!', desc: '바다의 전설, 해룡을 처음 낚았다', ...counter((c) => caughtCount(c, 'haeryong'), 1) },
+    { id: 'first_sea_legendary', cat: '낚시터', title: '바다의 전설을 낚았다!', desc: '해룡·용궁 거북·폭풍 범고래 중 하나를 처음 낚았다', ...counter((c) => stageLegendaryCount(c, 'sea'), 1) },
+    { id: 'stage_abyss', cat: '낚시터', title: '심해로!', desc: '심해 낚시터를 열었다', ...flag((c) => (c.stagesUnlocked || []).includes('abyss')) },
+    { id: 'dex_abyss_all', cat: '낚시터', title: '심해 도감 완성', desc: '심해의 모든 생물을 낚았다', ...counter((c) => discoveredStage(c, 'abyss'), stageTotal('abyss')) },
+    { id: 'first_abyss_legendary', cat: '낚시터', title: '심연의 전설을 낚았다!', desc: '리바이어던·크라켄·별빛아귀 중 하나를 처음 낚았다', ...counter((c) => stageLegendaryCount(c, 'abyss'), 1) },
     // ---- 히든: invisible until cleared, then listed in their own category
     // with a badge. The panel only ever shows how many are still unfound.
     { id: 'hidden_first_legendary', cat: '낚시', hidden: true, title: '전설급 물고기를 처음으로 낚았다!', desc: '이무기를 처음 낚았다', ...flag((c) => c.s.tierTotals.legendary >= 1) },
@@ -197,5 +225,5 @@
     return LIST.filter((a) => !unlocked[a.id] && a.test(ctx)).map((a) => a.id);
   }
 
-  window.Achievements = { LIST, byId: (id) => BY_ID[id], freshState, freshStats, stateFromLegacySave, evaluate, rewardParts, rewardLabel };
+  window.Achievements = { LIST, byId: (id) => BY_ID[id], freshState, freshStats, stateFromLegacySave, evaluate, rewardParts, rewardLabel, TROPHY_TIERS, trophyTier };
 })();

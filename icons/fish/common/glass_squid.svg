@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
+<defs><clipPath id="b"><path d="M9.4,12.72 C12.05,8.12 15.07,8.52 16.96,8.52 C22.25,8.52 26.37,14.65 28.72,14.65 L28.72,18.35 C26.37,18.35 22.25,23.89 16.96,23.89 C15.07,23.89 12.05,24.26 9.4,20.28 Q7.9,16.5 9.4,12.72 Z"/></clipPath></defs>
+<g opacity="0.8">
+<path d="M28.22,14.65 Q32.17,12.99 31.72,16.5 Q32.17,20.01 28.22,18.35 Z" fill="#9fd3d3" stroke="#3a6a6a" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M9.4,12.72 C12.05,8.12 15.07,8.52 16.96,8.52 C22.25,8.52 26.37,14.65 28.72,14.65 L28.72,18.35 C26.37,18.35 22.25,23.89 16.96,23.89 C15.07,23.89 12.05,24.26 9.4,20.28 Q7.9,16.5 9.4,12.72 Z" fill="#dff5f5"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.57" fill="#9fd3d3"/>
+<rect x="0" y="0" width="48" height="12.91" fill="#3a6a6a" opacity="0.22"/>
+<circle cx="14.81" cy="15.22" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="17.51" cy="18.42" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="20.22" cy="14.27" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="22.92" cy="18.1" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="25.63" cy="15.86" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="16.16" cy="20.65" r="0.8" fill="#9ff5b0" opacity="0.95"/><circle cx="21.38" cy="20.97" r="0.8" fill="#9ff5b0" opacity="0.95"/>
+</g>
+<path d="M9.4,12.72 C12.05,8.12 15.07,8.52 16.96,8.52 C22.25,8.52 26.37,14.65 28.72,14.65 L28.72,18.35 C26.37,18.35 22.25,23.89 16.96,23.89 C15.07,23.89 12.05,24.26 9.4,20.28 Q7.9,16.5 9.4,12.72 Z" fill="none" stroke="#3a6a6a" stroke-width="0.8" opacity="0.55"/>
+</g>
+<circle cx="17.4" cy="15.6" r="2.6" fill="#f6f4ea"/><circle cx="17.7" cy="15.6" r="1.43" fill="#0d161a"/><circle cx="16.9" cy="14.9" r="0.5" fill="#fff"/>
+<path d="M11.4,17.5 q-1.4,2 -2.2,4" stroke="#7fb8b8" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M11.4,18.1 q-4.2,3.25 -6.6,6.5" stroke="#7fb8b8" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M11.4,18.7 q-5.6,1 -8.8,2" stroke="#7fb8b8" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M11.4,19.3 q-3.5,4.25 -5.5,8.5" stroke="#7fb8b8" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M11.4,19.9 q0.7,3.75 1.1,7.5" stroke="#7fb8b8" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+</svg>

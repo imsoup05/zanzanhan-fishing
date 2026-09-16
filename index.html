@@ -174,8 +174,16 @@
         <button class="bait-menu-item" data-bait="common">
           <span class="bait-menu-circle">
             <img class="bait-menu-icon" src="icons/ui/bait-common.svg" alt="">
+            <span class="bait-menu-count" data-bait-count="common"></span>
           </span>
           <span class="bait-menu-name">일반</span>
+        </button>
+        <!-- Bare hook: always available; 전설 never bites on it. -->
+        <button class="bait-menu-item" data-bait="none">
+          <span class="bait-menu-circle">
+            <img class="bait-menu-icon" src="icons/ui/bait-none.svg" alt="">
+          </span>
+          <span class="bait-menu-name">없음</span>
         </button>
       </div>
     </nav>
@@ -205,12 +213,33 @@
       <nav class="shop-tabs">
         <button class="shop-tab active" data-tab="gacha">뽑기</button>
         <button class="shop-tab" data-tab="sell">판매</button>
-        <button class="shop-tab" data-tab="upgrade">업그레이드</button>
+        <button class="shop-tab" data-tab="upgrade">강화</button>
       </nav>
       <div class="shop-body">
         <div id="shop-tab-gacha" class="shop-tab-panel">
+          <!-- The chest on a little stage: slow-turning light rays behind
+               it, a breathing glow ring, floating shell-dust, an ellipse of
+               floor light under it. All CSS (see .gacha-stage). -->
           <div class="gacha-hero">
-            <img class="gacha-hero-img" src="icons/shop/gacha-chest.svg" alt="">
+            <div class="gacha-stage">
+              <div class="gacha-rays"></div>
+              <div class="gacha-ring"></div>
+              <div class="gacha-dust"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="gacha-pedestal"></div>
+              <img class="gacha-hero-img" src="icons/shop/gacha-chest.svg" alt="">
+            </div>
+          </div>
+          <!-- Rates as one chip per tier, bait art from the picker. -->
+          <div class="gacha-rate-chips">
+            <span class="gacha-rate-chip tier-legendary"><img src="icons/ui/bait-legendary.svg" alt=""><b>전설</b>1%</span>
+            <span class="gacha-rate-chip tier-epic"><img src="icons/ui/bait-epic.svg" alt=""><b>특급</b>11.6%</span>
+            <span class="gacha-rate-chip tier-rare"><img src="icons/ui/bait-rare.svg" alt=""><b>희귀</b>29.9%</span>
+            <span class="gacha-rate-chip tier-common"><img src="icons/ui/bait-common.svg" alt=""><b>일반</b>57.5%</span>
+          </div>
+          <!-- 천장 progress: fills toward the guaranteed 전설 (renderGachaTab). -->
+          <div class="gacha-pity">
+            <div class="gacha-pity-text"><span>전설 확정(천장)까지</span><b id="gacha-pity-left">80뽑</b></div>
+            <div class="gacha-pity-bar"><i id="gacha-pity-fill"></i></div>
           </div>
           <div class="gacha-pull-buttons">
             <button id="gacha-pull1-btn" class="gacha-pull-btn">
@@ -222,7 +251,7 @@
               <span class="gacha-pull-cost"><img class="price-icon" src="icons/ui/shell.svg" alt="">1,500</span>
             </button>
           </div>
-          <p class="gacha-rates">확률: 전설 1% · 특급 11.6% · 희귀 29.9% · 조개 환급 57.5%<br>조개 환급 카드는 조개 100개를 바로 돌려줘요<br>10뽑은 특급 이상 1개 이상 확정 · 80뽑 안에 전설 확정(천장)</p>
+          <p class="gacha-rates">미끼가 있어야 전설 물고기가 와요</p>
         </div>
         <div id="shop-tab-sell" class="shop-tab-panel hidden">
           <div id="sell-list" class="sell-list"></div>
@@ -247,10 +276,19 @@
                 </div>
                 <button id="rod-upgrade-btn" class="upgrade-btn">강화</button>
               </div>
+              <!-- Footer strip: 릴링 존 bonus now -> after the next level (renderUpgradeTab). -->
+              <div id="rod-effect" class="upgrade-effect"></div>
             </div>
             <!-- 근력/행운/정밀함 -- built entirely from FishData.PLAYER_STATS in
                  game.js's renderStatsList(), same row shape every time. -->
             <div id="stats-list" class="stats-list"></div>
+            <!-- Everything the rod + stats add up to right now, as four
+                 chips -- fills the tab's tail and makes the numbers above
+                 mean something. Rebuilt by renderUpgradeSummary(). -->
+            <div class="upgrade-summary">
+              <div class="upgrade-summary-title">지금 내 보너스</div>
+              <div id="upgrade-summary-chips" class="upgrade-summary-chips"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -351,7 +389,30 @@
         </button>
       </div>
       <div class="shop-body">
+        <!-- One banner card per 낚시터 (renderStageMenu); tapping a card
+             slides the detail sheet below up over the whole panel. -->
         <div id="stage-list" class="stage-list"></div>
+      </div>
+      <!-- Detail sheet for one 낚시터: description, unlock conditions and
+           the 이동/해금 button live here, not on the list cards. -->
+      <div id="stage-detail" class="stage-detail hidden">
+        <div id="stage-detail-banner" class="stage-detail-banner">
+          <button type="button" id="stage-detail-back" class="stage-detail-back">낚시터 목록</button>
+          <img id="stage-detail-icon" class="stage-detail-icon" src="" alt="">
+          <div class="stage-detail-title">
+            <div class="stage-detail-head"><div id="stage-detail-name" class="stage-detail-name"></div><span id="stage-detail-badge" class="stage-card-badge hidden"></span></div>
+            <div id="stage-detail-tagline" class="stage-detail-tagline"></div>
+          </div>
+        </div>
+        <div class="stage-detail-body">
+          <p id="stage-detail-desc" class="stage-card-desc"></p>
+          <div id="stage-detail-meta" class="stage-card-meta"></div>
+          <ul id="stage-detail-conds" class="stage-conds"></ul>
+          <div class="stage-detail-actions">
+            <button type="button" id="stage-detail-btn" class="main-btn stage-card-btn hidden"></button>
+            <p id="stage-detail-note" class="stage-note hidden"></p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -495,7 +556,15 @@
     <div id="gacha-reveal-panel" class="gacha-reveal-panel">
       <div id="gacha-flash" class="splash-flash"></div>
       <h2 class="result-title">뽑기 결과</h2>
-      <p class="gacha-reveal-hint">카드를 눌러서 하나씩 확인하세요</p>
+      <p id="gacha-reveal-hint" class="gacha-reveal-hint">카드를 눌러서 하나씩 확인하세요</p>
+      <!-- Spotlight: once every card is face-up, the best-tier card lifts
+           out of the grid onto this little stage (rays + ring in its tier
+           colour). Stays hidden when the batch was all 일반. -->
+      <div id="gacha-spotlight" class="gacha-spotlight hidden">
+        <div class="gacha-spot-rays"></div>
+        <div class="gacha-spot-ring"></div>
+        <div id="gacha-spot-card" class="gacha-spot-card"><img alt=""><span></span></div>
+      </div>
       <div id="gacha-card-grid" class="gacha-card-grid"></div>
       <div class="gacha-reveal-actions">
         <button id="gacha-action-btn" class="main-btn gacha-secondary-btn">전체 공개</button>

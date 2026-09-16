@@ -1,31 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
   <defs>
     <radialGradient id="halo"><stop offset="0" stop-color="#ffd76a" stop-opacity="0.6"/><stop offset="0.6" stop-color="#ffd76a" stop-opacity="0.2"/><stop offset="1" stop-color="#ffd76a" stop-opacity="0"/></radialGradient>
-    <linearGradient id="bodyg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b7fc4"/><stop offset="0.55" stop-color="#5aa6dd"/><stop offset="1" stop-color="#cfe9f7"/></linearGradient>
+    <linearGradient id="bodyg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e5a68"/><stop offset="0.55" stop-color="#3b8f98"/><stop offset="1" stop-color="#c9e6dc"/></linearGradient>
+    <radialGradient id="irisg" cx="0.42" cy="0.4" r="0.7"><stop offset="0" stop-color="#fff1a8"/><stop offset="0.55" stop-color="#f4c542"/><stop offset="1" stop-color="#c9822a"/></radialGradient>
   </defs>
   <ellipse cx="24" cy="16" rx="23.5" ry="15.5" fill="url(#halo)"/>
-  <!-- tail plume -->
-  <path d="M39 20c3-4 6-4 8-1-2 0-3 1-4 3 2 0 4 1 4 3-3-1-5 0-7 2 0-2-1-4-1-7z" fill="#ffcf4d" stroke="#8a5a10" stroke-width="0.6" stroke-linejoin="round"/>
-  <!-- body: an S-curve, base colour then a lighter belly stroke -->
-  <path d="M9 17c5-6 10 7 16 2s8-9 15 1" stroke="#1f4f80" stroke-width="8.2" fill="none" stroke-linecap="round"/>
-  <path d="M9 17c5-6 10 7 16 2s8-9 15 1" stroke="url(#bodyg)" stroke-width="7" fill="none" stroke-linecap="round"/>
-  <path d="M10 18.5c5-5 9.5 6 15.5 1.5s8-8 14.5 1.5" stroke="#e6f4fb" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.8"/>
-  <!-- dorsal spines along the back -->
-  <path d="M15 12l1-3 1.5 2.5M20 13.5l1.2-3 1.4 2.6M27 15.5l1-3 1.5 2.5M31 13l1.2-3 1.4 2.6M35 12.5l1-3 1.5 2.5" fill="#ffcf4d" stroke="#8a5a10" stroke-width="0.5" stroke-linejoin="round"/>
-  <!-- scale marks -->
-  <path d="M13 15q1.5 2 3 0M17 19q1.5 2 3 0M21 21q1.5 2 3 0M25 20q1.5 2 3 0M29 17q1.5 2 3 0M33 15q1.5 2 3 0M37 17q1.5 2 3 0" stroke="#1f4f80" stroke-width="0.7" fill="none" opacity="0.6"/>
-  <!-- head -->
-  <path d="M3 17c0-3 2.5-5 6-5 3.5 0 6 2.5 6 5.5S12 22 9 22c-3.5 0-6-2-6-5z" fill="#4a94d0" stroke="#1f4f80" stroke-width="0.8"/>
-  <path d="M3.5 18.5c1.5 2 4 3 6.5 2.5" stroke="#e6f4fb" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.8"/>
-  <!-- horns and mane -->
-  <path d="M8 12.5c-1-3 0-5 2-6-0.5 2 0 3.5 1 4.5zM11.5 12.5c0-3 1.5-4.5 3.5-5-1 2-1 3.5-0.5 5z" fill="#ffcf4d" stroke="#8a5a10" stroke-width="0.6" stroke-linejoin="round"/>
-  <path d="M13 13c2-1 4-1 5 1-1.5 0.5-3 1.5-4 3z" fill="#ffcf4d" stroke="#8a5a10" stroke-width="0.5" stroke-linejoin="round"/>
-  <!-- whiskers -->
-  <path d="M4 19c-2 1-3 3-2.5 5M5 20.5c-2 1.5-2 4-1 6" stroke="#ffcf4d" stroke-width="1" fill="none" stroke-linecap="round"/>
-  <!-- eye, nostril, mouth -->
-  <circle cx="6.5" cy="16.2" r="2" fill="#fff6d6"/><circle cx="6.8" cy="16.2" r="1.1" fill="#8a2a1a"/><circle cx="6.1" cy="15.6" r="0.5" fill="#fff"/>
-  <path d="M3.4 17.6l2.6 1" stroke="#1f4f80" stroke-width="0.9" fill="none" stroke-linecap="round"/>
-  <circle cx="4.2" cy="16" r="0.5" fill="#1f4f80"/>
-  <!-- sparkles -->
-  <path d="M42 5l0.5 1.5 1.5 0.5-1.5 0.5-0.5 1.5-0.5-1.5-1.5-0.5 1.5-0.5zM7 6l0.4 1.2 1.2 0.4-1.2 0.4-0.4 1.2-0.4-1.2-1.2-0.4 1.2-0.4zM44 27l0.4 1.2 1.2 0.4-1.2 0.4-0.4 1.2-0.4-1.2-1.2-0.4 1.2-0.4z" fill="#fff3c4"/>
+  <path d="M10 18c4-7 9 6 15 2s7-9 12-3 5 8 8 7" stroke="#123f4a" stroke-width="8.4" fill="none" stroke-linecap="round"/>
+  <path d="M10 18c4-7 9 6 15 2s7-9 12-3 5 8 8 7" stroke="url(#bodyg)" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M11 19.5c4-6 8.5 5 14.5 1s7-8 11.5-2.5 5 7.5 8 6.5" stroke="#e2f3ee" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <path d="M13 15.5q1.5 2 3 0M16 20q1.5 2 3 0M21 21.5q1.5 2 3 0M25 20q1.5 2 3 0M29 16.5q1.5 2 3 0M33 14.5q1.5 2 3 0M37 17.5q1.5 2 3 0M41 21q1.5 2 3 0" stroke="#123f4a" stroke-width="0.7" fill="none" opacity="0.65"/>
+  <path d="M17 13.5q1.2 1.6 2.4 0M23 15.5q1.2 1.6 2.4 0M31 12.5q1.2 1.6 2.4 0M36 14q1.2 1.6 2.4 0" stroke="#0d2f38" stroke-width="0.6" fill="none" opacity="0.5"/>
+  <path d="M44 23c2 0 3 1 4 2-1 1-3 1-5 0z" fill="#2f7f88" stroke="#123f4a" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M2.5 18.5c0-3 2.5-5.5 6.5-5.5 4 0 7 2.5 7 5.5S12.5 24 9 24c-4 0-6.5-2-6.5-5.5z" fill="#2f7f88" stroke="#123f4a" stroke-width="0.8"/>
+  <path d="M3 20c2 2 5 3 9 2" stroke="#e2f3ee" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.75"/>
+  <path d="M11 14.5c2 0 3 0.5 4 1.5" stroke="#0d2f38" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <ellipse cx="7.3" cy="17.6" rx="2.75" ry="1.85" fill="#0d2f38" transform="rotate(-9 7.3 17.6)"/>
+  <ellipse cx="7.35" cy="17.65" rx="2.1" ry="1.4" fill="url(#irisg)" transform="rotate(-9 7.35 17.65)"/>
+  <circle cx="7.6" cy="17.75" r="0.95" fill="#0d2f38"/>
+  <circle cx="7.0" cy="17.1" r="0.45" fill="#fff"/><circle cx="8.15" cy="18.35" r="0.24" fill="#fff" opacity="0.85"/>
+  <path d="M4.6 15.9c1.3-1.1 3.6-1.3 5.5-0.5" stroke="#0d2f38" stroke-width="0.95" fill="none" stroke-linecap="round"/>
+  <circle cx="3.5" cy="18.4" r="0.42" fill="#0d2f38"/>
+  <path d="M2.8 19.8l5 0.8" stroke="#0d2f38" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+  <path d="M2.6 19.9l-2.2 0.5M0.4 20.4l0.9 0.9M0.4 20.4l0.4-1" stroke="#e0524a" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+  <path d="M14 27q3-1.5 6 0M30 28q3-1.5 6 0" stroke="#9fd6dc" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M42 5l0.5 1.5 1.5 0.5-1.5 0.5-0.5 1.5-0.5-1.5-1.5-0.5 1.5-0.5zM7 6l0.4 1.2 1.2 0.4-1.2 0.4-0.4 1.2-0.4-1.2-1.2-0.4 1.2-0.4z" fill="#fff3c4"/>
 </svg>

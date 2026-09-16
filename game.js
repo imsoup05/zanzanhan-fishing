@@ -78,87 +78,185 @@ function __zzhInit() {
   let bgmNodes = null; // non-null while playing, so start/stop are idempotent
   let sparkleTimer = null;
   let chordTimer = null;
-  const BGM_PENTATONIC = [329.63, 392.00, 440.00, 523.25, 587.33, 659.25]; // E G A C D E, kept mid/high so it reads as light sparkle, not a low drone
-  // Slow I - vi - IV - V-ish progression, calm/major throughout (no minor-key
-  // tension), each chord a plain close triad so nothing clashes.
-  const BGM_CHORDS = [
-    [261.63, 329.63, 392.00], // C major (C4 E4 G4)
-    [220.00, 261.63, 329.63], // A minor (A3 C4 E4)
-    [174.61, 220.00, 261.63], // F major (F3 A3 C4)
-    [196.00, 246.94, 293.66], // G major (G3 B3 D4)
-  ];
-  const CHORD_HOLD_S = 13;
-  const CHORD_FADE_S = 4.5;
+  let arpTimer = null;
+  let droneNodes = [];
+  let currentChord = null;
+  let bgmThemeKey = null; // which 낚시터's theme is playing (null while silent)
+  // Note frequencies (Hz) used below, named for readability.
+  const N = { C2: 65.41, G2: 98.00, C3: 130.81, Eb3: 155.56, F3: 174.61, G3: 196.00, Ab3: 207.65, A3: 220.00, Bb3: 233.08, B3: 246.94,
+    C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, Ab4: 415.30, A4: 440.00, Bb4: 466.16, C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, G5: 783.99, Bb5: 932.33, C6: 1046.50, Eb6: 1244.51, G6: 1567.98 };
+  // One theme per 낚시터 -- all still oscillators, no audio files. Each is a
+  // slow chord pad (hold/fade) plus optional layers:
+  //   sparkle: random single notes from a scale, sparse
+  //   arp:     a steady arpeggio over the current chord (tempo = 바다's drive)
+  //   drone:   a continuous low pedal under everything (바다 = grandeur,
+  //            심해 = quiet depth)
+  const BGM_THEMES = {
+    // 호수: the original calm pad -- I vi IV V in C, mid/high pentatonic sparkle.
+    lake: {
+      chords: [[N.C4, N.E4, N.G4], [N.A3, N.C4, N.E4], [N.F3, N.A3, N.C4], [N.G3, N.B3, N.D4]],
+      hold: 13, fade: 4.5, voice: 'triangle', filter: 1100, gain: 0.16,
+      sparkle: { notes: [N.E4, N.G4, N.A4, N.C5, N.D5, N.E5], min: 5000, range: 7000, wave: 'sine', gain: 0.04, decay: 4.5 }
+    },
+    // 바다: brighter, moving. Wide voicings, a quicker chord cycle, a
+    // steady triangle arpeggio riding the chord, and a low C-G pedal that
+    // makes the whole thing feel bigger than a pond.
+    sea: {
+      chords: [[N.C3, N.G3, N.E4, N.C5], [N.G3, N.D4, N.B3, N.G4], [N.A3, N.E4, N.C5, N.A4], [N.F3, N.C4, N.A4, N.F4]],
+      hold: 8, fade: 2.6, voice: 'sawtooth', filter: 900, gain: 0.07,
+      sparkle: { notes: [N.G4, N.C5, N.D5, N.E5, N.G5, N.C6], min: 3000, range: 4000, wave: 'sine', gain: 0.035, decay: 2.5 },
+      arp: { step: 0.26, wave: 'triangle', gain: 0.045, octave: 2, attack: 0.02, decay: 0.32 },
+      drone: { freqs: [N.C2, N.G2], wave: 'sine', gain: 0.09 }
+    },
+    // 심해: minor, slow and low, but not oppressive. The first pass used a
+    // deliberately detuned drone pair (a constant ~0.4Hz beat) plus a 49Hz
+    // sub under it, which reads as dread but sits uncomfortably in earbuds
+    // and phone speakers. Now: a clean C-G fifth held quietly, a warmer
+    // minor-9th pad (i VI iv v7 in C minor, triangle through a low filter),
+    // a slow sine "music box" walking the chord tones, and low bell notes.
+    abyss: {
+      chords: [[N.C3, N.Eb3, N.G3, N.D4], [N.Ab3, N.C4, N.Eb4, N.G4], [N.F3, N.Ab3, N.C4, N.Eb4], [N.G3, N.Bb3, N.D4, N.F4]],
+      hold: 16, fade: 6, voice: 'triangle', filter: 640, gain: 0.11,
+      sparkle: { notes: [N.G4, N.Bb4, N.C5, N.D5, N.Eb5, N.G5], min: 3500, range: 5000, wave: 'sine', gain: 0.03, decay: 5 },
+      arp: { step: 1.7, wave: 'sine', gain: 0.03, octave: 2, attack: 0.06, decay: 1.5 },
+      drone: { freqs: [N.C2, N.G2], wave: 'sine', gain: 0.06 }
+    }
+  };
+  function bgmTheme() { return BGM_THEMES[bgmThemeKey] || BGM_THEMES.lake; }
   function scheduleSparkle() {
-    const delay = 5000 + Math.random() * 7000;
+    const th = bgmTheme().sparkle;
+    if (!th) return;
+    const delay = th.min + Math.random() * th.range;
     sparkleTimer = setTimeout(() => {
       if (bgmNodes) {
-        const freq = BGM_PENTATONIC[Math.floor(Math.random() * BGM_PENTATONIC.length)];
+        const freq = th.notes[Math.floor(Math.random() * th.notes.length)];
         const osc = actx.createOscillator();
         const gain = actx.createGain();
         const pan = actx.createStereoPanner ? actx.createStereoPanner() : null;
-        osc.type = 'sine';
+        osc.type = th.wave;
         osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, actx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.04 * bgmVolume()), actx.currentTime + 1.2);
-        gain.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 4.5);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, th.gain * bgmVolume()), actx.currentTime + 1.2);
+        gain.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + th.decay);
         if (pan) { pan.pan.value = Math.random() * 1.6 - 0.8; osc.connect(gain).connect(pan).connect(bgmNodes.master); }
         else { osc.connect(gain).connect(bgmNodes.master); }
         osc.start();
-        osc.stop(actx.currentTime + 4.6);
+        osc.stop(actx.currentTime + th.decay + 0.1);
       }
       scheduleSparkle();
     }, delay);
   }
-  function playChordVoice(freq, master) {
+  function playChordVoice(freq, master, th) {
     const osc = actx.createOscillator();
-    osc.type = 'triangle'; // softer/rounder than sine's clinical purity once filtered
+    osc.type = th.voice;
     osc.frequency.value = freq;
     const filter = actx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 1100;
+    filter.frequency.value = th.filter;
     const gain = actx.createGain();
     gain.gain.value = 0.0001;
     osc.connect(filter).connect(gain).connect(master);
     osc.start();
     const now = actx.currentTime;
-    gain.gain.exponentialRampToValueAtTime(0.16, now + CHORD_FADE_S);
-    gain.gain.setValueAtTime(0.16, now + CHORD_HOLD_S - CHORD_FADE_S);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + CHORD_HOLD_S);
-    osc.stop(now + CHORD_HOLD_S + 0.2);
+    gain.gain.exponentialRampToValueAtTime(th.gain, now + th.fade);
+    gain.gain.setValueAtTime(th.gain, now + th.hold - th.fade);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + th.hold);
+    osc.stop(now + th.hold + 0.2);
   }
   let chordIndex = 0;
   function scheduleChordCycle() {
+    const th = bgmTheme();
     if (bgmNodes) {
-      const chord = BGM_CHORDS[chordIndex % BGM_CHORDS.length];
+      currentChord = th.chords[chordIndex % th.chords.length];
       chordIndex++;
-      chord.forEach(freq => playChordVoice(freq, bgmNodes.master));
+      currentChord.forEach(freq => playChordVoice(freq, bgmNodes.master, th));
     }
     // Next chord's fade-in starts while this one is still fading out, so
     // the pad crossfades continuously with no gap and no static hold.
-    chordTimer = setTimeout(scheduleChordCycle, (CHORD_HOLD_S - CHORD_FADE_S) * 1000);
+    chordTimer = setTimeout(scheduleChordCycle, (th.hold - th.fade) * 1000);
+  }
+  // 바다's arpeggio: walks the current chord's notes (plus the root an
+  // octave up) on a fixed step, each a short plucked triangle.
+  let arpIndex = 0;
+  function scheduleArp() {
+    const th = bgmTheme().arp;
+    if (!th) return;
+    arpTimer = setTimeout(() => {
+      if (bgmNodes && currentChord) {
+        const notes = currentChord.concat([currentChord[0] * 2]);
+        const freq = notes[arpIndex % notes.length] * (th.octave || 1);
+        arpIndex++;
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        osc.type = th.wave;
+        osc.frequency.value = freq;
+        const now = actx.currentTime;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, th.gain), now + th.attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + th.attack + th.decay);
+        osc.connect(gain).connect(bgmNodes.master);
+        osc.start();
+        osc.stop(now + th.attack + th.decay + 0.05);
+      }
+      scheduleArp();
+    }, th.step * 1000);
+  }
+  function startDrone(master) {
+    const th = bgmTheme().drone;
+    if (!th) return;
+    th.freqs.forEach((freq) => {
+      const osc = actx.createOscillator();
+      const gain = actx.createGain();
+      osc.type = th.wave;
+      osc.frequency.value = freq;
+      gain.gain.value = 0.0001;
+      osc.connect(gain).connect(master);
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(th.gain / th.freqs.length, actx.currentTime + 3);
+      droneNodes.push({ osc, gain });
+    });
   }
   function bgmVolume() { return bgmMasterVolume * 0.3; } // internal balance scale, not the raw slider value
   function startBgm() {
     if (!actx || bgmNodes || !bgmOn) return;
+    bgmThemeKey = (typeof stage === 'string' && BGM_THEMES[stage]) ? stage : 'lake';
     const master = actx.createGain();
     master.gain.value = bgmVolume();
     master.connect(actx.destination);
     bgmNodes = { master };
     chordIndex = 0;
+    arpIndex = 0;
+    currentChord = null;
     scheduleChordCycle();
     scheduleSparkle();
+    scheduleArp();
+    startDrone(master);
   }
-  function stopBgm() {
+  function stopBgm(fadeSeconds) {
     clearTimeout(sparkleTimer);
     clearTimeout(chordTimer);
+    clearTimeout(arpTimer);
     if (!bgmNodes) return;
     const now = actx.currentTime;
+    const tc = fadeSeconds ? fadeSeconds / 3 : 0.15;
     // Individual chord voices/sparkles are already self-scheduled to stop
-    // on their own; dropping the shared master to silence immediately is
-    // enough to cut them off cleanly without tracking every live node.
-    bgmNodes.master.gain.setTargetAtTime(0.0001, now, 0.15);
+    // on their own; dropping the shared master to silence is enough to cut
+    // them off cleanly without tracking every live node. Drones are held
+    // oscillators, so those get stopped explicitly after the fade.
+    bgmNodes.master.gain.setTargetAtTime(0.0001, now, tc);
+    const drones = droneNodes;
+    droneNodes = [];
+    drones.forEach(({ osc }) => { try { osc.stop(now + (fadeSeconds || 0.5) + 0.3); } catch (e) { /* already stopped */ } });
     bgmNodes = null;
+    bgmThemeKey = null;
+  }
+  // 낚시터 changed: crossfade to that stage's theme (a no-op while silent --
+  // the next startBgm() picks the right theme on its own).
+  function switchBgmForStage() {
+    if (!bgmNodes) return;
+    if (bgmThemeKey === stage) return;
+    stopBgm(1.5);
+    setTimeout(() => { if (bgmOn && !bgmNodes) startBgm(); }, 900);
   }
   // Volume slider changes should retune the currently-playing pad too, not
   // just future sfx blips -- see the slider wiring below.
@@ -706,6 +804,132 @@ function __zzhInit() {
     ctx.restore();
   }
 
+  // ================= 심해 scene =================
+  // No sky at all: the same dark column continues above the "waterline",
+  // lit only by a lamp somewhere far above, marine snow drifting down,
+  // bioluminescent motes drifting up, jellyfish, and a seafloor with
+  // hydrothermal vents and tube worms in the corners.
+  const ABYSS = {
+    water: ['#0d2140', '#081a33', '#050f22', '#02060f'],
+    upper: ['#123252', '#0d2140'],
+    beam: 'rgba(150,210,235,',
+    snow: 'rgba(200,220,235,',
+    mote: '#7fe0c8', moteAlt: '#5fb8ff',
+    floorFar: '#0a1a2c', floor: '#06101c',
+    rock: '#0c1a2a', rockLight: '#16304a',
+    vent: 'rgba(255,120,60,', ventCore: '#ffb070',
+    jelly: 'rgba(140,200,255,',
+    ray: 'rgba(120,180,220,',
+    swellA: '#1f3f66', swellB: '#02060f',
+    idleFish: 'rgba(150,215,235,1)'
+  };
+
+  function drawAbyssStatic(c) {
+    const wTop = waterTop();
+    const th = ABYSS;
+    // the column above the (invisible) waterline -- just deeper water
+    const up = c.createLinearGradient(0, 0, 0, wTop + 4);
+    up.addColorStop(0, th.upper[0]);
+    up.addColorStop(1, th.upper[1]);
+    c.fillStyle = up;
+    c.fillRect(0, 0, W, wTop + 4);
+    // lamp light from far above, brightest near the top
+    const beam = c.createRadialGradient(W * 0.5, -H * 0.1, 10, W * 0.5, -H * 0.1, H * 0.62);
+    beam.addColorStop(0, th.beam + '0.4)');
+    beam.addColorStop(0.5, th.beam + '0.1)');
+    beam.addColorStop(1, th.beam + '0)');
+    c.fillStyle = beam;
+    c.fillRect(0, 0, W, wTop + 4);
+    // marine snow in that upper column (deterministic scatter)
+    for (let i = 0; i < 45; i++) {
+      const x = (i * 137.5) % W, y = (i * 71.3) % wTop;
+      c.fillStyle = th.snow + (0.12 + (i % 4) * 0.07) + ')';
+      c.beginPath(); c.arc(x, y, 0.8 + (i % 3) * 0.5, 0, Math.PI * 2); c.fill();
+    }
+    // seafloor: two dark ridge bands rising from the bottom edge
+    fillRidge(c, { baseY: H + 2, amp: H * 0.13, freq: 0.02, seed: 2.2, color: th.floorFar });
+    fillRidge(c, { baseY: H + 2, amp: H * 0.085, freq: 0.035, seed: 5.1, color: th.floor });
+    // hydrothermal vents left of centre: chimneys with a warm glow at the mouth
+    const vx = W * 0.3;
+    const glow = c.createRadialGradient(vx, H * 0.86, 2, vx, H * 0.86, W * 0.17);
+    glow.addColorStop(0, th.vent + '0.5)');
+    glow.addColorStop(1, th.vent + '0)');
+    c.fillStyle = glow;
+    c.fillRect(vx - W * 0.2, H * 0.86 - W * 0.2, W * 0.4, W * 0.3);
+    [[vx - W * 0.05, 0.11, 0.028], [vx + W * 0.01, 0.16, 0.034], [vx + W * 0.07, 0.09, 0.024]].forEach(([x, fh, fw]) => {
+      const h = H * fh, w = W * fw;
+      c.fillStyle = th.rock;
+      c.beginPath(); c.moveTo(x - w, H); c.lineTo(x - w * 0.4, H - h); c.lineTo(x + w * 0.4, H - h); c.lineTo(x + w, H); c.closePath(); c.fill();
+      c.fillStyle = th.ventCore;
+      c.beginPath(); c.ellipse(x, H - h, w * 0.4, 2, 0, 0, Math.PI * 2); c.fill();
+    });
+    // rock outcrops in both bottom corners
+    c.fillStyle = th.rock;
+    c.beginPath(); c.moveTo(-5, H); c.quadraticCurveTo(W * 0.05, H * 0.78, W * 0.2, H * 0.86); c.quadraticCurveTo(W * 0.26, H * 0.95, W * 0.3, H + 5); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(W + 5, H); c.quadraticCurveTo(W * 0.95, H * 0.8, W * 0.82, H * 0.88); c.quadraticCurveTo(W * 0.75, H * 0.95, W * 0.7, H + 5); c.closePath(); c.fill();
+    c.fillStyle = th.rockLight;
+    c.beginPath(); c.moveTo(W * 0.02, H * 0.86); c.quadraticCurveTo(W * 0.08, H * 0.8, W * 0.16, H * 0.87); c.quadraticCurveTo(W * 0.1, H * 0.86, W * 0.02, H * 0.86); c.closePath(); c.fill();
+    // tube worms on the right outcrop: pale stalks with red plumes
+    [[0.87, 0.865, 0.03], [0.905, 0.875, 0.038], [0.94, 0.86, 0.026]].forEach(([fx, fy, fh]) => {
+      const x = W * fx, y = H * fy, h = H * fh;
+      c.strokeStyle = '#d9d0c8'; c.lineWidth = 2.2;
+      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 2, y - h * 0.5, x + 1, y - h); c.stroke();
+      c.fillStyle = '#e0524a';
+      c.beginPath(); c.arc(x + 1, y - h, 2.6, 0, Math.PI * 2); c.fill();
+    });
+  }
+
+  function drawAbyssWater(t) {
+    const th = ABYSS;
+    const top = waterTop();
+    fillWaterGradient(th.water, top);
+    // the lamp beam continues below the (invisible) waterline -- same gradient
+    // as the static upper column, so the two halves meet without a seam
+    const beam = ctx.createRadialGradient(W * 0.5, -H * 0.1, 10, W * 0.5, -H * 0.1, H * 0.62);
+    beam.addColorStop(0, th.beam + '0.4)');
+    beam.addColorStop(0.5, th.beam + '0.1)');
+    beam.addColorStop(1, th.beam + '0)');
+    ctx.fillStyle = beam;
+    ctx.fillRect(0, top, W, H - top);
+    drawWaveLines(t, top, th.swellA, th.swellB);
+    // marine snow sinking, bioluminescent motes drifting up and pulsing
+    ctx.save();
+    sparkles.forEach((s, i) => {
+      const glowing = i % 3 === 0;
+      const drift = glowing ? -t * 0.006 * s.speed : t * 0.004 * s.speed;
+      const fy = (((s.y - 0.28 + drift) % 0.6) + 0.6) % 0.6 + 0.28;
+      const px = s.x * W + Math.sin(t * 0.3 + s.phase) * 8;
+      const py = top + fy * (H - top);
+      ctx.globalAlpha = glowing ? 0.45 + 0.4 * Math.sin(t * s.speed + s.phase) : 0.22;
+      ctx.fillStyle = glowing ? (i % 2 ? th.mote : th.moteAlt) : '#c8d8e6';
+      ctx.beginPath(); ctx.arc(px, py, glowing ? s.size * 0.9 : s.size * 0.5, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+    // two jellyfish drifting through, lit from within
+    [[0.2, 0.55, 0.8], [0.78, 0.42, 1.3]].forEach(([fx, fy, sp], i) => {
+      const x = W * (fx + Math.sin(t * 0.08 * sp + i) * 0.08);
+      const y = top + (H - top) * (fy + Math.sin(t * 0.12 * sp + i * 2) * 0.05);
+      const r = W * 0.045;
+      ctx.save();
+      const g = ctx.createRadialGradient(x, y, 1, x, y, r * 1.8);
+      g.addColorStop(0, th.jelly + '0.5)');
+      g.addColorStop(1, th.jelly + '0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = th.jelly + '0.45)';
+      ctx.beginPath(); ctx.arc(x, y, r, Math.PI, 0); ctx.quadraticCurveTo(x, y + r * 0.5, x - r, y); ctx.fill();
+      ctx.strokeStyle = th.jelly + '0.4)';
+      ctx.lineWidth = 1;
+      for (let k = -2; k <= 2; k++) {
+        ctx.beginPath();
+        ctx.moveTo(x + k * r * 0.35, y + r * 0.2);
+        ctx.quadraticCurveTo(x + k * r * 0.5 + Math.sin(t * 1.5 + k) * 4, y + r * 1.4, x + k * r * 0.4, y + r * 2.4);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+  }
+
   // ---- Scenes: one per 낚시터 (FishData.STAGES). Each supplies the static
   // backdrop (painted once into the cache), the animated water layers
   // (drawn under the backdrop each frame, and re-used by the float's
@@ -720,6 +944,11 @@ function __zzhInit() {
       paintStatic: (c) => drawSeaStatic(c),
       paintWater: (t) => { drawSeaWater(t); drawLightShafts(t, W * SEA_SUN_X, waterTop() - 10, W * 0.26, SEA.ray, 6); },
       paintAbove: (t) => { drawSparkles(t, SEA.sparkle); maybeSpawnIdleFish(t); drawIdleFish(t); }
+    },
+    abyss: {
+      paintStatic: (c) => drawAbyssStatic(c),
+      paintWater: (t) => { drawAbyssWater(t); drawLightShafts(t, W * 0.5, -20, W * 0.14, ABYSS.ray, 3); },
+      paintAbove: (t) => { maybeSpawnIdleFish(t); drawIdleFish(t, ABYSS.idleFish); }
     }
   };
   function scene() { return SCENES[stage] || SCENES.lake; }
@@ -734,7 +963,7 @@ function __zzhInit() {
     scene().paintStatic(c);
   }
 
-  function drawIdleFish(t) {
+  function drawIdleFish(t, color) {
     idleFish.forEach(f => {
       const top = waterTop();
       const px = f.x * W;
@@ -743,7 +972,7 @@ function __zzhInit() {
       ctx.translate(px, py);
       ctx.scale(f.dir * f.scale, f.scale);
       ctx.globalAlpha = 0.35;
-      ctx.fillStyle = '#04262c';
+      ctx.fillStyle = color || '#04262c';
       ctx.beginPath();
       ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI * 2);
       ctx.moveTo(-14, 0);
@@ -980,7 +1209,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 11;
+  const SAVE_SCHEMA_VERSION = 12;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -988,7 +1217,7 @@ function __zzhInit() {
       stats: { strength: 0, luck: 0, precision: 0 },
       caughtFish: [], nextFishUid: 1, catches: {}, tutorialDone: false, introDone: false,
       hasReeledBefore: false,
-      baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
+      baits: { common: 0, rare: 0, epic: 0, legendary: 0 }, equippedBait: 'none',
       gachaPity: 0,
       achievements: Achievements.freshState(),
       stage: 'lake', stagesUnlocked: ['lake']
@@ -1094,7 +1323,16 @@ function __zzhInit() {
     }),
     // schema 10 -> 11: 낚시터. Everyone so far has only ever fished the
     // lake, so that's where they are and all they have unlocked.
-    (save) => ({ ...save, stage: save.stage || 'lake', stagesUnlocked: Array.isArray(save.stagesUnlocked) ? save.stagesUnlocked : ['lake'], schemaVersion: 11 })
+    (save) => ({ ...save, stage: save.stage || 'lake', stagesUnlocked: Array.isArray(save.stagesUnlocked) ? save.stagesUnlocked : ['lake'], schemaVersion: 11 }),
+    // schema 11 -> 12: 일반 미끼 is a consumable and the bare hook ('none')
+    // is the default. Nobody owns any 일반 미끼 yet, so an equipped 'common'
+    // (the old endless default) becomes 'none'; real baits carry over.
+    (save) => ({
+      ...save,
+      baits: { common: 0, ...(save.baits || {}) },
+      equippedBait: save.equippedBait === 'common' || !save.equippedBait ? 'none' : save.equippedBait,
+      schemaVersion: 12
+    })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1166,12 +1404,13 @@ function __zzhInit() {
   // and loses the record the moment a fish is sold.
   let catches = initialSave.catches;
   // Held bait counts by tier -- { rare, epic, legendary }. 일반 is the free
-  // default and isn't tracked here (never runs out).
   let baits = initialSave.baits;
-  // Currently equipped bait tier -- filters the catch pool in triggerBite()
-  // and gets consumed by 1 per cast() (see there). Falls back to 'common'
-  // automatically once its count hits 0.
-  let equippedBait = initialSave.equippedBait;
+  if (typeof baits.common !== 'number') baits.common = 0;
+  // Currently equipped bait tier ('none' = bare hook) -- filters the catch
+  // pool in triggerBite() and gets consumed by 1 per cast() (see there).
+  // Falls back to 'none' automatically once its count hits 0.
+  let equippedBait = FishData.BAITS[initialSave.equippedBait] ? initialSave.equippedBait : 'none';
+  if (equippedBait !== 'none' && (baits[equippedBait] || 0) <= 0) equippedBait = 'none';
   // Pulls since the last legendary (natural or pity-forced) -- see
   // FishData.LEGENDARY_PITY / pullGachaWithPity().
   let gachaPity = initialSave.gachaPity;
@@ -1247,16 +1486,60 @@ function __zzhInit() {
   const rodMaterialCountEl = document.getElementById('rod-material-count');
   const rodUpgradeBtn = document.getElementById('rod-upgrade-btn');
   const statsListEl = document.getElementById('stats-list');
+  const rodEffectEl = document.getElementById('rod-effect');
+  const upgradeRodCard = document.querySelector('.upgrade-rod');
+  const upgradeSummaryChipsEl = document.getElementById('upgrade-summary-chips');
+  // 강화 tab art per stat (icons/shop/stat-*.svg) and the "+N%" wording
+  // for each level -- effectPerLevel lives in FishData.PLAYER_STATS.
+  const STAT_ART = {
+    strength: { icon: 'icons/shop/stat-strength.svg', effect: '제한시간', sign: '+' },
+    luck: { icon: 'icons/shop/stat-luck.svg', effect: '희귀·특급', sign: '+' },
+    precision: { icon: 'icons/shop/stat-precision.svg', effect: '속도', sign: '-' }
+  };
+  const pct = (v) => Math.round(v * 100) + '%';
+  // One decimal for the rod: its per-level step (0.9~1.3%p) would print the
+  // same whole number twice in a row.
+  const pct1 = (v) => (Math.round(v * 1000) / 10) + '%';
+  function statEffectText(key, level) {
+    const def = FishData.PLAYER_STATS[key];
+    const art = STAT_ART[key];
+    const now = art.sign + pct(def.effectPerLevel * level);
+    if (level >= FishData.PLAYER_STAT_MAX_LEVEL) return `${art.effect} ${now} (최대)`;
+    return `${art.effect} ${now} → ${art.sign}${pct(def.effectPerLevel * (level + 1))}`;
+  }
+  function renderUpgradeSummary() {
+    const chips = [
+      { icon: 'icons/shop/rod.svg', text: '성공 구간 +' + pct1(FishData.rodEase(rod.grade, rod.level)) },
+      { icon: STAT_ART.strength.icon, text: '제한시간 +' + pct(FishData.PLAYER_STATS.strength.effectPerLevel * (stats.strength || 0)) },
+      { icon: STAT_ART.luck.icon, text: '희귀·특급 +' + pct(FishData.PLAYER_STATS.luck.effectPerLevel * (stats.luck || 0)) },
+      { icon: STAT_ART.precision.icon, text: '속도 -' + pct(FishData.PLAYER_STATS.precision.effectPerLevel * (stats.precision || 0)) }
+    ];
+    upgradeSummaryChipsEl.innerHTML = '';
+    chips.forEach((c) => {
+      const el = document.createElement('span');
+      el.className = 'upgrade-summary-chip';
+      el.innerHTML = '<img alt="">';
+      el.querySelector('img').src = c.icon;
+      el.appendChild(document.createTextNode(c.text));
+      upgradeSummaryChipsEl.appendChild(el);
+    });
+  }
 
   const gachaPull1Btn = document.getElementById('gacha-pull1-btn');
   const gachaPull10Btn = document.getElementById('gacha-pull10-btn');
   const gachaPull10CostEl = gachaPull10Btn.querySelector('.gacha-pull-cost');
+  const gachaPityLeftEl = document.getElementById('gacha-pity-left');
+  const gachaPityFillEl = document.getElementById('gacha-pity-fill');
 
   const gachaOverlay = document.getElementById('gacha-overlay');
   const gachaRevealPanel = document.getElementById('gacha-reveal-panel');
   const gachaFlashEl = document.getElementById('gacha-flash');
   const gachaCardGridEl = document.getElementById('gacha-card-grid');
   const gachaActionBtn = document.getElementById('gacha-action-btn');
+  const gachaRevealHintEl = document.getElementById('gacha-reveal-hint');
+  const gachaSpotlightEl = document.getElementById('gacha-spotlight');
+  const gachaSpotCardEl = document.getElementById('gacha-spot-card');
+  const GACHA_TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
 
   const baitBtn = document.getElementById('bait-btn');
   const baitBtnIcon = document.getElementById('bait-btn-icon');
@@ -1361,82 +1644,151 @@ function __zzhInit() {
   function applyStageToUi() {
     stageNameEl.textContent = FishData.STAGES[stage].name;
   }
+  // 낚시터 popup, two levels: a list of banner cards (name, tagline,
+  // 도감/unlock progress) and, over it, a detail sheet for the tapped stage
+  // with the description, unlock conditions and the 이동/해금 button.
+  const stageDetailEl = document.getElementById('stage-detail');
+  const stageDetailBannerEl = document.getElementById('stage-detail-banner');
+  const stageDetailIconEl = document.getElementById('stage-detail-icon');
+  const stageDetailNameEl = document.getElementById('stage-detail-name');
+  const stageDetailBadgeEl = document.getElementById('stage-detail-badge');
+  const stageDetailTaglineEl = document.getElementById('stage-detail-tagline');
+  const stageDetailDescEl = document.getElementById('stage-detail-desc');
+  const stageDetailMetaEl = document.getElementById('stage-detail-meta');
+  const stageDetailCondsEl = document.getElementById('stage-detail-conds');
+  const stageDetailBtn = document.getElementById('stage-detail-btn');
+  const stageDetailNoteEl = document.getElementById('stage-detail-note');
+  const stageDetailBackBtn = document.getElementById('stage-detail-back');
+  let stageDetailKey = null;
   function renderStageMenu() {
     stageListEl.innerHTML = '';
-    const idle = state === 'idle';
     FishData.STAGE_ORDER.forEach((key) => {
       const info = FishData.STAGES[key];
       const ready = FishData.stageReady(key);
       const unlocked = stageUnlocked(key);
       const current = key === stage;
-      const card = document.createElement('div');
-      card.className = 'stage-card' + (current ? ' current' : '') + (unlocked ? '' : ' locked');
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'stage-card stage-' + key + (current ? ' current' : '') + (unlocked ? '' : ' locked') + (ready ? '' : ' soon');
       card.dataset.stage = key;
       card.innerHTML = `
-        <div class="stage-card-head">
-          <img class="stage-card-icon" src="icons/ui/stage-${key}.svg" alt="">
-          <div><div class="stage-card-name"></div><div class="stage-card-tagline"></div></div>
-          <span class="stage-card-badge hidden"></span>
-        </div>
-        <p class="stage-card-desc"></p>
-        <div class="stage-card-meta"></div>
-        <ul class="stage-conds"></ul>
-        <button type="button" class="main-btn stage-card-btn hidden"></button>
-        <p class="stage-note hidden"></p>`;
+        <span class="stage-card-art"><img class="stage-card-icon" src="icons/ui/stage-${key}.svg" alt=""></span>
+        <span class="stage-card-body">
+          <span class="stage-card-head"><span class="stage-card-name"></span><span class="stage-card-badge hidden"></span></span>
+          <span class="stage-card-tagline"></span>
+          <span class="stage-card-meta"></span>
+          <span class="stage-card-bar"><i></i></span>
+        </span>
+        <span class="stage-card-chevron"></span>`;
       card.querySelector('.stage-card-name').textContent = info.name;
       card.querySelector('.stage-card-tagline').textContent = info.tagline;
-      card.querySelector('.stage-card-desc').textContent = info.desc;
-      const meta = card.querySelector('.stage-card-meta');
-      meta.textContent = ready
-        ? `도감 ${stageDexCount(key)} / ${stageSpeciesTotal(key)}종 · 판매가 x${info.priceMult}`
-        : `판매가 x${info.priceMult}`;
       const badge = card.querySelector('.stage-card-badge');
-      const btn = card.querySelector('.stage-card-btn');
-      const note = card.querySelector('.stage-note');
-      const conds = stageConditions(key);
-      const condsEl = card.querySelector('.stage-conds');
-      if (!unlocked) {
-        conds.forEach((c) => {
-          const li = document.createElement('li');
-          li.className = c.met ? 'met' : '';
-          li.textContent = c.text;
-          condsEl.appendChild(li);
-        });
-      }
-      if (current) {
-        badge.textContent = '현재 낚시터'; badge.classList.remove('hidden');
-      } else if (!ready) {
-        badge.textContent = '준비 중'; badge.classList.add('soon'); badge.classList.remove('hidden');
-        note.textContent = '다음 업데이트에서 열려요'; note.classList.remove('hidden');
+      if (current) { badge.textContent = '현재'; badge.classList.remove('hidden'); }
+      else if (!ready) { badge.textContent = '준비 중'; badge.classList.add('soon'); badge.classList.remove('hidden'); }
+      else if (!unlocked) { badge.textContent = '잠김'; badge.classList.add('soon'); badge.classList.remove('hidden'); }
+      // Progress line + bar: 도감 for open stages, unlock conditions met
+      // for locked ones, nothing for stages that aren't in the game yet.
+      const meta = card.querySelector('.stage-card-meta');
+      const bar = card.querySelector('.stage-card-bar i');
+      if (!ready) {
+        meta.textContent = `판매가 x${info.priceMult} · 다음 업데이트`;
+        bar.style.width = '0%';
       } else if (unlocked) {
-        btn.textContent = '이동'; btn.classList.remove('hidden');
-        btn.disabled = !idle;
-        btn.addEventListener('click', () => setStage(key));
-        if (!idle) { note.textContent = '낚시 중에는 이동할 수 없어요'; note.classList.remove('hidden'); }
+        const n = stageDexCount(key), total = stageSpeciesTotal(key);
+        meta.textContent = `도감 ${n} / ${total}종 · 판매가 x${info.priceMult}`;
+        bar.style.width = `${total ? (n / total) * 100 : 0}%`;
       } else {
-        const cost = info.unlock && info.unlock.shells ? info.unlock.shells : 0;
-        btn.innerHTML = `해금 <img class="price-icon" src="icons/ui/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
-        btn.classList.remove('hidden');
-        btn.disabled = !conds.every((c) => c.met);
-        btn.addEventListener('click', () => unlockStage(key));
+        const conds = stageConditions(key);
+        const met = conds.filter((c) => c.met).length;
+        meta.textContent = `판매가 x${info.priceMult} · 해금 조건 ${met} / ${conds.length}`;
+        bar.style.width = `${conds.length ? (met / conds.length) * 100 : 0}%`;
       }
+      card.addEventListener('click', () => openStageDetail(key));
       stageListEl.appendChild(card);
     });
+    const hint = document.createElement('p');
+    hint.className = 'stage-list-hint';
+    hint.textContent = '낚시터를 누르면 자세히 볼 수 있어요';
+    stageListEl.appendChild(hint);
+    if (stageDetailKey) fillStageDetail(stageDetailKey);
   }
-  function openStageMenu() { renderStageMenu(); stageOverlay.classList.remove('hidden'); }
-  function closeStageMenu() { stageOverlay.classList.add('hidden'); }
+  function fillStageDetail(key) {
+    const info = FishData.STAGES[key];
+    const ready = FishData.stageReady(key);
+    const unlocked = stageUnlocked(key);
+    const current = key === stage;
+    const idle = state === 'idle';
+    stageDetailBannerEl.className = 'stage-detail-banner stage-' + key;
+    stageDetailIconEl.src = `icons/ui/stage-${key}.svg`;
+    stageDetailNameEl.textContent = info.name;
+    stageDetailTaglineEl.textContent = info.tagline;
+    stageDetailDescEl.textContent = info.desc;
+    stageDetailMetaEl.textContent = ready
+      ? `도감 ${stageDexCount(key)} / ${stageSpeciesTotal(key)}종 · 판매가 x${info.priceMult}`
+      : `판매가 x${info.priceMult}`;
+    const conds = stageConditions(key);
+    stageDetailCondsEl.innerHTML = '';
+    if (!unlocked) {
+      conds.forEach((c) => {
+        const li = document.createElement('li');
+        li.className = c.met ? 'met' : '';
+        li.textContent = c.text;
+        stageDetailCondsEl.appendChild(li);
+      });
+    }
+    stageDetailBadgeEl.className = 'stage-card-badge hidden';
+    stageDetailBadgeEl.textContent = '';
+    stageDetailBtn.classList.add('hidden');
+    stageDetailBtn.disabled = false;
+    stageDetailNoteEl.classList.add('hidden');
+    if (current) {
+      stageDetailBadgeEl.textContent = '현재 낚시터'; stageDetailBadgeEl.classList.remove('hidden');
+    } else if (!ready) {
+      stageDetailBadgeEl.textContent = '준비 중'; stageDetailBadgeEl.classList.add('soon'); stageDetailBadgeEl.classList.remove('hidden');
+      stageDetailNoteEl.textContent = '다음 업데이트에서 열려요'; stageDetailNoteEl.classList.remove('hidden');
+    } else if (unlocked) {
+      stageDetailBtn.textContent = '이동'; stageDetailBtn.classList.remove('hidden');
+      stageDetailBtn.disabled = !idle;
+      if (!idle) { stageDetailNoteEl.textContent = '낚시 중에는 이동할 수 없어요'; stageDetailNoteEl.classList.remove('hidden'); }
+    } else {
+      const cost = info.unlock && info.unlock.shells ? info.unlock.shells : 0;
+      stageDetailBtn.innerHTML = `해금 <img class="price-icon" src="icons/ui/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
+      stageDetailBtn.classList.remove('hidden');
+      stageDetailBtn.disabled = !conds.every((c) => c.met);
+    }
+  }
+  function openStageDetail(key) {
+    stageDetailKey = key;
+    fillStageDetail(key);
+    stageDetailEl.classList.remove('hidden');
+    requestAnimationFrame(() => stageDetailEl.classList.add('open'));
+  }
+  function closeStageDetail() {
+    stageDetailKey = null;
+    stageDetailEl.classList.remove('open');
+    stageDetailEl.classList.add('hidden');
+  }
+  stageDetailBackBtn.addEventListener('click', closeStageDetail);
+  stageDetailBtn.addEventListener('click', () => {
+    const key = stageDetailKey;
+    if (!key) return;
+    if (stageUnlocked(key)) setStage(key); else unlockStage(key);
+  });
+  function openStageMenu() { closeStageDetail(); renderStageMenu(); stageOverlay.classList.remove('hidden'); }
+  function closeStageMenu() { stageOverlay.classList.add('hidden'); closeStageDetail(); }
   function setStage(key) {
     if (!FishData.STAGES[key] || !stageUnlocked(key) || !FishData.stageReady(key)) return false;
     if (state !== 'idle') return false;
     if (key !== stage) {
       stage = key;
+      switchBgmForStage();
       bridgeCache = null; // repaint the backdrop for the new scene
       initSparkles();
       idleFish = [];
       logStage = null;
       applyStageToUi();
       persist();
-      showStatus(`${FishData.STAGES[key].name}에 도착했어요`);
+      showStatus(`${FishData.STAGES[key].name}에 도착했어요`, null, 2200);
       checkAchievements();
     }
     closeStageMenu();
@@ -1494,16 +1846,20 @@ function __zzhInit() {
   // tier's base reel params so startReel()/attemptHit() just consume one
   // effective set without knowing about the rod or player stats at all.
   const MAX_MISSES_CAP = 5;
+  // The current 낚시터's reel modifiers (FishData.STAGES[..].reel), {} for the lake.
+  function stageReelMods() { return (FishData.STAGES[stage] && FishData.STAGES[stage].reel) || {}; }
   function getEffectiveReel(tier) {
     const base = FishData.TIERS[tier].reel;
-    const ease = FishData.rodEase(rod.level);
+    const ease = FishData.rodEase(rod.grade, rod.level);
     const missBonus = FishData.rodMissBonus(rod.grade, tier);
     const strengthBonus = stats.strength * FishData.PLAYER_STATS.strength.effectPerLevel;
+    const sm = stageReelMods();
+    const missPenalty = (sm.missPenalty && sm.missPenalty[tier]) || 0;
     return {
       hitsRequired: base.hitsRequired,
-      zoneHeight: base.zoneHeight * (1 + ease),
-      timeLimit: base.timeLimit * (1 + strengthBonus),
-      maxMisses: Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus)
+      zoneHeight: base.zoneHeight * (1 + ease) * (sm.zoneMult || 1),
+      timeLimit: base.timeLimit * (1 + strengthBonus) * (sm.timeMult || 1),
+      maxMisses: Math.max(1, Math.min(MAX_MISSES_CAP, base.maxMisses + missBonus - missPenalty))
     };
   }
 
@@ -1518,11 +1874,14 @@ function __zzhInit() {
     return FishData.TIERS[tierKey].reel.period * (1 + precisionBonus + rodBonus);
   }
 
-  function showStatus(text, iconSrc) {
+  let statusHideTimer = null;
+  function showStatus(text, iconSrc, hideAfterMs) {
+    clearTimeout(statusHideTimer);
     statusTextEl.innerHTML = iconSrc
       ? `<img class="status-icon" src="${iconSrc}" alt="">${text}`
       : text;
     statusTextEl.classList.remove('hidden');
+    if (hideAfterMs) statusHideTimer = setTimeout(hideStatus, hideAfterMs);
   }
   function hideStatus() { statusTextEl.classList.add('hidden'); }
 
@@ -1569,7 +1928,7 @@ function __zzhInit() {
     waitingTimer = setTimeout(triggerBite, delay);
     if (!tutorial.practice) {
       achievements.stats.casts++;
-      if (equippedBait !== 'common') achievements.stats.baitsUsed[equippedBait] = true;
+      if (equippedBait === 'rare' || equippedBait === 'epic' || equippedBait === 'legendary') achievements.stats.baitsUsed[equippedBait] = true;
       checkAchievements();
     }
     if (tutorial.step === 'cast') tutorialGo('wait');
@@ -1636,9 +1995,9 @@ function __zzhInit() {
     // way through bite+reeling, and only catches up to the (possibly now
     // auto-reverted) equippedBait once the result is shown (showResult()),
     // so the player can see what they were fishing with for the whole cast.
-    if (equippedBait !== 'common' && !currentCatch.practice) {
+    if (equippedBait !== 'none' && !currentCatch.practice) {
       baits[equippedBait] = Math.max(0, (baits[equippedBait] || 0) - 1);
-      if (baits[equippedBait] <= 0) equippedBait = 'common';
+      if (baits[equippedBait] <= 0) equippedBait = 'none';
       persist();
     }
     sfx.bite();
@@ -1676,7 +2035,8 @@ function __zzhInit() {
     }
     const f = getEffectiveReel(currentCatch.tier);
     // Hit count is random per catch: HITS_BASE_BY_TIER's floor, plus 0~1.
-    const hitsRequired = HITS_BASE_BY_TIER[currentCatch.tier] + Math.floor(Math.random() * 2);
+    const stageHits = (stageReelMods().hitBonus && stageReelMods().hitBonus[currentCatch.tier]) || 0;
+    const hitsRequired = HITS_BASE_BY_TIER[currentCatch.tier] + Math.floor(Math.random() * 2) + stageHits;
     const colorSeq = buildClimbSequence(currentCatch.tier, hitsRequired);
     // The very first hit's speed already matches whatever tier colorSeq[0]
     // displays -- see attemptHit() for how it keeps following the climb.
@@ -2062,7 +2422,7 @@ function __zzhInit() {
   // non-일반 bait with zero left -- callers only ever reach here from UI
   // that's already hidden/disabled that option.
   function equipBait(key) {
-    if (key !== 'common' && (baits[key] || 0) <= 0) return;
+    if (key !== 'none' && (baits[key] || 0) <= 0) return;
     equippedBait = key;
     persist();
     updateBaitButton();
@@ -2071,13 +2431,13 @@ function __zzhInit() {
   function updateBaitButton() {
     baitBtnIcon.src = `icons/ui/bait-${equippedBait}.svg`;
     baitBtn.classList.toggle('legendary-equipped', equippedBait === 'legendary');
-    const heldCount = equippedBait === 'common' ? 0 : (baits[equippedBait] || 0);
+    const heldCount = equippedBait === 'none' ? 0 : (baits[equippedBait] || 0);
     baitBtnBadge.textContent = heldCount;
-    baitBtnBadge.classList.toggle('hidden', equippedBait === 'common');
+    baitBtnBadge.classList.toggle('hidden', equippedBait === 'none');
     baitMenuItems.forEach(item => {
       const key = item.dataset.bait;
       item.classList.toggle('active', key === equippedBait);
-      if (key === 'common') return;
+      if (key === 'none') return;
       const count = baits[key] || 0;
       item.disabled = count <= 0;
       const countEl = item.querySelector('[data-bait-count]');
@@ -2170,12 +2530,14 @@ function __zzhInit() {
     gachaPull10CostEl.innerHTML = freeTen
       ? '무료'
       : `<img class="price-icon" src="icons/ui/shell.svg" alt="">${FishData.GACHA_TEN_PULL_COST.toLocaleString('ko-KR')}`;
+    const left = Math.max(0, FishData.LEGENDARY_PITY - gachaPity);
+    gachaPityLeftEl.textContent = `${left}뽑`;
+    gachaPityFillEl.style.width = `${Math.min(100, (gachaPity / FishData.LEGENDARY_PITY) * 100)}%`;
   }
 
-  // Card grid order is always worst -> best regardless of roll order, so
-  // the best pull in the batch sits in the last slot -- the "dopamine"
-  // payoff beat lands wherever the player's eye ends up scanning to.
-  const GACHA_REVEAL_ORDER = ['shells', 'rare', 'epic', 'legendary'];
+  // Cards sit in roll order (v1.3). They used to be sorted worst -> best so
+  // the payoff landed in the last slot; now the 전설 spotlight after the
+  // full reveal is that beat, and roll order keeps each flip a surprise.
 
   function runGacha(kind) {
     const isTen = kind === 'ten';
@@ -2202,19 +2564,14 @@ function __zzhInit() {
       const epics = results.filter((k) => k === 'epic' || k === 'legendary').length;
       if (epics > s.maxEpicInTen) s.maxEpicInTen = epics;
     }
-    // 'shells' 카드는 미끼가 아니라 조개 환급(FishData.GACHA_SHELL_REFUND) --
-    // 공개 연출과 무관하게 여기서 바로 지급한다(새로고침으로 잃지 않도록).
-    // 환급은 판매 수입이 아니므로 누적 판매 조개(랭킹 점수)에는 넣지 않는다.
-    const refundCards = results.filter((k) => k === 'shells').length;
-    shells += refundCards * FishData.GACHA_SHELL_REFUND;
-    results.forEach(key => { if (key !== 'shells') baits[key] = (baits[key] || 0) + 1; });
+    // Every card is a bait now (일반 included -- it's what lets 전설 bite).
+    results.forEach(key => { baits[key] = (baits[key] || 0) + 1; });
     persist();
     updateCurrencyDisplay();
     if (free) tutorialGo('gachaReveal'); // before the re-render so the 무료 label goes back to the price
     renderGachaTab();
     updateBaitButton();
-    const sorted = results.slice().sort((a, b) => GACHA_REVEAL_ORDER.indexOf(a) - GACHA_REVEAL_ORDER.indexOf(b));
-    openGachaReveal(sorted);
+    openGachaReveal(results.slice());
     checkAchievements();
   }
   // The tutorial's free 10뽑: one 특급 guaranteed, nothing above it, and the
@@ -2223,7 +2580,7 @@ function __zzhInit() {
   // legendary pity counter alone -- it isn't a real paid pull.
   function tutorialTenPull() {
     const results = [];
-    for (let i = 0; i < 9; i++) results.push(Math.random() < 0.34 ? 'rare' : 'shells');
+    for (let i = 0; i < 9; i++) results.push(Math.random() < 0.34 ? 'rare' : 'common');
     results.splice(Math.floor(Math.random() * 10), 0, 'epic');
     return { results, pity: gachaPity, forced: 0 };
   }
@@ -2242,8 +2599,36 @@ function __zzhInit() {
     gachaRevealPanel.classList.remove('shake');
     gachaActionBtn.textContent = '전체 공개';
     gachaActionBtn.classList.add('gacha-secondary-btn');
+    gachaRevealHintEl.textContent = '카드를 눌러서 하나씩 확인하세요';
+    gachaSpotlightEl.className = 'gacha-spotlight hidden';
+    gachaCardGridEl.classList.toggle('single', results.length === 1);
+    let spotlightTimer = null;
+
+    // Only a 전설 gets the stage (the first one if there are several; the
+    // rest keep glowing in the grid). Anything else just gets a one-line
+    // summary of the batch's best tier.
+    function showSpotlight() {
+      let bestIdx = 0;
+      results.forEach((tier, i) => { if (GACHA_TIER_RANK[tier] > GACHA_TIER_RANK[results[bestIdx]]) bestIdx = i; });
+      const best = results[bestIdx];
+      if (best !== 'legendary') {
+        gachaRevealHintEl.textContent = best === 'common'
+          ? (results.length === 1 ? '이번엔 일반 미끼예요' : '이번엔 일반 미끼만 나왔어요')
+          : `이번 뽑기 최고 등급: ${FishData.BAITS[best].label}`;
+        return;
+      }
+      cards[bestIdx].classList.add('lifted');
+      gachaSpotCardEl.querySelector('img').src = `icons/ui/bait-${best}.svg`;
+      gachaSpotCardEl.querySelector('span').textContent = FishData.BAITS[best].label;
+      gachaSpotCardEl.className = 'gacha-spot-card tier-' + best;
+      gachaSpotlightEl.className = 'gacha-spotlight tier-' + best;
+      requestAnimationFrame(() => gachaSpotlightEl.classList.add('in'));
+      gachaRevealHintEl.textContent = '전설 미끼가 나왔어요!';
+      setTimeout(() => sfx.success(), 180);
+    }
 
     function closeReveal() {
+      clearTimeout(spotlightTimer);
       gachaOverlay.classList.add('hidden');
       if (tutorial.step === 'gachaReveal') tutorialGo('baitInfo');
     }
@@ -2254,6 +2639,9 @@ function __zzhInit() {
       gachaActionBtn.textContent = '닫기';
       gachaActionBtn.classList.remove('gacha-secondary-btn');
       gachaActionBtn.onclick = closeReveal;
+      // Let the last flip finish before the best card lifts off.
+      clearTimeout(spotlightTimer);
+      spotlightTimer = setTimeout(showSpotlight, 380);
     }
 
     function revealCard(card, tier) {
@@ -2272,9 +2660,8 @@ function __zzhInit() {
     }
 
     const cards = results.map((tier) => {
-      // 'shells' is the refund card (see runGacha); everything else is a bait.
-      const icon = tier === 'shells' ? 'icons/ui/shell.svg' : `icons/ui/bait-${tier}.svg`;
-      const label = tier === 'shells' ? `조개 +${FishData.GACHA_SHELL_REFUND}` : FishData.BAITS[tier].label;
+      const icon = `icons/ui/bait-${tier}.svg`;
+      const label = FishData.BAITS[tier].label;
       const card = document.createElement('div');
       card.className = 'gacha-card';
       card.innerHTML = `
@@ -2380,6 +2767,16 @@ function __zzhInit() {
     rodNameEl.style.color = gradeInfo.color;
     rodLevelEl.textContent = `Lv. ${rod.level} / ${FishData.ROD_MAX_LEVEL}`;
     renderPips(rodPipsEl, rod.level, FishData.ROD_MAX_LEVEL);
+    upgradeRodCard.className = 'upgrade-rod grade-' + rod.grade;
+    const easeNow = pct1(FishData.rodEase(rod.grade, rod.level));
+    if (rod.level < FishData.ROD_MAX_LEVEL) {
+      rodEffectEl.textContent = `성공 구간(노란 부분) +${easeNow} → +${pct1(FishData.rodEase(rod.grade, rod.level + 1))}`;
+    } else if (gradeInfo.next) {
+      // Bonus carries over: the next grade starts where this one ends.
+      rodEffectEl.textContent = `성공 구간(노란 부분) +${easeNow} · 등급업해도 유지, ${FishData.ROD_GRADES[gradeInfo.next].label}는 +${pct1(FishData.rodEase(gradeInfo.next, FishData.ROD_MAX_LEVEL))}까지`;
+    } else {
+      rodEffectEl.textContent = `성공 구간(노란 부분) +${easeNow} (최대)`;
+    }
 
     // 보석 balance sits next to the rod whenever there's a next grade to
     // climb toward, whether or not you've hit level 10 yet -- no separate
@@ -2407,6 +2804,7 @@ function __zzhInit() {
     }
 
     renderStatsList();
+    renderUpgradeSummary();
   }
   rodUpgradeBtn.addEventListener('click', () => {
     const gradeInfo = FishData.ROD_GRADES[rod.grade];
@@ -2445,13 +2843,16 @@ function __zzhInit() {
       const row = document.createElement('div');
       row.className = 'upgrade-stat';
       const pipsId = `stat-pips-${key}`;
+      row.className += ' stat-' + key;
       row.innerHTML = `
+        <div class="upgrade-stat-icon"><img src="${STAT_ART[key].icon}" alt=""></div>
         <div class="upgrade-stat-info">
-          <div class="upgrade-stat-name">${def.label}</div>
+          <div class="upgrade-stat-name">${def.label}<span class="upgrade-stat-lv">Lv. ${level}</span></div>
           <div class="upgrade-stat-desc">${def.desc}</div>
           <div id="${pipsId}" class="pip-row"></div>
         </div>
         <button class="upgrade-btn" data-stat-btn="${key}"></button>
+        <div class="upgrade-effect">${statEffectText(key, level)}</div>
       `;
       statsListEl.appendChild(row);
       renderPips(row.querySelector(`#${pipsId}`), level, FishData.PLAYER_STAT_MAX_LEVEL);
@@ -2566,8 +2967,8 @@ function __zzhInit() {
     toastShowing = true;
     const a = toastQueue.shift();
     const el = document.createElement('div');
-    el.className = 'achievement-toast';
-    el.innerHTML = '<img class="achievement-toast-icon" src="icons/ui/trophy.svg" alt="">'
+    el.className = 'achievement-toast trophy-' + Achievements.trophyTier(a).key;
+    el.innerHTML = '<img class="achievement-toast-icon" src="' + Achievements.trophyTier(a).icon + '" alt="">'
       + '<div><div class="achievement-toast-label">도전과제 달성</div><div class="achievement-toast-title"></div><div class="achievement-toast-reward"></div></div>';
     el.querySelector('.achievement-toast-title').textContent = a.title;
     el.querySelector('.achievement-toast-reward').textContent = `보상 ${Achievements.rewardLabel(a.reward)} · 도전과제에서 받기`;
@@ -2618,8 +3019,9 @@ function __zzhInit() {
         const unlockedAt = achievements.unlocked[a.id];
         const claimedAt = achievements.claimed[a.id];
         const row = document.createElement('div');
-        row.className = 'sell-row achievement-row ' + (unlockedAt ? (claimedAt ? 'cleared' : 'cleared claimable') : 'locked');
-        row.innerHTML = '<div class="sell-row-icon"><img src="icons/ui/trophy.svg" alt=""></div>'
+        const trophy = Achievements.trophyTier(a);
+        row.className = 'sell-row achievement-row trophy-' + trophy.key + ' ' + (unlockedAt ? (claimedAt ? 'cleared' : 'cleared claimable') : 'locked');
+        row.innerHTML = '<div class="sell-row-icon" title="' + trophy.label + ' 트로피"><img src="' + trophy.icon + '" alt=""></div>'
           + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div><div class="achievement-reward"></div></div>'
           + '<div class="achievement-state"></div>';
         // Reward line under the description on every row -- locked ones show
@@ -3032,7 +3434,7 @@ function __zzhInit() {
       const tab = shopPanel.querySelector(`.shop-tab[data-tab="${step === 'gachaTab' ? 'gacha' : 'upgrade'}"]`);
       setMaskHole(padRect(gameRectOf(tab), 4));
       tutorialCallout.classList.remove('hidden');
-      placeCallout(step === 'gachaTab' ? '먼저 뽑기예요. 뽑기 탭을 눌러요' : '이번엔 강화예요. 업그레이드 탭을 눌러요', tutorial.hole);
+      placeCallout(step === 'gachaTab' ? '먼저 뽑기예요. 뽑기 탭을 눌러요' : '이번엔 강화예요. 강화 탭을 눌러요', tutorial.hole);
     } else if (step === 'gacha') {
       renderGachaTab(); // enables 10뽑 and labels it 무료 for this one pull
       setMaskHole(padRect(gameRectOf(gachaPull10Btn), 6));
@@ -3298,7 +3700,7 @@ function __zzhInit() {
   };
   window.__zzhDevGiveBait = function (tierKey, amount) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
-    if (!FishData.BAITS[tierKey] || tierKey === 'common') return;
+    if (!FishData.BAITS[tierKey] || tierKey === 'none') return;
     baits[tierKey] = (baits[tierKey] || 0) + (amount || 1);
     persist();
     updateBaitButton();
@@ -3314,6 +3716,10 @@ function __zzhInit() {
     if (!FishData.STAGES[key] || stagesUnlocked.includes(key)) return;
     stagesUnlocked.push(key);
     persist();
+  };
+  window.__zzhDevBgmInfo = function () {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return null; } catch (e) { return null; }
+    return { theme: bgmThemeKey, playing: !!bgmNodes, drones: droneNodes.length, chord: currentChord ? currentChord.length : 0 };
   };
   window.__zzhDevSetStage = function (key) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return false; } catch (e) { return false; }
@@ -3341,17 +3747,20 @@ function __zzhInit() {
   // Fills in every species' 도감 entry that isn't already discovered, with
   // a plausible (not just zeroed) count/best/history so the log previews
   // realistically instead of showing a pile of freshly-reset-looking rows.
-  window.__zzhDevUnlockAllSpecies = function () {
+  // stageKey limits it to one 낚시터 (lake/sea/abyss); omitted = every stage.
+  window.__zzhDevUnlockAllSpecies = function (stageKey) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
-    Object.keys(FishData.FISH_BY_TIER).forEach((tierKey) => {
-      FishData.FISH_BY_TIER[tierKey].forEach((sp) => {
+    const stages = stageKey ? [stageKey] : FishData.STAGE_ORDER;
+    stages.forEach((st) => Object.keys(FishData.FISH_BY_STAGE[st] || {}).forEach((tierKey) => {
+      FishData.FISH_BY_STAGE[st][tierKey].forEach((sp) => {
         if (catches[sp.id]) return;
         const history = [1, 2, 3].map(() => FishData.randSize(sp.sizeRange)).sort((a, b) => a - b);
         catches[sp.id] = { count: history.length, best: history[history.length - 1], history };
       });
-    });
+    }));
     persist();
     if (!bucketOverlay.classList.contains('hidden')) renderLog();
+    checkAchievements({ silent: true });
   };
 
   updateCurrencyDisplay();
