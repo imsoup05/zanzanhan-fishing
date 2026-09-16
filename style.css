@@ -289,8 +289,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 5px 0 6px;
+  gap: 4px;
+  padding: 8px 0 7px;
   background: transparent;
   border: none;
   color: var(--text-light);
@@ -303,16 +303,9 @@ body {
 .tab-item:active { background: rgba(255,255,255,0.1); }
 /* Host-dependent tabs (랭킹) drop out of the flex row entirely. */
 .tab-item.hidden { display: none; }
-/* Each tab's icon sits on its own tinted disc (colour = the icon's own
-   palette) so the bar reads as five distinct things, not five white
-   outlines. The disc padding is why .tab-item's vertical padding shrank. */
-.tab-icon { width: 24px; height: 24px; display: block; padding: 5px; border-radius: 50%; box-sizing: content-box; background: rgba(255, 255, 255, 0.08); transition: background 0.15s ease, filter 0.15s ease; }
-#menu-shop-btn .tab-icon { background: rgba(255, 143, 110, 0.2); }
-#menu-bucket-btn .tab-icon { background: rgba(92, 201, 232, 0.2); }
-#bait-btn .tab-icon { background: rgba(143, 217, 168, 0.18); }
-#menu-achievements-btn .tab-icon { background: rgba(244, 197, 66, 0.22); }
-#menu-leaderboard-btn .tab-icon { background: rgba(207, 216, 220, 0.18); }
-#menu-settings-btn .tab-icon { background: rgba(169, 191, 214, 0.18); }
+/* Coloured icons (icons/ui/*.svg carry their own palette) on the plain
+   bar -- no tinted disc behind them; that read as generic app chrome. */
+.tab-icon { width: 26px; height: 26px; display: block; transition: filter 0.15s ease; }
 .tab-item:active .tab-icon { filter: brightness(1.2); }
 .tab-icon-wrap { position: relative; display: block; }
 .tab-label { line-height: 1; opacity: 0.85; white-space: nowrap; }
@@ -1368,20 +1361,14 @@ body {
 .upgrade-rod.grade-rare { border-color: rgba(92, 201, 232, 0.45); background: linear-gradient(100deg, rgba(92, 201, 232, 0.22), rgba(255,255,255,0.04) 55%); }
 .upgrade-rod.grade-epic { border-color: rgba(201, 140, 240, 0.5); background: linear-gradient(100deg, rgba(201, 140, 240, 0.24), rgba(255,255,255,0.04) 55%); }
 .upgrade-rod-icon {
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.1);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.12) inset;
 }
-.upgrade-rod.grade-common .upgrade-rod-icon { background: rgba(143, 217, 168, 0.28); }
-.upgrade-rod.grade-rare .upgrade-rod-icon { background: rgba(92, 201, 232, 0.3); }
-.upgrade-rod.grade-epic .upgrade-rod-icon { background: rgba(201, 140, 240, 0.32); }
-.upgrade-rod-icon img { width: 32px; height: 32px; }
+.upgrade-rod-icon img { width: 38px; height: 38px; }
 /* Effect strip across the card's foot (the info column is too narrow at
    390px for "+6% -> +9%" beside the price button). */
 .upgrade-effect { flex-basis: 100%; margin-top: 10px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 12.5px; color: var(--accent); display: flex; align-items: center; gap: 6px; }
@@ -1442,20 +1429,14 @@ body {
 .upgrade-stat.stat-luck { border-color: rgba(143, 217, 168, 0.4); background: linear-gradient(100deg, rgba(143, 217, 168, 0.16), rgba(255,255,255,0.04) 55%); }
 .upgrade-stat.stat-precision { border-color: rgba(92, 201, 232, 0.4); background: linear-gradient(100deg, rgba(92, 201, 232, 0.16), rgba(255,255,255,0.04) 55%); }
 .upgrade-stat-icon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.1);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.12) inset;
 }
-.upgrade-stat.stat-strength .upgrade-stat-icon { background: rgba(255, 143, 110, 0.26); }
-.upgrade-stat.stat-luck .upgrade-stat-icon { background: rgba(143, 217, 168, 0.26); }
-.upgrade-stat.stat-precision .upgrade-stat-icon { background: rgba(92, 201, 232, 0.28); }
-.upgrade-stat-icon img { width: 30px; height: 30px; }
+.upgrade-stat-icon img { width: 36px; height: 36px; }
 .upgrade-stat-info { flex: 1; min-width: 0; }
 .upgrade-stat-name { font-size: 15px; margin-bottom: 2px; display: flex; align-items: baseline; gap: 6px; }
 .upgrade-stat-lv { font-size: 11.5px; opacity: 0.7; }
@@ -1865,12 +1846,9 @@ body {
    row's border pick up the same tint so the tier reads at a glance.
    Locked rows show the metal too (it's a promise of what's coming) but
    desaturated, so the shelf of cleared ones is what glitters. */
-.achievement-row .sell-row-icon img { width: 26px; height: 26px; }
+.achievement-row .sell-row-icon { background: none; width: 34px; height: 34px; }
+.achievement-row .sell-row-icon img { width: 30px; height: 30px; }
 .achievement-row.locked .sell-row-icon img { filter: grayscale(0.85) brightness(0.9); }
-.achievement-row.trophy-bronze .sell-row-icon { background: rgba(211, 135, 74, 0.18); }
-.achievement-row.trophy-silver .sell-row-icon { background: rgba(207, 216, 220, 0.16); }
-.achievement-row.trophy-gold .sell-row-icon { background: rgba(244, 197, 66, 0.2); }
-.achievement-row.trophy-platinum .sell-row-icon { background: rgba(126, 224, 255, 0.18); box-shadow: 0 0 0 1px rgba(126, 224, 255, 0.35) inset; }
 .achievement-row.cleared.trophy-bronze { border-color: rgba(211, 135, 74, 0.55); background: rgba(211, 135, 74, 0.08); }
 .achievement-row.cleared.trophy-silver { border-color: rgba(207, 216, 220, 0.5); background: rgba(207, 216, 220, 0.07); }
 .achievement-row.cleared.trophy-gold { border-color: rgba(244, 197, 66, 0.6); background: rgba(244, 197, 66, 0.09); }
