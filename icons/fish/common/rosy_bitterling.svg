@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
 <defs><clipPath id="b"><path d="M9.14,16.5 C12.17,8.22 16.21,8.97 19.24,8.97 C24.62,8.97 28.8,14.11 31.18,14.11 L31.18,18.89 C28.8,18.89 24.62,23.3 19.24,23.3 C16.21,23.3 12.17,23.98 9.14,16.5 Z"/></clipPath></defs>
 <path d="M30.68,14.11 L39.18,10.77 L35.18,16.5 L39.18,22.23 L30.68,18.89 Z" fill="#e79ab8" stroke="#3d5a4a" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
-<path d="M14.24,10.57 L16.24,3.27 L26.24,10.17 Z" fill="#e79ab8" stroke="#3d5a4a" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M14.24,10.57 L16.24,3.27 L26.24,10.17 Z" fill="#e79ab8" stroke="#3d5a4a" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
 <path d="M20.14,22.1 L22.14,25.3 L25.14,22.3 Z" fill="#e79ab8" opacity="0.9"/>
 <path d="M9.14,16.5 C12.17,8.22 16.21,8.97 19.24,8.97 C24.62,8.97 28.8,14.11 31.18,14.11 L31.18,18.89 C28.8,18.89 24.62,23.3 19.24,23.3 C16.21,23.3 12.17,23.98 9.14,16.5 Z" fill="#f6dfe9"/>
 <g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.4" fill="#8fd9a8"/>

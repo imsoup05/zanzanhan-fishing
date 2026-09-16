@@ -38,7 +38,7 @@
 
 | 파일 | 쓰이는 곳 | 코드 위치 | 비고 |
 |---|---|---|---|
-| `fish/<tier>/<id>.svg` (30개, 어종별) | 낚시 성공 결과창 아이콘, 상점 판매/보관함/도감 목록의 `sell-row-icon` | `game.js`의 `catchSuccess()`/`renderSellList()`/`renderBucketInventory()`/`renderLog()` — 전부 `FishData.speciesIconPath()`로 경로 조합 | 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`, 종 구분 없음) |
+| `fish/<tier>/<id>.svg` (30개, 어종별 — 일반/희귀/특급은 `tools/fish-icons.js`가 종 정의로부터 생성, 전설 이무기는 같은 스크립트 안에 손으로 그린 SVG) | 낚시 성공 결과창 아이콘, 상점 판매/보관함/도감 목록의 `sell-row-icon` | `game.js`의 `catchSuccess()`/`renderSellList()`/`renderBucketInventory()`/`renderLog()` — 전부 `FishData.speciesIconPath()`로 경로 조합 | 릴링 중 "남은 히트 수" 카운터의 물고기 아이콘과는 별개(카운터는 `game.js` 내 인라인 SVG `FISH_ICON_SVG`, 종 구분 없음) |
 | `fish/unknown.svg` | 도감에서 아직 못 잡은 종("???")의 자리를 채우는 공용 실루엣 — 실제 종 아이콘을 미리 보여주면 "???"로 이름을 가리는 의미가 없어지므로 미발견 상태에서만 사용 | `game.js`의 `renderLog()`가 `!record`일 때 사용 | 단색 검은 물고기 실루엣(디테일 없음, "정체불명"을 표현) |
 
 ## app/ — PWA 앱 아이콘

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
 <defs><clipPath id="b"><path d="M2.29,16.5 C7.46,7.83 14.36,8.62 19.54,8.62 C27.3,8.62 33.33,13.54 36.78,13.54 L36.78,19.46 C33.33,19.46 27.3,23.4 19.54,23.4 C14.36,23.4 7.46,24.09 2.29,16.5 Z"/></clipPath></defs>
 <path d="M36.28,13.54 L46.78,9.4 L41.78,16.5 L46.78,23.6 L36.28,19.46 Z" fill="#a9dac6" stroke="#2e5a52" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
-<path d="M21.54,10.02 L24.54,6.02 L29.54,9.82 Z" fill="#a9dac6" stroke="#2e5a52" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M21.54,10.02 L24.54,6.02 L29.54,9.82 Z" fill="#a9dac6" stroke="#2e5a52" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
 <path d="M13.29,22.2 L15.29,25.4 L18.29,22.4 Z" fill="#a9dac6" opacity="0.9"/>
 <path d="M2.29,16.5 C7.46,7.83 14.36,8.62 19.54,8.62 C27.3,8.62 33.33,13.54 36.78,13.54 L36.78,19.46 C33.33,19.46 27.3,23.4 19.54,23.4 C14.36,23.4 7.46,24.09 2.29,16.5 Z" fill="#f3faf6"/>
 <g clip-path="url(#b)"><rect x="0" y="0" width="48" height="18.43" fill="#a9dac6"/>

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
 <defs><clipPath id="b"><path d="M5.24,13.35 C8.69,10.7 12.64,10.98 15.1,10.98 C23.53,10.98 30.08,14.33 33.83,14.33 L33.83,18.67 C30.08,18.67 23.53,21.63 15.1,21.63 C12.64,21.63 8.69,21.88 5.24,19.65 Q3.74,16.5 5.24,13.35 Z"/></clipPath></defs>
 <path d="M33.33,14.33 L41.83,11.3 L37.83,16.5 L41.83,21.7 L33.33,18.67 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
-<path d="M11.1,12.38 L14.1,7.18 L21.1,11.98 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M11.1,12.38 L14.1,7.18 L21.1,11.98 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
 <path d="M16.24,20.43 L18.24,23.63 L21.24,20.63 Z" fill="#74b7d1" opacity="0.9"/>
 <path d="M5.24,13.35 C8.69,10.7 12.64,10.98 15.1,10.98 C23.53,10.98 30.08,14.33 33.83,14.33 L33.83,18.67 C30.08,18.67 23.53,21.63 15.1,21.63 C12.64,21.63 8.69,21.88 5.24,19.65 Q3.74,16.5 5.24,13.35 Z" fill="#d5e8ef"/>
 <g clip-path="url(#b)"><rect x="0" y="0" width="48" height="17.94" fill="#74b7d1"/>

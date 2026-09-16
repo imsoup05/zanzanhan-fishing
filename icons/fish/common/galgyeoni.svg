@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
 <defs><clipPath id="b"><path d="M5.2,16.5 C9.23,10.09 14.61,10.68 18.64,10.68 C25.7,10.68 31.18,14.04 34.32,14.04 L34.32,18.96 C31.18,18.96 25.7,21.65 18.64,21.65 C14.61,21.65 9.23,22.17 5.2,16.5 Z"/></clipPath></defs>
 <path d="M33.82,14.04 L42.32,10.59 L38.32,16.5 L42.32,22.41 L33.82,18.96 Z" fill="#d9784f" stroke="#1f4d33" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
-<path d="M14.64,12.08 L17.64,6.88 L24.64,11.68 Z" fill="#d9784f" stroke="#1f4d33" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M14.64,12.08 L17.64,6.88 L24.64,11.68 Z" fill="#d9784f" stroke="#1f4d33" stroke-width="0.6" stroke-linejoin="round" opacity="1"/>
 <path d="M19.64,21.05 L22.64,24.85 L31.32,19.16 Z" fill="#d9784f" stroke="#1f4d33" stroke-width="0.6" stroke-linejoin="round"/>
 <path d="M16.2,20.45 L18.2,23.65 L21.2,20.65 Z" fill="#d9784f" opacity="0.9"/>
 <path d="M5.2,16.5 C9.23,10.09 14.61,10.68 18.64,10.68 C25.7,10.68 31.18,14.04 34.32,14.04 L34.32,18.96 C31.18,18.96 25.7,21.65 18.64,21.65 C14.61,21.65 9.23,22.17 5.2,16.5 Z" fill="#dcf2e2"/>
