@@ -880,7 +880,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 9;
+  const SAVE_SCHEMA_VERSION = 10;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -981,7 +981,16 @@ function __zzhInit() {
     // (tutorialDone) and the once-only 시스템 소개 (shop / free 10뽑 /
     // upgrades, introDone). Whoever had finished or skipped the old
     // all-in-one tutorial has had their one intro.
-    (save) => ({ ...save, introDone: !!save.tutorialDone, schemaVersion: 9 })
+    (save) => ({ ...save, introDone: !!save.tutorialDone, schemaVersion: 9 }),
+    // schema 9 -> 10: 도전과제 rewards. `achievements.claimed` records which
+    // unlocks have been collected; it starts EMPTY on purpose so everything
+    // an existing save already cleared is waiting to be claimed, rather
+    // than silently forfeited. Nothing else moves.
+    (save) => ({
+      ...save,
+      achievements: { ...(save.achievements || Achievements.freshState()), claimed: (save.achievements && save.achievements.claimed) || {} },
+      schemaVersion: 10
+    })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1221,18 +1230,19 @@ function __zzhInit() {
     shopGemsEl.textContent = gems.toLocaleString('ko-KR');
   }
 
-  // Rod grade raises maxMisses (more forgiving); rod level only widens the
-  // hit zone -- time limit is no longer rod-affected, but 근력 (a separate
-  // player stat) still lengthens it. Hit tolerance isn't tier/rod-based at
-  // all anymore -- see hitToleranceForPeriod() above, keyed off the reel's
-  // actual current speed instead. Everything else here is folded into the
+  // Rod grade raises maxMisses on 특급/전설 only (FishData.rodMissBonus);
+  // rod level only widens the hit zone -- time limit is no longer
+  // rod-affected, but 근력 (a separate player stat) still lengthens it.
+  // Hit tolerance isn't tier/rod-based at all anymore -- see
+  // hitToleranceForPeriod() above, keyed off the reel's actual current
+  // speed instead. Everything else here is folded into the
   // tier's base reel params so startReel()/attemptHit() just consume one
   // effective set without knowing about the rod or player stats at all.
   const MAX_MISSES_CAP = 5;
   function getEffectiveReel(tier) {
     const base = FishData.TIERS[tier].reel;
     const ease = FishData.rodEase(rod.level);
-    const missBonus = FishData.rodMissBonus(rod.grade);
+    const missBonus = FishData.rodMissBonus(rod.grade, tier);
     const strengthBonus = stats.strength * FishData.PLAYER_STATS.strength.effectPerLevel;
     return {
       hitsRequired: base.hitsRequired,
@@ -1245,10 +1255,12 @@ function __zzhInit() {
   // 정밀함 stat: slows the casting bar's sweep down (a bigger period is a
   // slower, easier-to-time sweep) -- applied on top of whichever tier the
   // rarity climb is currently displaying, same as the tier-color-driven
-  // speed itself.
+  // speed itself. The 특급 rod's 특급/전설 slowdown (FishData.rodSlowBonus)
+  // stacks additively with it, keyed by the same displayed colour.
   function effectivePeriod(tierKey) {
     const precisionBonus = stats.precision * FishData.PLAYER_STATS.precision.effectPerLevel;
-    return FishData.TIERS[tierKey].reel.period * (1 + precisionBonus);
+    const rodBonus = FishData.rodSlowBonus(rod.grade, tierKey);
+    return FishData.TIERS[tierKey].reel.period * (1 + precisionBonus + rodBonus);
   }
 
   function showStatus(text, iconSrc) {
@@ -1908,7 +1920,7 @@ function __zzhInit() {
   // Card grid order is always worst -> best regardless of roll order, so
   // the best pull in the batch sits in the last slot -- the "dopamine"
   // payoff beat lands wherever the player's eye ends up scanning to.
-  const GACHA_REVEAL_ORDER = ['common', 'rare', 'epic', 'legendary'];
+  const GACHA_REVEAL_ORDER = ['shells', 'rare', 'epic', 'legendary'];
 
   function runGacha(kind) {
     const isTen = kind === 'ten';
@@ -1935,9 +1947,12 @@ function __zzhInit() {
       const epics = results.filter((k) => k === 'epic' || k === 'legendary').length;
       if (epics > s.maxEpicInTen) s.maxEpicInTen = epics;
     }
-    // 일반 결과는 이미 무한정 사용 가능한 기본 미끼라 인벤토리에 쌓지 않음 --
-    // 카드 연출에서는 그대로 보여주되 보유 개수만 늘지 않는다.
-    results.forEach(key => { if (key !== 'common') baits[key] = (baits[key] || 0) + 1; });
+    // 'shells' 카드는 미끼가 아니라 조개 환급(FishData.GACHA_SHELL_REFUND) --
+    // 공개 연출과 무관하게 여기서 바로 지급한다(새로고침으로 잃지 않도록).
+    // 환급은 판매 수입이 아니므로 누적 판매 조개(랭킹 점수)에는 넣지 않는다.
+    const refundCards = results.filter((k) => k === 'shells').length;
+    shells += refundCards * FishData.GACHA_SHELL_REFUND;
+    results.forEach(key => { if (key !== 'shells') baits[key] = (baits[key] || 0) + 1; });
     persist();
     updateCurrencyDisplay();
     if (free) tutorialGo('gachaReveal'); // before the re-render so the 무료 label goes back to the price
@@ -1948,11 +1963,12 @@ function __zzhInit() {
     checkAchievements();
   }
   // The tutorial's free 10뽑: one 특급 guaranteed, nothing above it, and the
-  // other nine split 희귀/일반 at their normal relative odds. Leaves the
+  // other nine split 희귀/조개 환급 at their normal relative odds (the
+  // refund cards pay out for real, same as a paid pull). Leaves the
   // legendary pity counter alone -- it isn't a real paid pull.
   function tutorialTenPull() {
     const results = [];
-    for (let i = 0; i < 9; i++) results.push(Math.random() < 0.34 ? 'rare' : 'common');
+    for (let i = 0; i < 9; i++) results.push(Math.random() < 0.34 ? 'rare' : 'shells');
     results.splice(Math.floor(Math.random() * 10), 0, 'epic');
     return { results, pity: gachaPity, forced: 0 };
   }
@@ -2001,15 +2017,17 @@ function __zzhInit() {
     }
 
     const cards = results.map((tier) => {
-      const bait = FishData.BAITS[tier];
+      // 'shells' is the refund card (see runGacha); everything else is a bait.
+      const icon = tier === 'shells' ? 'icons/ui/shell.svg' : `icons/ui/bait-${tier}.svg`;
+      const label = tier === 'shells' ? `조개 +${FishData.GACHA_SHELL_REFUND}` : FishData.BAITS[tier].label;
       const card = document.createElement('div');
       card.className = 'gacha-card';
       card.innerHTML = `
         <div class="gacha-card-inner">
           <div class="gacha-card-face gacha-card-back">?</div>
           <div class="gacha-card-face gacha-card-front tier-${tier}">
-            <img src="icons/ui/bait-${tier}.svg" alt="">
-            <span>${bait.label}</span>
+            <img src="${icon}" alt="">
+            <span>${label}</span>
           </div>
         </div>
       `;
@@ -2215,8 +2233,45 @@ function __zzhInit() {
   const achievementsListEl = document.getElementById('achievements-list');
   const achievementsSummaryEl = document.getElementById('achievements-summary');
   const achievementsCloseBtn = document.getElementById('achievements-close-btn');
+  const achievementsClaimAllBtn = document.getElementById('achievements-claim-all-btn');
   const menuAchievementsBtn = document.getElementById('menu-achievements-btn');
+  const achievementsBtnBadge = document.getElementById('achievements-btn-badge');
   const achievementToastsEl = document.getElementById('achievement-toasts');
+  if (!achievements.claimed) achievements.claimed = {}; // belt-and-braces past the migration
+
+  // ---- 보상 수령 ----
+  // An unlock is only ever a promise: the reward lands when the player taps
+  // 받기 on the row (or 모두 받기 in the header). Reward shells are NOT sales
+  // income, so they stay out of shellsEarned / the leaderboard score.
+  function unclaimedAchievementIds() {
+    return Achievements.LIST.filter((a) => achievements.unlocked[a.id] && !achievements.claimed[a.id]).map((a) => a.id);
+  }
+  function updateAchievementBadge() {
+    const n = unclaimedAchievementIds().length;
+    achievementsBtnBadge.textContent = n;
+    achievementsBtnBadge.classList.toggle('hidden', n === 0);
+  }
+  function grantReward(reward) {
+    if (reward.shells) shells += reward.shells;
+    if (reward.gems) gems += reward.gems;
+    if (reward.bait) Object.keys(reward.bait).forEach((tier) => { baits[tier] = (baits[tier] || 0) + reward.bait[tier]; });
+  }
+  function claimAchievements(ids) {
+    const claimable = ids.filter((id) => achievements.unlocked[id] && !achievements.claimed[id]);
+    if (!claimable.length) return;
+    const now = Date.now();
+    claimable.forEach((id) => { grantReward(Achievements.byId(id).reward); achievements.claimed[id] = now; });
+    persist();
+    ensureAudio();
+    sfx.coin();
+    updateCurrencyDisplay();
+    updateBaitButton();
+    if (!shopOverlay.classList.contains('hidden')) { renderGachaTab(); renderUpgradeTab(); }
+    renderAchievements();
+    updateAchievementBadge();
+    checkAchievements(); // a shell reward can itself complete 조개 N개 goals
+  }
+  achievementsClaimAllBtn.addEventListener('click', () => claimAchievements(unclaimedAchievementIds()));
 
   function achievementCtx() {
     return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats };
@@ -2258,8 +2313,9 @@ function __zzhInit() {
     const el = document.createElement('div');
     el.className = 'achievement-toast';
     el.innerHTML = '<img class="achievement-toast-icon" src="icons/ui/trophy.svg" alt="">'
-      + '<div><div class="achievement-toast-label">도전과제 달성</div><div class="achievement-toast-title"></div></div>';
+      + '<div><div class="achievement-toast-label">도전과제 달성</div><div class="achievement-toast-title"></div><div class="achievement-toast-reward"></div></div>';
     el.querySelector('.achievement-toast-title').textContent = a.title;
+    el.querySelector('.achievement-toast-reward').textContent = `보상 ${Achievements.rewardLabel(a.reward)} · 도전과제에서 받기`;
     achievementToastsEl.appendChild(el);
     requestAnimationFrame(() => el.classList.add('in'));
     setTimeout(() => {
@@ -2277,6 +2333,7 @@ function __zzhInit() {
     const now = Date.now();
     fresh.forEach((id) => { achievements.unlocked[id] = now; });
     persist();
+    updateAchievementBadge();
     if (!achievementsOverlay.classList.contains('hidden')) renderAchievements();
     if (opts && opts.silent) return;
     sfx.gem();
@@ -2290,6 +2347,8 @@ function __zzhInit() {
     const total = Achievements.LIST.length;
     const done = Achievements.LIST.filter((a) => achievements.unlocked[a.id]).length;
     achievementsSummaryEl.textContent = `${done} / ${total}`;
+    // 모두 받기 only earns its place once there's more than one thing to collect.
+    achievementsClaimAllBtn.classList.toggle('hidden', unclaimedAchievementIds().length < 2);
     achievementsListEl.innerHTML = '';
     ACHIEVEMENT_CATEGORIES.forEach((cat) => {
       // Hidden ones don't exist here until cleared -- then they surface in
@@ -2302,11 +2361,23 @@ function __zzhInit() {
       achievementsListEl.appendChild(head);
       rows.forEach((a) => {
         const unlockedAt = achievements.unlocked[a.id];
+        const claimedAt = achievements.claimed[a.id];
         const row = document.createElement('div');
-        row.className = 'sell-row achievement-row ' + (unlockedAt ? 'cleared' : 'locked');
+        row.className = 'sell-row achievement-row ' + (unlockedAt ? (claimedAt ? 'cleared' : 'cleared claimable') : 'locked');
         row.innerHTML = '<div class="sell-row-icon"><img src="icons/ui/trophy.svg" alt=""></div>'
-          + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div></div>'
+          + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div><div class="achievement-reward"></div></div>'
           + '<div class="achievement-state"></div>';
+        // Reward line under the description on every row -- locked ones show
+        // what's waiting, claimed ones what was collected.
+        const rewardEl = row.querySelector('.achievement-reward');
+        Achievements.rewardParts(a.reward).forEach((p) => {
+          const chip = document.createElement('span');
+          chip.className = 'achievement-reward-part';
+          chip.innerHTML = '<img alt="">';
+          chip.querySelector('img').src = p.icon;
+          chip.appendChild(document.createTextNode(p.text));
+          rewardEl.appendChild(chip);
+        });
         const nameEl = row.querySelector('.sell-row-name');
         nameEl.textContent = a.title;
         if (a.hidden) {
@@ -2321,7 +2392,14 @@ function __zzhInit() {
           meta += ` · ${cur.toLocaleString('ko-KR')} / ${max.toLocaleString('ko-KR')}`;
         }
         row.querySelector('.sell-row-meta').textContent = meta;
-        if (unlockedAt) {
+        if (unlockedAt && !claimedAt) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'sell-btn achievement-claim-btn';
+          btn.textContent = '받기';
+          btn.addEventListener('click', () => claimAchievements([a.id]));
+          row.querySelector('.achievement-state').appendChild(btn);
+        } else if (unlockedAt) {
           const d = new Date(unlockedAt);
           row.querySelector('.achievement-state').innerHTML = '달성<small></small>';
           row.querySelector('small').textContent = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
@@ -2350,9 +2428,15 @@ function __zzhInit() {
   // ---- 랭킹 (host leaderboard, Apps in Toss only) ----
   // Score = 누적 판매 조개, the same counter 도전과제 keeps. Sent after every
   // sale and once at startup (covers a submission the last session lost).
-  const leaderboardBtn = document.getElementById('leaderboard-btn');
-  leaderboardBtn.classList.toggle('hidden', !Platform.hasLeaderboard);
-  leaderboardBtn.addEventListener('click', () => Platform.openLeaderboard());
+  // Three entry points to the same board -- launch title, bottom tab bar,
+  // and the 도전과제 header -- so it's never more than one tap away; all
+  // hidden together on hosts without one (the tab bar is then five tabs).
+  const leaderboardBtns = ['title-leaderboard-btn', 'menu-leaderboard-btn', 'leaderboard-btn']
+    .map((id) => document.getElementById(id));
+  leaderboardBtns.forEach((btn) => {
+    btn.classList.toggle('hidden', !Platform.hasLeaderboard);
+    btn.addEventListener('click', () => Platform.openLeaderboard());
+  });
   function submitLeaderboardScore() {
     if (!Platform.hasLeaderboard || achievements.stats.shellsEarned <= 0) return;
     Platform.submitScore(achievements.stats.shellsEarned);
@@ -2671,7 +2755,7 @@ function __zzhInit() {
       setMaskHole(null);
       tutorialMask.classList.add('clear'); // the reveal overlay wants the taps
       tutorialCallout.classList.remove('hidden');
-      placeCallout('카드를 눌러 어떤 미끼가 나왔는지 확인해요', gameRectOf(gachaCardGridEl));
+      placeCallout('카드를 눌러 무엇이 나왔는지 확인해요', gameRectOf(gachaCardGridEl));
     } else if (step === 'finish') {
       setMaskHole(null);
       tutorialSkipBtn.classList.add('hidden');
@@ -2907,6 +2991,7 @@ function __zzhInit() {
   // Anything an older save already qualifies for (or that a migration
   // rebuilt) is granted quietly at startup, not announced.
   checkAchievements({ silent: true });
+  updateAchievementBadge();
   submitLeaderboardScore();
 
   // ================= Dev hook (inert without dev-mode.js) =================
@@ -2993,17 +3078,23 @@ function __zzhInit() {
   // same first gesture: it never swallows the tap, so a tap on the water
   // is already the first cast while the wordmark fades out over it.
   const titleOverlay = document.getElementById('title-overlay');
-  const dismissTitle = () => {
+  // Not { once }: a tap the handler ignores (below) must not use it up.
+  const titleEvents = ['pointerdown', 'touchstart', 'keydown'];
+  const dismissTitle = (e) => {
     if (!gameEl.classList.contains('title-up')) return;
+    // A tap on one of the title's own buttons (랭킹) is not "start playing":
+    // leave the title up, the button handles itself.
+    if (e && e.target && e.target.closest && e.target.closest('.title-actions')) return;
     gameEl.classList.remove('title-up');
     titleOverlay.classList.add('fading');
     setTimeout(() => {
       titleOverlay.classList.add('hidden');
       if (!tutorialDone && !tutorial.active) tutorialGo('cast');
     }, 600);
+    titleEvents.forEach((evt) => document.removeEventListener(evt, dismissTitle));
   };
-  ['pointerdown', 'touchstart', 'keydown'].forEach((evt) => {
-    document.addEventListener(evt, dismissTitle, { once: true, passive: true });
+  titleEvents.forEach((evt) => {
+    document.addEventListener(evt, dismissTitle, { passive: true });
   });
 
   // BGM is a continuous loop (unlike the one-shot SFX blips), so unlike

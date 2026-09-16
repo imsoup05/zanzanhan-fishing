@@ -22,29 +22,35 @@
     junk: {
       key: 'junk', label: '꽝', color: '#8a99a0', weight: 0.10,
       priceMin: 0, priceMax: 0,
-      reel: { period: 1.20, zoneHeight: 32, maxMisses: 3, timeLimit: 3.8, hitsRequired: 2 }
+      reel: { period: 1.25, zoneHeight: 34, maxMisses: 3, timeLimit: 4.0, hitsRequired: 2 }
     },
     common: {
       key: 'common', label: '일반', color: '#8fd9a8', weight: 0.52,
       priceMin: 8, priceMax: 45,
-      reel: { period: 1.05, zoneHeight: 24, maxMisses: 3, timeLimit: 3.4, hitsRequired: 3 }
+      reel: { period: 1.10, zoneHeight: 28, maxMisses: 3, timeLimit: 3.8, hitsRequired: 2 }
     },
     rare: {
       key: 'rare', label: '희귀', color: '#5cc9e8', weight: 0.27,
       priceMin: 60, priceMax: 220,
-      reel: { period: 0.90, zoneHeight: 19, maxMisses: 3, timeLimit: 3.1, hitsRequired: 4 }
+      reel: { period: 0.95, zoneHeight: 21, maxMisses: 3, timeLimit: 3.4, hitsRequired: 3 }
     },
     epic: {
       key: 'epic', label: '특급', color: '#c98cf0', weight: 0.105,
       priceMin: 300, priceMax: 1100,
-      reel: { period: 0.75, zoneHeight: 15, maxMisses: 2, timeLimit: 2.8, hitsRequired: 5 }
+      reel: { period: 0.80, zoneHeight: 16, maxMisses: 3, timeLimit: 3.0, hitsRequired: 4 }
     },
     legendary: {
       key: 'legendary', label: '전설', color: '#ffcf4d', weight: 0.005,
       priceMin: 8000, priceMax: 15000,
-      reel: { period: 0.60, zoneHeight: 11, maxMisses: 2, timeLimit: 2.6, hitsRequired: 6 }
+      reel: { period: 0.65, zoneHeight: 12, maxMisses: 2, timeLimit: 2.8, hitsRequired: 4 }
     }
   };
+  // reel: tuned (v1.1) as a convex curve on the "effective hit window"
+  // ((zoneHeight + tolerance) x period, see game.js hitToleranceForPeriod):
+  // 꽝 0.61s, 일반 0.45s, 희귀 0.31s, 특급 0.21s, 전설 0.13s -- each step
+  // shrinks more than the last (26% -> 32% -> 33% -> 37%), so the low tiers
+  // stay forgiving and 전설 alone is the wall. hitsRequired here mirrors
+  // game.js's HITS_BASE_BY_TIER (the floor; +0~1 is rolled per catch).
   // junk(10%) + common(52%) + rare(27%) + epic(10.5%) + legendary(0.5%) = 100%.
   // Legendary is ~104x rarer than common, and rarer than every other pool
   // including junk -- the rarest possible outcome, on purpose.
@@ -209,10 +215,15 @@
   }
 
   // ================= Bait gacha (상점 뽑기 탭) =================
-  // legendary fixed at 1%; 일반/희귀/특급 split the remaining 99% in the
-  // same relative proportions as their fish-tier weights (52:27:10.5).
+  // legendary fixed at 1%; the rest split the remaining 99% in the same
+  // relative proportions as the 일반/희귀/특급 fish-tier weights
+  // (52:27:10.5). The bottom slot is NOT a bait any more: 일반 미끼 is the
+  // free, unlimited default, so a card that "won" one was a 57.5% dud.
+  // That slot now hands back GACHA_SHELL_REFUND shells instead ('shells'),
+  // so every card in a pull is worth something.
+  const GACHA_SHELL_REFUND = 100; // per 'shells' card (a 1뽑 costs 150)
   const GACHA_TABLE = [
-    { key: 'common', weight: 57.5 },
+    { key: 'shells', weight: 57.5 },
     { key: 'rare', weight: 29.9 },
     { key: 'epic', weight: 11.6 },
     { key: 'legendary', weight: 1.0 }
@@ -283,32 +294,48 @@
   };
   const ROD_MAX_LEVEL = 10;
 
-  // +1 life once the rod's grade has reached (or passed) each of these
-  // milestones, rather than one fixed lookup per exact grade name -- the
-  // grade-up ladder isn't finalized yet, so this stays correct even if
-  // more grades get inserted later. Only the top grade grants one now
-  // (희귀's +1 was dropped): common=+0, rare=+0, epic=+1.
-  const ROD_MISS_MILESTONES = ['epic'];
-  function rodMissBonus(gradeKey) {
-    const idx = ROD_GRADE_ORDER.indexOf(gradeKey);
-    return ROD_MISS_MILESTONES.reduce((sum, m) => sum + (idx >= ROD_GRADE_ORDER.indexOf(m) ? 1 : 0), 0);
+  // Grade effects are aimed at the top of the ladder (v1.1): a grade-up
+  // is "getting ready for 전설", not a flat buff to every catch.
+  //   희귀 낚싯대: +1 life on 특급 and 전설 (plus the 꽝 skip in game.js).
+  //   특급 낚싯대: +1 life on 특급, +2 on 전설, and the casting bar sweeps
+  //               10% slower while it shows 특급/전설 colour.
+  // Keyed by the tier the effect applies to, so lower tiers get nothing.
+  const ROD_MISS_BONUS = {
+    common: {},
+    rare: { epic: 1, legendary: 1 },
+    epic: { epic: 1, legendary: 2 }
+  };
+  function rodMissBonus(gradeKey, tierKey) {
+    return (ROD_MISS_BONUS[gradeKey] || {})[tierKey] || 0;
+  }
+  const ROD_SLOW_BONUS = {
+    common: {},
+    rare: {},
+    epic: { epic: 0.10, legendary: 0.10 }
+  };
+  // Fractional period increase (slower sweep) for the bar colour `tierKey`.
+  function rodSlowBonus(gradeKey, tierKey) {
+    return (ROD_SLOW_BONUS[gradeKey] || {})[tierKey] || 0;
   }
 
-  // Cost to go from `level` to `level + 1`, within one grade. Same 1.6x
+  // Cost to go from `level` to `level + 1`, within one grade. Same 1.4x
   // growth for every grade, just a higher base per grade so the total
   // spend to max out a grade only ever goes up (희귀 grade's total must
   // cost more than 일반's, 특급's more than 희귀's) -- rounded to the
-  // nearest 100 so every price lands on a clean number.
-  const ROD_GRADE_COST_BASE = { common: 150, rare: 300, epic: 600 };
+  // nearest 100 so every price lands on a clean number. (v1.1: was 1.6x on
+  // 150/300/600 = 118,600 to max everything; now 5,000 + 9,900 + 19,700.)
+  const ROD_GRADE_COST_BASE = { common: 100, rare: 200, epic: 400 };
+  const ROD_COST_GROWTH = 1.4;
   function rodLevelCost(gradeKey, level) {
     const base = ROD_GRADE_COST_BASE[gradeKey];
-    return Math.round((base * Math.pow(1.6, level - 1)) / 100) * 100;
+    return Math.round((base * Math.pow(ROD_COST_GROWTH, level - 1)) / 100) * 100;
   }
 
   // Fraction the reel zone widens by, from rod level alone (0 at level 1,
-  // 0.20 at level 10 -- 9 even steps of 0.20/9 each).
+  // ROD_EASE_MAX at level 10 -- 9 even steps).
+  const ROD_EASE_MAX = 0.30;
   function rodEase(level) {
-    return (level - 1) * (0.20 / 9);
+    return (level - 1) * (ROD_EASE_MAX / 9);
   }
 
   // ---- 보석 (rod grade-up secondary currency) ----
@@ -323,7 +350,7 @@
     rare: { needed: 5 },
     epic: { needed: 10 }
   };
-  const ROD_GEM_DROP_CHANCE = 0.05;
+  const ROD_GEM_DROP_CHANCE = 0.08; // v1.1: was 0.05
 
   // ================= Player stats (별도 강화, 상점 업그레이드 탭 하단) =================
   // Independent of the rod's grade/level -- three flat 0~5 stats bought
@@ -343,18 +370,18 @@
   // purchase is statLevelCost(0)). Same shape as the rod's cost curve, just
   // scaled down for a 0~5 stat instead of a 1~10 one.
   function statLevelCost(level) {
-    return Math.round((300 * Math.pow(1.7, level)) / 100) * 100;
+    return Math.round((300 * Math.pow(1.5, level)) / 100) * 100; // v1.1: was 1.7x
   }
 
   // Only what game.js actually reads; internals (priceForCatch, rollGacha,
   // the weight tables, grade order) stay private to this file.
   window.FishData = {
     TIERS, FISH_BY_TIER, JUNK_ITEMS, pickCatch, randSize, speciesIconPath, junkIconPath,
-    ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus,
+    ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus, rodSlowBonus,
     GEM_LABEL, ROD_GEM_DROP_CHANCE,
     PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,
     BAITS, baitExcludeTiers,
-    GACHA_PULL_COST, GACHA_TEN_PULL_COST, LEGENDARY_PITY,
+    GACHA_PULL_COST, GACHA_TEN_PULL_COST, GACHA_SHELL_REFUND, LEGENDARY_PITY,
     pullGachaWithPity, pullGachaTen
   };
 })();

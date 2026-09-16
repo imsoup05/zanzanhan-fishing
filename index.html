@@ -29,15 +29,23 @@
   <!-- Launch title laid over the live scene (see .title-overlay). Present
        in the markup from the first paint so it also covers the host boot
        wait; the first tap anywhere clears it AND still lands on the water
-       as a real cast. .title-actions is a reserved row for future buttons
-       (더 많은 게임 etc.) -- empty on purpose until there is one. -->
+       as a real cast. .title-actions holds the buttons that DO take input
+       (랭킹 today; 더 많은 게임 etc. later) -- a tap on one of those neither
+       clears the title nor casts. -->
   <div id="title-overlay" class="title-overlay">
     <div class="title-block">
       <h1 class="title-wordmark">잔잔한 낚시터</h1>
       <p class="title-tagline">다리 밑에서 보내는 조용한 낚시 한 판</p>
     </div>
     <div class="title-bottom">
-      <div class="title-actions"></div>
+      <!-- Only shown where the host has a leaderboard (Apps in Toss); a
+           tap here opens the 게임센터 board without clearing the title
+           (see dismissTitle in game.js). -->
+      <div class="title-actions">
+        <button type="button" id="title-leaderboard-btn" class="title-action-btn leaderboard-btn hidden">
+          <img class="ui-icon" src="icons/ui/ranking.svg" alt="">랭킹
+        </button>
+      </div>
       <p class="title-hint">화면을 눌러 낚시 시작</p>
     </div>
   </div>
@@ -117,8 +125,18 @@
         <span class="tab-label">미끼</span>
       </button>
       <button id="menu-achievements-btn" class="tab-item" title="도전과제">
-        <img class="tab-icon" src="icons/ui/trophy.svg" alt="">
+        <span class="tab-icon-wrap">
+          <img class="tab-icon" src="icons/ui/trophy.svg" alt="">
+          <!-- Unclaimed reward count (see updateAchievementBadge in game.js). -->
+          <span id="achievements-btn-badge" class="bait-btn-badge hidden"></span>
+        </span>
         <span class="tab-label">도전과제</span>
+      </button>
+      <!-- Only shown where the host has a leaderboard (Apps in Toss) --
+           game.js unhides it; the bar is five tabs everywhere else. -->
+      <button id="menu-leaderboard-btn" class="tab-item hidden" title="랭킹">
+        <img class="tab-icon" src="icons/ui/ranking.svg" alt="">
+        <span class="tab-label">랭킹</span>
       </button>
       <button id="menu-settings-btn" class="tab-item" title="설정">
         <img class="tab-icon" src="icons/ui/settings.svg" alt="">
@@ -200,7 +218,7 @@
               <span class="gacha-pull-cost"><img class="price-icon" src="icons/ui/shell.svg" alt="">1,500</span>
             </button>
           </div>
-          <p class="gacha-rates">확률: 전설 1% · 특급 11.6% · 희귀 29.9% · 일반 57.5%<br>10뽑은 특급 이상 1개 이상 확정 · 80뽑 안에 전설 확정(천장)</p>
+          <p class="gacha-rates">확률: 전설 1% · 특급 11.6% · 희귀 29.9% · 조개 환급 57.5%<br>조개 환급 카드는 조개 100개를 바로 돌려줘요<br>10뽑은 특급 이상 1개 이상 확정 · 80뽑 안에 전설 확정(천장)</p>
         </div>
         <div id="shop-tab-sell" class="shop-tab-panel hidden">
           <div id="sell-list" class="sell-list"></div>
@@ -271,6 +289,8 @@
         <!-- Only shown where the host has a leaderboard (Apps in Toss). -->
         <button id="leaderboard-btn" class="leaderboard-btn hidden">랭킹</button>
         <span id="achievements-summary" class="achievements-summary"></span>
+        <!-- Shown only while two or more rewards are waiting. -->
+        <button type="button" id="achievements-claim-all-btn" class="achievements-claim-all-btn hidden">모두 받기</button>
         <button id="achievements-close-btn" class="shop-close-btn" title="닫기">
           <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
         </button>

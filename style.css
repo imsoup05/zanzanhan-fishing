@@ -121,7 +121,14 @@ body {
    even with viewport-fit=cover, so 0 doesn't mean the true physical edge.
    Pushing the bottom edge out by env(safe-area-inset-bottom) (negative
    inset = extend past the measured viewport) compensates for that. */
-@media (max-width: 600px) {
+/* The width breakpoint alone missed foldables/tablets: a Galaxy Z Fold's
+   inner screen is ~690 CSS px wide (nearly square), so it fell into the
+   desktop branch and got a 382px phone strip with wide bars on both sides.
+   Any coarse-pointer (touch) device held portrait fills edge to edge too,
+   whatever its width; a mouse-driven desktop keeps the phone frame, and a
+   touch tablet in landscape stays letterboxed since the scene is laid out
+   for portrait proportions. */
+@media (max-width: 600px), (hover: none) and (pointer: coarse) and (orientation: portrait) {
   #game {
     position: fixed;
     top: 0;
@@ -254,7 +261,7 @@ body {
 #game.title-up .topbar,
 #game.title-up .bottombar { opacity: 0; pointer-events: none; }
 
-/* Bottom tab bar (상점/보관함/미끼/도전과제/설정): the same opaque strip as
+/* Bottom tab bar (상점/보관함/미끼/도전과제/[랭킹]/설정): the same opaque strip as
    the status bar up top, so the two read as one HUD frame around the water.
    Bottom padding clears the home-indicator bar: the larger of env() and the
    host-reported inset, plus 16px of breathing room so the labels sit well
@@ -294,6 +301,8 @@ body {
   transition: background 0.15s ease;
 }
 .tab-item:active { background: rgba(255,255,255,0.1); }
+/* Host-dependent tabs (랭킹) drop out of the flex row entirely. */
+.tab-item.hidden { display: none; }
 .tab-icon { width: 24px; height: 24px; display: block; }
 .tab-icon-wrap { position: relative; display: block; }
 .tab-label { line-height: 1; opacity: 0.85; white-space: nowrap; }
@@ -1126,7 +1135,9 @@ body {
 }
 .gacha-card-front img { width: 34px; height: 34px; }
 .gacha-card-front span { font-size: 10.5px; }
-.gacha-card-front.tier-common { background: rgba(143,217,168,0.18); }
+/* Refund card (조개 +N) -- shell-toned, deliberately the quietest of the
+   four so it reads as the floor, not a prize. */
+.gacha-card-front.tier-shells { background: rgba(214, 178, 122, 0.16); }
 .gacha-card-front.tier-rare { background: rgba(92,201,232,0.22); box-shadow: 0 0 12px rgba(92,201,232,0.55); }
 .gacha-card-front.tier-epic { background: rgba(201,140,240,0.26); box-shadow: 0 0 16px rgba(201,140,240,0.7); }
 .gacha-card-front.tier-legendary {
@@ -1430,6 +1441,44 @@ body {
 }
 .leaderboard-btn:active { transform: scale(0.96); }
 .leaderboard-btn.hidden { display: none; }
+/* The same pill on the launch title (below the wordmark, above the "화면을
+   눌러" hint) so the board is reachable before the first cast. The in-game
+   entry is a 랭킹 tab in the bottom bar (.tab-item.hidden above) rather
+   than a status-bar chip: the status bar's right end belongs to the Toss
+   close pill, and a 6-digit shell count would have pushed a chip under it. */
+.leaderboard-btn .ui-icon { width: 15px; height: 15px; margin-right: 5px; display: inline-block; vertical-align: -3px; }
+.title-action-btn {
+  margin-left: 0;
+  padding: 9px 20px;
+  font-size: 15px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+/* Reward line under each row's description: icon + text chips. */
+.achievement-reward { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 12px; color: var(--accent); }
+.achievement-reward-part { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.achievement-reward-part img { width: 14px; height: 14px; }
+.achievement-row.locked .achievement-reward { color: inherit; opacity: 0.8; }
+/* Claimable rows glow a touch brighter than merely cleared ones so the
+   받기 button is the obvious thing on screen. */
+.achievement-row.claimable { border-color: rgba(255, 207, 107, 0.8); background: rgba(255, 207, 107, 0.13); }
+.achievement-claim-btn { padding: 7px 14px; font-size: 13px; }
+.achievements-claim-all-btn {
+  margin-left: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: none;
+  background: var(--cta-grad);
+  color: #3a2a10;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.achievements-claim-all-btn:active { transform: scale(0.96); }
+.achievements-claim-all-btn.hidden { display: none; }
+.achievement-toast-reward { font-size: 11px; opacity: 0.75; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .achievement-section { font-size: 12.5px; opacity: 0.6; padding: 8px 2px 0; }
 .achievement-section:first-child { padding-top: 0; }
 .achievement-row.locked { opacity: 0.55; }

@@ -20,7 +20,9 @@
       maxSize: 0, biggestImugi: 0
     };
   }
-  function freshState() { return { unlocked: {}, stats: freshStats() }; }
+  // claimed: id -> timestamp of when its reward was collected (an unlock
+  // sits in `unlocked` but not here until the player taps 받기).
+  function freshState() { return { unlocked: {}, claimed: {}, stats: freshStats() }; }
 
   // Saves from before 도전과제 existed: rebuild whatever the 도감 already
   // recorded (per-species counts and bests); everything else starts at 0.
@@ -38,8 +40,61 @@
       });
     });
     st.casts = st.catchTotal;
-    return { unlocked: {}, stats: st };
+    return { unlocked: {}, claimed: {}, stats: st };
   }
+
+  // ---- 보상 (v1.1) ----
+  // One reward per achievement, keyed by id: { shells }, { gems }, { bait:
+  // { rare|epic|legendary: n } }, or a combination. Tiered by how hard the
+  // achievement is -- roughly 조개 100~300 for the freebies, 300~500 or a
+  // couple of 희귀 미끼 for mid goals, 1,000~2,000 or 특급 미끼 for the
+  // long grinds, and 보석/전설 미끼 for the capstones. Totals across all
+  // 55: 조개 24,950 · 보석 11 · 희귀 미끼 8 · 특급 미끼 19 · 전설 미끼 5.
+  const REWARDS = {
+    // 낚시
+    first_cast: { shells: 100 }, casts_100: { shells: 500 }, first_fish: { shells: 150 },
+    fish_10: { shells: 300 }, fish_50: { bait: { rare: 3 } }, fish_100: { shells: 1500 },
+    fish_500: { gems: 1 }, fish_1000: { bait: { legendary: 1 } },
+    first_junk: { shells: 100 }, junk_30: { shells: 800 },
+    first_rare: { bait: { rare: 2 } }, first_epic: { bait: { epic: 1 } }, epic_10: { bait: { epic: 3 } },
+    legendary_5: { gems: 2 }, streak_5: { shells: 400 }, streak_15: { bait: { epic: 2 } },
+    perfect_epic: { shells: 1000 }, first_fail: { shells: 100 }, clutch: { shells: 300 },
+    junk_streak_3: { shells: 200 }, big_100: { shells: 1000 }, same_species_3: { shells: 300 },
+    // 도감
+    dex_5: { shells: 300 }, dex_10: { bait: { rare: 2 } }, dex_20: { bait: { epic: 2 } },
+    dex_common_all: { shells: 1500 }, dex_rare_all: { gems: 1 }, dex_epic_all: { gems: 1 },
+    dex_all: { bait: { legendary: 1 }, gems: 2 }, species_10: { shells: 500 }, species_50: { shells: 2000 },
+    // 상점
+    first_sell: { shells: 100 }, shells_1000: { shells: 300 }, shells_10000: { shells: 1000 },
+    shells_100000: { gems: 2 }, earned_50000: { bait: { epic: 3 } }, sale_5000: { shells: 2000 },
+    first_gem: { shells: 500 },
+    // 뽑기
+    first_pull: { bait: { rare: 1 } }, first_ten: { shells: 500 }, pulls_100: { bait: { epic: 2 } },
+    legendary_bait: { shells: 1000 }, pity: { gems: 1 }, bait_all_used: { shells: 800 },
+    // 강화
+    rod_lv2: { shells: 200 }, rod_rare: { shells: 2000 }, rod_epic: { bait: { epic: 3 } },
+    rod_max: { bait: { legendary: 1 } }, stat_max_one: { shells: 1500 }, stat_max_all: { bait: { legendary: 1 } },
+    // 히든
+    hidden_first_legendary: { gems: 1 }, hidden_biggest_imugi: { bait: { legendary: 1 } },
+    hidden_same_species_5: { shells: 1000 }, hidden_pulls_300: { bait: { epic: 3 } },
+    hidden_ten_epics: { shells: 3000 }
+  };
+  // Flattens a reward into renderable parts: [{ icon, text }] in a fixed
+  // order (조개, 보석, then baits low -> high) so every row reads the same.
+  function rewardParts(reward) {
+    const parts = [];
+    if (!reward) return parts;
+    if (reward.shells) parts.push({ icon: 'icons/ui/shell.svg', text: `조개 ${reward.shells.toLocaleString('ko-KR')}` });
+    if (reward.gems) parts.push({ icon: 'icons/shop/gem.svg', text: `보석 ${reward.gems}` });
+    if (reward.bait) {
+      ['rare', 'epic', 'legendary'].forEach((tier) => {
+        const n = reward.bait[tier];
+        if (n) parts.push({ icon: `icons/ui/bait-${tier}.svg`, text: `${FishData.BAITS[tier].label} ${n}` });
+      });
+    }
+    return parts;
+  }
+  function rewardLabel(reward) { return rewardParts(reward).map((p) => p.text).join(' + '); }
 
   // ctx = { s: stats above, catches, shells, gems, rod, playerStats }
   const discovered = (c, tier) => FishData.FISH_BY_TIER[tier].filter((sp) => c.catches[sp.id]).length;
@@ -117,12 +172,16 @@
     { id: 'hidden_ten_epics', cat: '뽑기', hidden: true, title: '한 번의 10뽑에서 특급 이상 5장!', desc: '10뽑 한 번에 특급 이상 미끼가 5장 이상 나왔다', ...flag((c) => c.s.maxEpicInTen >= 5) }
   ];
   const BY_ID = {};
-  LIST.forEach((a) => { BY_ID[a.id] = a; });
+  LIST.forEach((a) => {
+    BY_ID[a.id] = a;
+    a.reward = REWARDS[a.id];
+    if (!a.reward) throw new Error('도전과제 보상 누락: ' + a.id); // every achievement pays out
+  });
 
   // Ids of everything not yet unlocked whose condition now holds.
   function evaluate(ctx, unlocked) {
     return LIST.filter((a) => !unlocked[a.id] && a.test(ctx)).map((a) => a.id);
   }
 
-  window.Achievements = { LIST, byId: (id) => BY_ID[id], freshState, freshStats, stateFromLegacySave, evaluate };
+  window.Achievements = { LIST, byId: (id) => BY_ID[id], freshState, freshStats, stateFromLegacySave, evaluate, rewardParts, rewardLabel };
 })();
