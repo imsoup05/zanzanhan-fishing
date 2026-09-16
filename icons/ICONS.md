@@ -8,7 +8,7 @@
 
 | 파일 | 쓰이는 곳 | 코드 위치 | 현재 모양 |
 |---|---|---|---|
-| `ui/location.svg` | 상단바 왼쪽, 현재 낚시터 이름("다리 밑") 옆 핀 아이콘 | `index.html`의 `.location-pill` | 흰색 지도 핀(물방울 모양 + 안쪽 원) |
+| `ui/location.svg` | 상단바 왼쪽, 현재 낚시터 이름("호수" 등) 옆 핀 아이콘 | `index.html`의 `.location-pill` | 흰색 지도 핀(물방울 모양 + 안쪽 원) |
 | `ui/shell.svg` | 상단바 오른쪽, 재화(조개) 개수 표시 옆 아이콘 | `index.html`의 `.shells-pill` | 조개 껍데기(주황빛, 부채꼴 줄무늬) |
 | `ui/shop.svg` | 햄버거 메뉴에서 아래로 펼쳐지는 세로 메뉴의 첫 항목 — 상점 | `index.html`의 `#menu-shop-btn` | 상점 차양(줄무늬 지붕) + 진열대 |
 | `ui/bucket.svg` | 세로 메뉴 두 번째 항목 — 보관함(잡은 물고기 보관) | `index.html`의 `#menu-bucket-btn` | 백팩(좌우 어깨끈 + 본체 + 앞주머니) |

@@ -96,9 +96,12 @@
   }
   function rewardLabel(reward) { return rewardParts(reward).map((p) => p.text).join(' + '); }
 
-  // ctx = { s: stats above, catches, shells, gems, rod, playerStats }
+  // ctx = { s: stats above, catches, shells, gems, rod, playerStats, stagesUnlocked }
+  // discovered()/dex_*_all/dex_all read FISH_BY_TIER = the 호수 roster only,
+  // so adding 바다/심해 species never moves those goals; the plain "N종"
+  // counters count every stage.
   const discovered = (c, tier) => FishData.FISH_BY_TIER[tier].filter((sp) => c.catches[sp.id]).length;
-  const discoveredAll = (c) => TIER_ORDER.reduce((n, t) => n + discovered(c, t), 0);
+  const discoveredAll = (c) => Object.keys(c.catches).filter((id) => FishData.speciesById(id)).length;
   const speciesTotal = () => TIER_ORDER.reduce((n, t) => n + FishData.FISH_BY_TIER[t].length, 0);
   const maxSpeciesCount = (c) => Object.keys(c.catches).reduce((m, id) => Math.max(m, c.catches[id].count || 0), 0);
   const statLevels = (c) => Object.keys(FishData.PLAYER_STATS).map((k) => c.playerStats[k] || 0);
@@ -135,10 +138,10 @@
     { id: 'dex_5', cat: '도감', title: '도감 5종', desc: '서로 다른 물고기 5종을 낚았다', ...counter(discoveredAll, 5) },
     { id: 'dex_10', cat: '도감', title: '도감 10종', desc: '서로 다른 물고기 10종을 낚았다', ...counter(discoveredAll, 10) },
     { id: 'dex_20', cat: '도감', title: '도감 20종', desc: '서로 다른 물고기 20종을 낚았다', ...counter(discoveredAll, 20) },
-    { id: 'dex_common_all', cat: '도감', title: '일반 물고기 완성', desc: '일반 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'common'), FishData.FISH_BY_TIER.common.length) },
-    { id: 'dex_rare_all', cat: '도감', title: '희귀 물고기 완성', desc: '희귀 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'rare'), FishData.FISH_BY_TIER.rare.length) },
-    { id: 'dex_epic_all', cat: '도감', title: '특급 물고기 완성', desc: '특급 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'epic'), FishData.FISH_BY_TIER.epic.length) },
-    { id: 'dex_all', cat: '도감', title: '모든 물고기를 낚았다!', desc: '도감의 모든 종을 낚았다', ...counter(discoveredAll, speciesTotal()) },
+    { id: 'dex_common_all', cat: '도감', title: '호수 일반 물고기 완성', desc: '호수의 일반 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'common'), FishData.FISH_BY_TIER.common.length) },
+    { id: 'dex_rare_all', cat: '도감', title: '호수 희귀 물고기 완성', desc: '호수의 희귀 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'rare'), FishData.FISH_BY_TIER.rare.length) },
+    { id: 'dex_epic_all', cat: '도감', title: '호수 특급 물고기 완성', desc: '호수의 특급 등급 물고기를 전부 낚았다', ...counter((c) => discovered(c, 'epic'), FishData.FISH_BY_TIER.epic.length) },
+    { id: 'dex_all', cat: '도감', title: '호수의 모든 물고기를 낚았다!', desc: '호수 도감의 모든 종을 낚았다', ...counter(discoveredAll, speciesTotal()) },
     { id: 'species_10', cat: '도감', title: '단골', desc: '한 종의 물고기를 10번 낚았다', ...counter(maxSpeciesCount, 10) },
     { id: 'species_50', cat: '도감', title: '전문가', desc: '한 종의 물고기를 50번 낚았다', ...counter(maxSpeciesCount, 50) },
     // ---- 상점 ----

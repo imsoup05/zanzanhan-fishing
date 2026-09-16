@@ -169,9 +169,9 @@ function __zzhInit() {
   const canvas = document.getElementById('bg-canvas');
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
-  // Offscreen copy of everything static in the scene (deck, vault, piers,
-  // arch ring, the shadow they throw on the water) -- painted once per
-  // size, blitted each frame. See renderBridgeCache().
+  // Offscreen copy of everything static in the current scene (sky, ridges,
+  // shore, foreground plants) -- painted once per size/stage, blitted each
+  // frame. See renderBridgeCache() and SCENES.
   let bridgeCache = null;
 
   // #game's CSS size is driven by --vw-px/--vh-px rather than raw vw/vh --
@@ -235,346 +235,87 @@ function __zzhInit() {
 
   const WATER_TOP_FRAC = 0.3;
   function waterTop() { return H * WATER_TOP_FRAC; }
-  function pierWidth() { return W * 0.22; }
-
-  const THEME = {
-    beam: '#171412',
-    wall: ['#221e1b', '#3a3430', '#4d4640'],
-    wallWarm: 'rgba(255,186,110,0.18)',
-    sky: ['#a6d6ea', '#ffe8b8', '#ffd27c'],
-    sun: 'rgba(255,248,224,0.7)',
-    haze: 'rgba(255,236,200,0.5)',
-    farBank: 'rgba(110,130,140,0.35)',
-    ring: '#332e2a',
-    ringRim: 'rgba(255,224,176,0.75)',
-    bounce: 'rgba(120,205,215,0.2)',
-    moss: ['rgba(35,58,32,0)', 'rgba(28,48,26,0.65)'],
-    bridgeShadow: 'rgba(0,0,0,0.45)',
-    rayColor: 'rgba(255,238,190,',
-    water: ['#bfe9dc', '#6cc0c2', '#2f8f9c', '#0f4b5c'],
-    openingReflect: 'rgba(255,232,190,',
-    pierReflect: '#0a2a30',
-    waveA: '#eaffef', waveB: '#0a3a44',
-    sunGlow: 'rgba(255,246,214,0.12)',
-    waterline: '#eafffb',
-    sparkle: '#fffbe8'
-  };
-
-  // Shared layout of the bridge so the static painter, the water's
-  // reflection of the opening and the shadow cut-out all agree on where
-  // the arch actually is.
-  function bridgeGeom() {
-    const wTop = waterTop();
-    const deckH = Math.max(24, H * 0.045);
-    const pierW = pierWidth();
-    const span = wTop - deckH;
-    const cx = W * 0.5;
-    const rx = W * 0.5 - pierW;
-    const crownY = deckH + span * 0.22;
-    const springY = wTop - span * 0.4;
-    return { wTop, deckH, pierW, span, cx, rx, crownY, springY, ry: springY - crownY };
+  // ================= Scene helpers (shared by every 낚시터) =================
+  // Deterministic ridge line (sum of sines) so mountains never shimmer
+  // between frames or resizes. Returns the ridge's top y at x.
+  function ridgeTop(x, baseY, amp, freq, seed) {
+    const n = Math.sin(x * freq + seed) * 0.5 + Math.sin(x * freq * 2.3 + seed * 2.1) * 0.3 + Math.sin(x * freq * 5.1 + seed * 0.7) * 0.12;
+    return baseY - amp * (0.55 + n * 0.5);
   }
-
-  // Outline of the opening: straight jambs up from the water, elliptical
-  // arc over the top. Runs a little below the waterline so the sky always
-  // meets its own reflection with no seam. A negative inset grows it.
-  // `open` leaves the bottom unclosed -- for strokes, otherwise the closing
-  // chord paints a bar straight across the opening at the waterline.
-  function archPath(c, g, inset, open) {
-    inset = inset || 0;
+  // Fills the band between a ridge and its base line. mirror > 0 flips it
+  // below the base (a reflection, squashed by that factor and wobbling
+  // with t) instead.
+  function fillRidge(c, o) {
     c.beginPath();
-    c.moveTo(g.cx - g.rx + inset, g.wTop + 4);
-    c.lineTo(g.cx - g.rx + inset, g.springY);
-    c.ellipse(g.cx, g.springY, g.rx - inset, g.ry - inset, 0, Math.PI, 0, false);
-    c.lineTo(g.cx + g.rx - inset, g.wTop + 4);
-    if (!open) c.closePath();
-  }
-
-  // Cheap deterministic noise so each stone block keeps the same tone
-  // across frames and resizes instead of shimmering.
-  function hash2(a, b) {
-    const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-    return n - Math.floor(n);
-  }
-
-  // Everything here is static, so it paints into `c` (the offscreen cache
-  // context) rather than the live canvas. Light comes from beyond the
-  // opening: the vault and piers are in shadow, picking up only a warm
-  // wash near the arch and a cool bounce off the water at their feet.
-  function drawStoneBridge(c) {
-    const th = THEME;
-    const g = bridgeGeom();
-    const { wTop, deckH, span, cx, rx, springY, crownY, ry } = g;
-
-    // --- the whole face is one coursed stone wall with the arch cut out
-    // of it; each block gets its own tone plus a top highlight / bottom
-    // shadow so the wall has relief instead of reading as a flat slab ---
-    const base = c.createLinearGradient(0, deckH, 0, wTop);
-    base.addColorStop(0, th.wall[0]);
-    base.addColorStop(0.55, th.wall[1]);
-    base.addColorStop(1, th.wall[2]);
-    c.fillStyle = base;
-    c.fillRect(0, deckH, W, span);
-    const rows = 9;
-    const rowH = span / rows;
-    const blockW = W * 0.115;
-    for (let r = 0; r < rows; r++) {
-      const y0 = deckH + rowH * r;
-      const offset = r % 2 ? blockW * 0.5 : 0;
-      for (let bx = -blockW + offset; bx < W; bx += blockW) {
-        const bx0 = Math.max(0, bx), bx1 = Math.min(W, bx + blockW);
-        if (bx1 - bx0 < 2) continue;
-        const tone = hash2(Math.round(bx), r);
-        c.fillStyle = tone > 0.5
-          ? 'rgba(255,255,255,' + ((tone - 0.5) * 0.12).toFixed(3) + ')'
-          : 'rgba(0,0,0,' + ((0.5 - tone) * 0.24).toFixed(3) + ')';
-        c.fillRect(bx0, y0, bx1 - bx0, rowH);
-        c.fillStyle = 'rgba(255,255,255,0.08)';
-        c.fillRect(bx0, y0, bx1 - bx0, 1);
-        c.fillStyle = 'rgba(0,0,0,0.42)';
-        c.fillRect(bx0, y0 + rowH - 1.2, bx1 - bx0, 1.2);
-        c.fillRect(bx1 - 1, y0, 1, rowH);
-      }
-    }
-    // lighting on the wall: deepest shadow right under the deck, a cool
-    // bounce off the water at its feet, a warm halo around the opening
-    const top = c.createLinearGradient(0, deckH, 0, deckH + span * 0.45);
-    top.addColorStop(0, 'rgba(0,0,0,0.5)');
-    top.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = top;
-    c.fillRect(0, deckH, W, span * 0.45);
-    const bounce = c.createLinearGradient(0, wTop - span * 0.3, 0, wTop);
-    bounce.addColorStop(0, 'rgba(120,205,215,0)');
-    bounce.addColorStop(1, th.bounce);
-    c.fillStyle = bounce;
-    c.fillRect(0, wTop - span * 0.3, W, span * 0.3);
-    const warm = c.createRadialGradient(cx, springY, rx * 0.6, cx, springY, rx * 2.1);
-    warm.addColorStop(0, th.wallWarm);
-    warm.addColorStop(1, 'rgba(255,186,110,0)');
-    c.fillStyle = warm;
-    c.fillRect(0, deckH, W, span);
-    const mossH = span * 0.18;
-    const moss = c.createLinearGradient(0, wTop - mossH, 0, wTop);
-    moss.addColorStop(0, th.moss[0]);
-    moss.addColorStop(1, th.moss[1]);
-    c.fillStyle = moss;
-    c.fillRect(0, wTop - mossH, W, mossH);
-
-    // --- the opening: sky, low sun, far bank, haze lying on the water ---
-    c.save();
-    archPath(c, g);
-    c.clip();
-    const sky = c.createLinearGradient(0, crownY, 0, wTop);
-    sky.addColorStop(0, th.sky[0]);
-    sky.addColorStop(0.5, th.sky[1]);
-    sky.addColorStop(1, th.sky[2]);
-    c.fillStyle = sky;
-    c.fillRect(0, 0, W, wTop + 4);
-    const sun = c.createRadialGradient(cx, crownY + ry * 0.6, 4, cx, crownY + ry * 0.6, rx * 0.8);
-    sun.addColorStop(0, th.sun);
-    sun.addColorStop(1, 'rgba(255,248,224,0)');
-    c.fillStyle = sun;
-    c.fillRect(0, 0, W, wTop + 4);
-    // far bank: a low, hazy strip that stops at the waterline so the sky
-    // meets its own reflection cleanly instead of through a dark band
-    c.fillStyle = th.farBank;
-    c.beginPath();
-    c.moveTo(cx - rx, wTop);
-    for (let x = cx - rx; x <= cx + rx; x += 8) {
-      const y = wTop - 1 - Math.abs(Math.sin(x * 0.011 + 0.8)) * 13 - Math.abs(Math.sin(x * 0.043 + 2)) * 4;
+    c.moveTo(0, o.baseY);
+    for (let x = 0; x <= W; x += 6) {
+      let y = ridgeTop(x, o.baseY, o.amp, o.freq, o.seed);
+      if (o.mirror) y = o.baseY + (o.baseY - y) * o.mirror + Math.sin(x * 0.05 + (o.t || 0) * 1.4) * 2;
       c.lineTo(x, y);
     }
-    c.lineTo(cx + rx, wTop);
+    c.lineTo(W, o.baseY);
     c.closePath();
+    c.fillStyle = o.color;
     c.fill();
-    const haze = c.createLinearGradient(0, wTop - ry * 0.5, 0, wTop);
-    haze.addColorStop(0, 'rgba(255,236,200,0)');
-    haze.addColorStop(1, th.haze);
-    c.fillStyle = haze;
-    c.fillRect(0, wTop - ry, W, ry + 4);
-    c.restore();
-
-    // --- arch ring: a band of voussoirs framing the opening. Backlit, so
-    // the stone reads dark and only its inner edge catches the sky ---
-    const ringW = Math.max(14, W * 0.055);
-    c.save();
-    archPath(c, g, -ringW * 0.5, true);
-    c.lineWidth = ringW;
-    c.strokeStyle = th.ring;
-    c.stroke();
-    c.lineWidth = 1.2;
-    const joint = (ix, iy, ox, oy) => {
-      c.strokeStyle = 'rgba(0,0,0,0.45)';
-      c.beginPath(); c.moveTo(ix, iy); c.lineTo(ox, oy); c.stroke();
-      c.strokeStyle = 'rgba(255,255,255,0.06)';
-      c.beginPath(); c.moveTo(ix + 1.5, iy); c.lineTo(ox + 1.5, oy); c.stroke();
-    };
-    const arcJoints = 13;
-    for (let i = 0; i <= arcJoints; i++) {
-      const a = Math.PI + (Math.PI * i) / arcJoints;
-      joint(cx + rx * Math.cos(a), springY + ry * Math.sin(a),
-        cx + (rx + ringW) * Math.cos(a), springY + (ry + ringW) * Math.sin(a));
-    }
-    for (let y = springY + ringW * 1.1; y < wTop; y += ringW * 1.1) {
-      joint(cx - rx, y, cx - rx - ringW, y);
-      joint(cx + rx, y, cx + rx + ringW, y);
-    }
-    // keystone, a touch lighter than its neighbours
-    c.fillStyle = 'rgba(255,255,255,0.07)';
+  }
+  function conifer(c, x, baseY, h, w, color) {
+    c.fillStyle = color;
     c.beginPath();
-    const ka = Math.PI * 1.5, kd = 0.12;
-    c.moveTo(cx + rx * Math.cos(ka - kd), springY + ry * Math.sin(ka - kd));
-    c.lineTo(cx + rx * Math.cos(ka + kd), springY + ry * Math.sin(ka + kd));
-    c.lineTo(cx + (rx + ringW) * Math.cos(ka + kd * 1.3), springY + (ry + ringW) * Math.sin(ka + kd * 1.3));
-    c.lineTo(cx + (rx + ringW) * Math.cos(ka - kd * 1.3), springY + (ry + ringW) * Math.sin(ka - kd * 1.3));
+    c.moveTo(x, baseY - h);
+    c.lineTo(x - w * 0.5, baseY - h * 0.62); c.lineTo(x - w * 0.22, baseY - h * 0.62);
+    c.lineTo(x - w * 0.72, baseY - h * 0.3); c.lineTo(x - w * 0.34, baseY - h * 0.3);
+    c.lineTo(x - w * 0.95, baseY); c.lineTo(x + w * 0.95, baseY);
+    c.lineTo(x + w * 0.34, baseY - h * 0.3); c.lineTo(x + w * 0.72, baseY - h * 0.3);
+    c.lineTo(x + w * 0.22, baseY - h * 0.62); c.lineTo(x + w * 0.5, baseY - h * 0.62);
     c.closePath();
     c.fill();
-    // outer edge sinks into the vault; inner edge glows with the sky
-    archPath(c, g, -ringW - 1, true);
-    c.lineWidth = 3;
-    c.strokeStyle = 'rgba(0,0,0,0.35)';
-    c.stroke();
-    archPath(c, g, 1, true);
-    c.lineWidth = 2.2;
-    c.strokeStyle = th.ringRim;
-    c.stroke();
-    c.restore();
-
-    // --- deck beam along the top (mostly tucked under the status bar) ---
-    c.fillStyle = th.beam;
-    c.fillRect(0, 0, W, deckH);
-    c.fillStyle = 'rgba(255,255,255,0.07)';
-    c.fillRect(0, deckH - 2, W, 2);
-
-    // --- shadow the bridge throws on the water, except right under the
-    // opening where the light comes straight through ---
-    const shadowH = span * 0.5;
-    const sh = c.createLinearGradient(0, wTop, 0, wTop + shadowH);
-    sh.addColorStop(0, th.bridgeShadow);
-    sh.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = sh;
-    c.fillRect(0, wTop, W, shadowH);
-    c.save();
-    c.globalCompositeOperation = 'destination-out';
-    const gap = c.createLinearGradient(cx - rx, 0, cx + rx, 0);
-    gap.addColorStop(0, 'rgba(0,0,0,0)');
-    gap.addColorStop(0.3, 'rgba(0,0,0,1)');
-    gap.addColorStop(0.7, 'rgba(0,0,0,1)');
-    gap.addColorStop(1, 'rgba(0,0,0,0)');
-    c.fillStyle = gap;
-    c.fillRect(cx - rx, wTop, rx * 2, shadowH);
-    c.restore();
   }
-
-  function renderBridgeCache() {
-    bridgeCache = document.createElement('canvas');
-    bridgeCache.width = Math.max(1, Math.round(W * DPR));
-    bridgeCache.height = Math.max(1, Math.round(H * DPR));
-    const c = bridgeCache.getContext('2d');
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    applyZoom(c); // baked in, so the blit needs no scaling (stays crisp)
-    drawStoneBridge(c);
+  function roundTree(c, x, baseY, h, w, color) {
+    c.fillStyle = color;
+    c.fillRect(x - w * 0.06, baseY - h * 0.45, w * 0.12, h * 0.45);
+    [[0, 0.62, 0.5], [-0.3, 0.5, 0.36], [0.32, 0.48, 0.34], [-0.1, 0.8, 0.3], [0.15, 0.78, 0.28]].forEach(([dx, dy, r]) => {
+      c.beginPath(); c.arc(x + dx * w, baseY - h * dy, w * r, 0, Math.PI * 2); c.fill();
+    });
   }
-
-  function drawSunRays(t) {
-    const theme = THEME;
-    const wTop = waterTop();
-    // Drawn before the bridge layer, so the shafts only ever show in the
-    // water: they fan out from just under the arch, apex hidden behind it.
-    const cx = W * 0.5, topY = wTop - 10;
-    const rx = bridgeGeom().rx;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const rayCount = 7;
-    for (let i = 0; i < rayCount; i++) {
-      // Origins spread across the opening and only a slight fan, so they
-      // read as parallel shafts of light entering the water rather than a
-      // spotlight cone converging on one hot spot.
-      const spread = (i - (rayCount - 1) / 2) / ((rayCount - 1) / 2);
-      const angle = -Math.PI / 2 + spread * 0.08 + Math.sin(t * 0.15 + i) * 0.015;
-      const len = H * 0.8;
-      const w = 22 + Math.sin(t * 0.3 + i * 2) * 7;
-      ctx.save();
-      ctx.translate(cx + spread * rx * 0.75, topY);
-      ctx.rotate(angle + Math.PI / 2);
-      // Stacked translucent strips of shrinking width: their overlap makes
-      // each shaft brightest along its centre and soft at the edges, no
-      // canvas blur filter needed (not supported everywhere).
-      for (let k = 0; k < 4; k++) {
-        const f = 1 - k * 0.22;
-        const g = ctx.createLinearGradient(0, 0, 0, len);
-        g.addColorStop(0, theme.rayColor + '0.022)');
-        g.addColorStop(1, theme.rayColor + '0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(-w * f / 2, 0); ctx.lineTo(w * f / 2, 0); ctx.lineTo(w * 1.6 * f, len); ctx.lineTo(-w * 1.6 * f, len);
-        ctx.closePath(); ctx.fill();
-      }
-      ctx.restore();
+  // A reed stem (optionally with a cattail head) or a thin leaf blade.
+  function reed(c, x, baseY, h, lean, color, head) {
+    c.strokeStyle = color;
+    c.lineWidth = head ? 2.4 : 1.6;
+    c.beginPath();
+    c.moveTo(x, baseY);
+    c.quadraticCurveTo(x + lean * 0.35, baseY - h * 0.55, x + lean, baseY - h);
+    c.stroke();
+    if (head) {
+      c.fillStyle = '#3a2418';
+      c.beginPath();
+      c.ellipse(x + lean, baseY - h + 8, 3.2, 12, Math.atan2(lean, h) * -1, 0, Math.PI * 2);
+      c.fill();
     }
-    ctx.restore();
   }
-
-  function drawWater(t) {
-    const theme = THEME;
-    const top = waterTop();
-    const pierW = pierWidth();
+  function lilyPad(c, cx, cy, rx, ry, rot, fill, rim) {
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(rot);
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.ellipse(0, 0, rx, ry, 0, 0.32, Math.PI * 2 - 0.32);
+    c.closePath();
+    c.fillStyle = fill; c.fill();
+    c.strokeStyle = rim; c.lineWidth = 1; c.stroke();
+    c.restore();
+  }
+  // Depth gradient for any body of water: colors[] from surface to bottom.
+  function fillWaterGradient(colors, top) {
     const grad = ctx.createLinearGradient(0, top, 0, H);
-    grad.addColorStop(0, theme.water[0]);
-    grad.addColorStop(0.18, theme.water[1]);
-    grad.addColorStop(0.55, theme.water[2]);
-    grad.addColorStop(1, theme.water[3]);
+    grad.addColorStop(0, colors[0]);
+    grad.addColorStop(0.18, colors[1]);
+    grad.addColorStop(0.55, colors[2]);
+    grad.addColorStop(1, colors[3]);
     ctx.fillStyle = grad;
     ctx.fillRect(0, top, W, H - top);
-
-    // mirror of the bright opening: a warm column right under the arch,
-    // narrowing with depth, its edges wobbling with the surface
-    const g = bridgeGeom();
-    const reflH = (H - top) * 0.55;
-    const rxr = g.rx * 0.85;
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(g.cx - rxr, top);
-    for (let y = top; y <= top + reflH; y += 5) {
-      const k = (y - top) / reflH;
-      ctx.lineTo(g.cx - rxr * (1 - k * 0.35) + Math.sin(y * 0.09 + t * 1.3) * (3 + 7 * k), y);
-    }
-    for (let y = top + reflH; y >= top; y -= 5) {
-      const k = (y - top) / reflH;
-      ctx.lineTo(g.cx + rxr * (1 - k * 0.35) + Math.sin(y * 0.1 + t * 1.1 + 2) * (3 + 7 * k), y);
-    }
-    ctx.closePath();
-    const rg = ctx.createLinearGradient(0, top, 0, top + reflH);
-    rg.addColorStop(0, theme.openingReflect + '0.24)');
-    rg.addColorStop(0.35, theme.openingReflect + '0.1)');
-    rg.addColorStop(1, theme.openingReflect + '0)');
-    ctx.fillStyle = rg;
-    ctx.fill();
-    ctx.restore();
-
-    // reflections of the two piers, distorted by the waterline
-    if (pierW) {
-      ctx.save();
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = theme.pierReflect;
-      [[0, pierW], [W - pierW, W]].forEach(([x0, x1]) => {
-        ctx.beginPath();
-        ctx.moveTo(x0, top);
-        for (let y = top; y <= top + 90; y += 4) {
-          const wob = Math.sin(y * 0.14 + t * 1.5) * 3;
-          ctx.lineTo(x0 + wob, y);
-        }
-        for (let y = top + 90; y >= top; y -= 4) {
-          const wob = Math.sin(y * 0.14 + t * 1.5) * 3;
-          ctx.lineTo(x1 + wob, y);
-        }
-        ctx.closePath();
-        ctx.fill();
-      });
-      ctx.restore();
-    }
-
-    // wave lines
+  }
+  // Four drifting wave lines, alternating light/dark.
+  function drawWaveLines(t, top, light, dark) {
     ctx.save();
     ctx.globalAlpha = 0.18;
     for (let layer = 0; layer < 4; layer++) {
@@ -584,35 +325,41 @@ function __zzhInit() {
       const freq = 0.008 - layer * 0.001;
       const speed = 0.6 + layer * 0.25;
       ctx.moveTo(0, baseY);
-      for (let x = 0; x <= W; x += 12) {
-        const y = baseY + Math.sin(x * freq + t * speed + layer) * amp;
-        ctx.lineTo(x, y);
-      }
-      ctx.strokeStyle = layer % 2 === 0 ? theme.waveA : theme.waveB;
+      for (let x = 0; x <= W; x += 12) ctx.lineTo(x, baseY + Math.sin(x * freq + t * speed + layer) * amp);
+      ctx.strokeStyle = layer % 2 === 0 ? light : dark;
       ctx.lineWidth = 1.4;
       ctx.stroke();
     }
     ctx.restore();
-
-    // sunlit glow patch on water
-    const cx = W * 0.5, cy = top + 10;
-    const glow = ctx.createRadialGradient(cx, cy, 5, cx, cy, W * 0.28);
-    glow.addColorStop(0, theme.sunGlow);
-    glow.addColorStop(1, theme.sunGlow.replace(/[\d.]+\)$/, '0)'));
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, top, W, (H - top) * 0.6);
-
-    // bright waterline where the piers meet the surface
+  }
+  // Soft shafts of light entering the water below (cx, topY), fanning out
+  // slightly. Stacked translucent strips instead of a blur filter.
+  function drawLightShafts(t, cx, topY, spreadW, rayColor, count) {
     ctx.save();
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = theme.waterline;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(0, top + 1); ctx.lineTo(W, top + 1); ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < count; i++) {
+      const spread = count === 1 ? 0 : (i - (count - 1) / 2) / ((count - 1) / 2);
+      const angle = -Math.PI / 2 + spread * 0.08 + Math.sin(t * 0.15 + i) * 0.015;
+      const len = H * 0.8;
+      const w = 22 + Math.sin(t * 0.3 + i * 2) * 7;
+      ctx.save();
+      ctx.translate(cx + spread * spreadW, topY);
+      ctx.rotate(angle + Math.PI / 2);
+      for (let k = 0; k < 4; k++) {
+        const f = 1 - k * 0.22;
+        const g = ctx.createLinearGradient(0, 0, 0, len);
+        g.addColorStop(0, rayColor + '0.022)');
+        g.addColorStop(1, rayColor + '0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(-w * f / 2, 0); ctx.lineTo(w * f / 2, 0); ctx.lineTo(w * 1.6 * f, len); ctx.lineTo(-w * 1.6 * f, len);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
-
-  function drawSparkles(t) {
-    const theme = THEME;
+  function drawSparkles(t, color) {
     ctx.save();
     const top = waterTop();
     sparkles.forEach(s => {
@@ -622,12 +369,193 @@ function __zzhInit() {
       const baseAlpha = Math.max(0, 0.9 - distFromCenter * 1.1);
       const flick = (Math.sin(t * s.speed + s.phase) + 1) / 2;
       ctx.globalAlpha = baseAlpha * flick * 0.85;
-      ctx.fillStyle = theme.sparkle;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(px, py, s.size, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.restore();
+  }
+
+  // ================= 호수 scene =================
+  // Dawn on a lake: sun low over three misty ridges, conifers and a round
+  // tree framing the far shore, reeds and lily pads in the foreground
+  // corners. The water mirrors the sky's warm band and the nearest ridge.
+  const LAKE = {
+    sky: ['#22305f', '#5f74ac', '#c7a6b6', '#ffd9a2'],
+    sunGlow: 'rgba(255,214,150,',
+    sunDisc: '#fff1cf',
+    ridges: ['#5a6a99', '#3f5382', '#2d4266'],
+    mist: 'rgba(232,226,240,',
+    trees: '#14282c',
+    treesLight: '#1c3a3a',
+    reeds: '#0e2624',
+    reedLeaf: '#173a34',
+    lily: '#1f5a48', lilyRim: '#2f7a5c',
+    water: ['#cfe2ea', '#7fb6c5', '#2f7d8e', '#0d3d4a'],
+    waveA: '#ecf7f9', waveB: '#0a3a44',
+    sparkle: '#fff6e0',
+    ray: 'rgba(255,236,200,',
+    reflect: 'rgba(255,214,160,',
+    waterline: '#eafffb'
+  };
+  const LAKE_SUN_X = 0.64; // fraction of W
+
+  function drawLakeStatic(c) {
+    const wTop = waterTop();
+    const th = LAKE;
+    // sky
+    const sky = c.createLinearGradient(0, 0, 0, wTop);
+    sky.addColorStop(0, th.sky[0]);
+    sky.addColorStop(0.45, th.sky[1]);
+    sky.addColorStop(0.78, th.sky[2]);
+    sky.addColorStop(1, th.sky[3]);
+    c.fillStyle = sky;
+    c.fillRect(0, 0, W, wTop + 4);
+    // low sun: wide glow plus a soft disc, partly hidden by the ridges
+    const sx = W * LAKE_SUN_X, sy = wTop - H * 0.075;
+    const glow = c.createRadialGradient(sx, sy, 2, sx, sy, W * 0.55);
+    glow.addColorStop(0, th.sunGlow + '0.55)');
+    glow.addColorStop(0.35, th.sunGlow + '0.18)');
+    glow.addColorStop(1, th.sunGlow + '0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, W, wTop + 4);
+    const disc = c.createRadialGradient(sx, sy, 0, sx, sy, W * 0.06);
+    disc.addColorStop(0, th.sunDisc);
+    disc.addColorStop(0.7, th.sunDisc);
+    disc.addColorStop(1, th.sunGlow + '0)');
+    c.fillStyle = disc;
+    c.beginPath(); c.arc(sx, sy, W * 0.06, 0, Math.PI * 2); c.fill();
+    // three ridges, far to near, each with mist lying at its feet
+    [
+      { amp: H * 0.105, freq: 0.011, seed: 1.3, color: th.ridges[0], mist: 0.5 },
+      { amp: H * 0.075, freq: 0.017, seed: 4.1, color: th.ridges[1], mist: 0.42 },
+      { amp: H * 0.05, freq: 0.026, seed: 7.7, color: th.ridges[2], mist: 0.3 }
+    ].forEach((r) => {
+      fillRidge(c, { baseY: wTop + 2, amp: r.amp, freq: r.freq, seed: r.seed, color: r.color });
+      const mistH = r.amp * 0.7;
+      const mist = c.createLinearGradient(0, wTop - mistH, 0, wTop + 2);
+      mist.addColorStop(0, th.mist + '0)');
+      mist.addColorStop(1, th.mist + r.mist + ')');
+      c.fillStyle = mist;
+      c.fillRect(0, wTop - mistH, W, mistH + 2);
+    });
+    // birds
+    c.strokeStyle = 'rgba(20,30,50,0.55)';
+    c.lineWidth = 1.2;
+    [[0.22, 0.42, 5], [0.27, 0.39, 4], [0.31, 0.44, 3.5]].forEach(([fx, fy, s]) => {
+      const bx = W * fx, by = wTop * fy;
+      c.beginPath(); c.moveTo(bx - s, by); c.quadraticCurveTo(bx - s * 0.5, by - s * 0.9, bx, by - s * 0.2); c.quadraticCurveTo(bx + s * 0.5, by - s * 0.9, bx + s, by); c.stroke();
+    });
+    // near shore: conifers on the left, a round tree and low brush on the right
+    const shoreY = wTop + 3;
+    c.fillStyle = th.treesLight;
+    c.fillRect(0, shoreY - 4, W * 0.3, 4);
+    conifer(c, W * 0.06, shoreY, H * 0.17, W * 0.055, th.trees);
+    conifer(c, W * 0.14, shoreY, H * 0.22, W * 0.07, th.trees);
+    conifer(c, W * 0.225, shoreY, H * 0.15, W * 0.05, th.trees);
+    conifer(c, W * 0.29, shoreY, H * 0.11, W * 0.04, th.treesLight);
+    roundTree(c, W * 0.9, shoreY, H * 0.19, W * 0.11, th.trees);
+    conifer(c, W * 0.79, shoreY, H * 0.09, W * 0.035, th.treesLight);
+    // dawn mist lying on the water just off the far shore
+    const wm = c.createLinearGradient(0, wTop, 0, wTop + H * 0.1);
+    wm.addColorStop(0, th.mist + '0.32)');
+    wm.addColorStop(1, th.mist + '0)');
+    c.fillStyle = wm;
+    c.fillRect(0, wTop, W, H * 0.1);
+    // foreground: reeds growing up from below the frame in both corners,
+    // lily pads floating near them
+    const reedBase = H + 12;
+    [[0.04, 0.34, -6, true], [0.075, 0.42, 4, true], [0.11, 0.3, -3, false], [0.03, 0.26, 8, false], [0.13, 0.36, 7, true], [0.06, 0.2, -10, false]]
+      .forEach(([fx, fh, lean, head]) => reed(c, W * fx, reedBase, H * fh, lean, head ? th.reeds : th.reedLeaf, head));
+    [[0.96, 0.3, 5, true], [0.925, 0.38, -4, true], [0.98, 0.22, -7, false], [0.9, 0.27, 6, false], [0.945, 0.18, 3, false]]
+      .forEach(([fx, fh, lean, head]) => reed(c, W * fx, reedBase, H * fh, lean, head ? th.reeds : th.reedLeaf, head));
+    lilyPad(c, W * 0.2, H * 0.81, W * 0.07, W * 0.03, 0.2, th.lily, th.lilyRim);
+    lilyPad(c, W * 0.1, H * 0.76, W * 0.05, W * 0.022, -0.5, th.lily, th.lilyRim);
+    lilyPad(c, W * 0.85, H * 0.79, W * 0.06, W * 0.026, 2.4, th.lily, th.lilyRim);
+    lilyPad(c, W * 0.94, H * 0.73, W * 0.042, W * 0.018, 1.1, th.lily, th.lilyRim);
+  }
+
+  function drawLakeWater(t) {
+    const th = LAKE;
+    const top = waterTop();
+    fillWaterGradient(th.water, top);
+    // the sky's warm band and the sun, mirrored: a wobbling column under the sun
+    const sx = W * LAKE_SUN_X;
+    const reflH = (H - top) * 0.5;
+    const halfW = W * 0.085;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(sx - halfW, top);
+    for (let y = top; y <= top + reflH; y += 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(sx - halfW * (1 - k * 0.4) + Math.sin(y * 0.09 + t * 1.3) * (3 + 7 * k), y);
+    }
+    for (let y = top + reflH; y >= top; y -= 5) {
+      const k = (y - top) / reflH;
+      ctx.lineTo(sx + halfW * (1 - k * 0.4) + Math.sin(y * 0.1 + t * 1.1 + 2) * (3 + 7 * k), y);
+    }
+    ctx.closePath();
+    const rg = ctx.createLinearGradient(0, top, 0, top + reflH);
+    rg.addColorStop(0, th.reflect + '0.32)');
+    rg.addColorStop(0.35, th.reflect + '0.12)');
+    rg.addColorStop(1, th.reflect + '0)');
+    ctx.fillStyle = rg;
+    ctx.fill();
+    ctx.restore();
+    // warm sky band mirrored right at the waterline
+    const band = ctx.createLinearGradient(0, top, 0, top + H * 0.14);
+    band.addColorStop(0, th.reflect + '0.22)');
+    band.addColorStop(1, th.reflect + '0)');
+    ctx.fillStyle = band;
+    ctx.fillRect(0, top, W, H * 0.14);
+    // nearest ridge and the shore trees, reflected and wobbling
+    ctx.save();
+    ctx.globalAlpha = 0.11;
+    fillRidge(ctx, { baseY: top, amp: H * 0.05, freq: 0.026, seed: 7.7, color: '#08202a', mirror: 0.45, t });
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = '#08202a';
+    [[0.14, 0.22, 0.06], [0.06, 0.17, 0.045], [0.225, 0.15, 0.04], [0.9, 0.19, 0.09]].forEach(([fx, fh, fw]) => {
+      const x = W * fx, h = H * fh * 0.3, w = W * fw;
+      ctx.beginPath();
+      ctx.moveTo(x - w, top);
+      for (let y = top; y <= top + h; y += 4) ctx.lineTo(x - w * (1 - (y - top) / h) + Math.sin(y * 0.14 + t * 1.5) * 3, y);
+      for (let y = top + h; y >= top; y -= 4) ctx.lineTo(x + w * (1 - (y - top) / h) + Math.sin(y * 0.14 + t * 1.5) * 3, y);
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.restore();
+    drawWaveLines(t, top, th.waveA, th.waveB);
+    // waterline
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = th.waterline;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, top + 1); ctx.lineTo(W, top + 1); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- Scenes: one per 낚시터 (FishData.STAGES). Each supplies the static
+  // backdrop (painted once into the cache), the animated water layers
+  // (drawn under the backdrop each frame, and re-used by the float's
+  // water mask), and whatever lives above the backdrop. ----
+  const SCENES = {
+    lake: {
+      paintStatic: (c) => drawLakeStatic(c),
+      paintWater: (t) => { drawLakeWater(t); drawLightShafts(t, W * LAKE_SUN_X, waterTop() - 10, W * 0.22, LAKE.ray, 5); },
+      paintAbove: (t) => { drawSparkles(t, LAKE.sparkle); maybeSpawnIdleFish(t); drawIdleFish(t); }
+    }
+  };
+  function scene() { return SCENES[stage] || SCENES.lake; }
+
+  function renderBridgeCache() {
+    bridgeCache = document.createElement('canvas');
+    bridgeCache.width = Math.max(1, Math.round(W * DPR));
+    bridgeCache.height = Math.max(1, Math.round(H * DPR));
+    const c = bridgeCache.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    applyZoom(c); // baked in, so the blit needs no scaling (stays crisp)
+    scene().paintStatic(c);
   }
 
   function drawIdleFish(t) {
@@ -771,8 +699,7 @@ function __zzhInit() {
     // the submerged part, so it's covered by exactly what surrounds it.
     // Slightly translucent so the body still reads through the surface.
     ctx.globalAlpha = 0.86;
-    drawWater(t);
-    drawSunRays(t);
+    scene().paintWater(t);
     ctx.globalAlpha = 1;
     // a couple of short, subtle ripple accents sitting on the mask itself
     // (not encircling the float) for a touch of surface texture
@@ -812,16 +739,13 @@ function __zzhInit() {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     applyZoom(ctx);
-    drawWater(t);
-    drawSunRays(t);
+    scene().paintWater(t);
     ctx.restore();
     if (!bridgeCache) renderBridgeCache();
     ctx.drawImage(bridgeCache, 0, 0, W, H);
     ctx.save();
     applyZoom(ctx);
-    drawSparkles(t);
-    maybeSpawnIdleFish(t);
-    drawIdleFish(t);
+    scene().paintAbove(t);
     drawBobber(t);
     ctx.restore();
     requestAnimationFrame(renderLoop);
@@ -880,7 +804,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 10;
+  const SAVE_SCHEMA_VERSION = 11;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -890,7 +814,8 @@ function __zzhInit() {
       hasReeledBefore: false,
       baits: { rare: 0, epic: 0, legendary: 0 }, equippedBait: 'common',
       gachaPity: 0,
-      achievements: Achievements.freshState()
+      achievements: Achievements.freshState(),
+      stage: 'lake', stagesUnlocked: ['lake']
     };
   }
   // Each step upgrades a save from exactly one schema to the next, so a
@@ -990,7 +915,10 @@ function __zzhInit() {
       ...save,
       achievements: { ...(save.achievements || Achievements.freshState()), claimed: (save.achievements && save.achievements.claimed) || {} },
       schemaVersion: 10
-    })
+    }),
+    // schema 10 -> 11: 낚시터. Everyone so far has only ever fished the
+    // lake, so that's where they are and all they have unlocked.
+    (save) => ({ ...save, stage: save.stage || 'lake', stagesUnlocked: Array.isArray(save.stagesUnlocked) ? save.stagesUnlocked : ['lake'], schemaVersion: 11 })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1031,7 +959,8 @@ function __zzhInit() {
     try {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
-        catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements
+        catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements,
+        stage, stagesUnlocked
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1070,6 +999,11 @@ function __zzhInit() {
   // Pulls since the last legendary (natural or pity-forced) -- see
   // FishData.LEGENDARY_PITY / pullGachaWithPity().
   let gachaPity = initialSave.gachaPity;
+  // 낚시터: which one the player is at, and which they have paid to open.
+  let stage = FishData.STAGES[initialSave.stage] ? initialSave.stage : 'lake';
+  let stagesUnlocked = Array.isArray(initialSave.stagesUnlocked) ? initialSave.stagesUnlocked.filter((k) => FishData.STAGES[k]) : [];
+  if (!stagesUnlocked.includes('lake')) stagesUnlocked.unshift('lake');
+  if (!stagesUnlocked.includes(stage) || !FishData.stageReady(stage)) stage = 'lake';
   // Guided tutorial (see the "Tutorial" section) has run to the end or been
   // skipped. false = owed: it starts as soon as the launch title clears.
   let tutorialDone = initialSave.tutorialDone;
@@ -1207,6 +1141,151 @@ function __zzhInit() {
   gemsInfoBtn.addEventListener('click', () => openCurrencyInfo('gems'));
   currencyInfoCloseBtn.addEventListener('click', closeCurrencyInfo);
   currencyInfoOverlay.addEventListener('click', (e) => { if (e.target === currencyInfoOverlay) closeCurrencyInfo(); });
+
+  // ================= 낚시터 (stage) menu =================
+  // The status bar's location label opens it: one card per stage with its
+  // unlock conditions (live progress), a 해금 button once they're all met,
+  // and 이동 for anything already open. Moving is idle-only so a cast in
+  // flight never lands in a different pool than it was rolled from.
+  const stageBtn = document.getElementById('stage-btn');
+  const stageNameEl = document.getElementById('stage-name');
+  const stageOverlay = document.getElementById('stage-overlay');
+  const stageListEl = document.getElementById('stage-list');
+  const stageCloseBtn = document.getElementById('stage-close-btn');
+  function stageUnlocked(key) { return stagesUnlocked.includes(key); }
+  function stageSpeciesTotal(key) {
+    const pools = FishData.FISH_BY_STAGE[key] || {};
+    return Object.keys(pools).reduce((n, tier) => n + pools[tier].length, 0);
+  }
+  // Species of that stage caught at least once (도감 discoveries).
+  function stageDexCount(key) {
+    const pools = FishData.FISH_BY_STAGE[key] || {};
+    return Object.keys(pools).reduce((n, tier) => n + pools[tier].filter((sp) => catches[sp.id]).length, 0);
+  }
+  // Position in the grade ladder (common 0, rare 1, epic 2) via the
+  // `next` links, so this stays right if grades get inserted later.
+  function rodGradeRank(gradeKey) {
+    let k = 'common', i = 0;
+    while (k && k !== gradeKey) { k = FishData.ROD_GRADES[k].next; i++; }
+    return k ? i : -1;
+  }
+  // -> [{ text, met, cost? }] for a locked stage, [] for the lake.
+  function stageConditions(key) {
+    const u = FishData.STAGES[key].unlock;
+    if (!u) return [];
+    const out = [];
+    if (u.dexStage) {
+      const have = stageDexCount(u.dexStage);
+      out.push({ text: `${FishData.STAGES[u.dexStage].name} 도감 ${u.dexCount}종 발견 (${Math.min(have, u.dexCount)} / ${u.dexCount})`, met: have >= u.dexCount });
+    }
+    if (u.rodGrade) out.push({ text: `${FishData.ROD_GRADES[u.rodGrade].label} 이상`, met: rodGradeRank(rod.grade) >= rodGradeRank(u.rodGrade) });
+    if (u.shells) out.push({ text: `조개 ${u.shells.toLocaleString('ko-KR')} 지불 (보유 ${shells.toLocaleString('ko-KR')})`, met: shells >= u.shells, cost: true });
+    return out;
+  }
+  function applyStageToUi() {
+    stageNameEl.textContent = FishData.STAGES[stage].name;
+  }
+  function renderStageMenu() {
+    stageListEl.innerHTML = '';
+    const idle = state === 'idle';
+    FishData.STAGE_ORDER.forEach((key) => {
+      const info = FishData.STAGES[key];
+      const ready = FishData.stageReady(key);
+      const unlocked = stageUnlocked(key);
+      const current = key === stage;
+      const card = document.createElement('div');
+      card.className = 'stage-card' + (current ? ' current' : '') + (unlocked ? '' : ' locked');
+      card.dataset.stage = key;
+      card.innerHTML = `
+        <div class="stage-card-head">
+          <img class="stage-card-icon" src="icons/ui/stage-${key}.svg" alt="">
+          <div><div class="stage-card-name"></div><div class="stage-card-tagline"></div></div>
+          <span class="stage-card-badge hidden"></span>
+        </div>
+        <p class="stage-card-desc"></p>
+        <div class="stage-card-meta"></div>
+        <ul class="stage-conds"></ul>
+        <button type="button" class="main-btn stage-card-btn hidden"></button>
+        <p class="stage-note hidden"></p>`;
+      card.querySelector('.stage-card-name').textContent = info.name;
+      card.querySelector('.stage-card-tagline').textContent = info.tagline;
+      card.querySelector('.stage-card-desc').textContent = info.desc;
+      const meta = card.querySelector('.stage-card-meta');
+      meta.textContent = ready
+        ? `도감 ${stageDexCount(key)} / ${stageSpeciesTotal(key)}종 · 판매가 x${info.priceMult}`
+        : `판매가 x${info.priceMult}`;
+      const badge = card.querySelector('.stage-card-badge');
+      const btn = card.querySelector('.stage-card-btn');
+      const note = card.querySelector('.stage-note');
+      const conds = stageConditions(key);
+      const condsEl = card.querySelector('.stage-conds');
+      if (!unlocked) {
+        conds.forEach((c) => {
+          const li = document.createElement('li');
+          li.className = c.met ? 'met' : '';
+          li.textContent = c.text;
+          condsEl.appendChild(li);
+        });
+      }
+      if (current) {
+        badge.textContent = '현재 낚시터'; badge.classList.remove('hidden');
+      } else if (!ready) {
+        badge.textContent = '준비 중'; badge.classList.add('soon'); badge.classList.remove('hidden');
+        note.textContent = '다음 업데이트에서 열려요'; note.classList.remove('hidden');
+      } else if (unlocked) {
+        btn.textContent = '이동'; btn.classList.remove('hidden');
+        btn.disabled = !idle;
+        btn.addEventListener('click', () => setStage(key));
+        if (!idle) { note.textContent = '낚시 중에는 이동할 수 없어요'; note.classList.remove('hidden'); }
+      } else {
+        const cost = info.unlock && info.unlock.shells ? info.unlock.shells : 0;
+        btn.innerHTML = `해금 <img class="price-icon" src="icons/ui/shell.svg" alt="">${cost.toLocaleString('ko-KR')}`;
+        btn.classList.remove('hidden');
+        btn.disabled = !conds.every((c) => c.met);
+        btn.addEventListener('click', () => unlockStage(key));
+      }
+      stageListEl.appendChild(card);
+    });
+  }
+  function openStageMenu() { renderStageMenu(); stageOverlay.classList.remove('hidden'); }
+  function closeStageMenu() { stageOverlay.classList.add('hidden'); }
+  function setStage(key) {
+    if (!FishData.STAGES[key] || !stageUnlocked(key) || !FishData.stageReady(key)) return false;
+    if (state !== 'idle') return false;
+    if (key !== stage) {
+      stage = key;
+      bridgeCache = null; // repaint the backdrop for the new scene
+      initSparkles();
+      idleFish = [];
+      logStage = null;
+      applyStageToUi();
+      persist();
+      showStatus(`${FishData.STAGES[key].name}에 도착했어요`);
+      checkAchievements();
+    }
+    closeStageMenu();
+    return true;
+  }
+  function unlockStage(key) {
+    if (stageUnlocked(key) || !FishData.stageReady(key)) return false;
+    const conds = stageConditions(key);
+    if (!conds.every((c) => c.met)) return false;
+    const cost = FishData.STAGES[key].unlock.shells || 0;
+    if (shells < cost) return false;
+    shells -= cost;
+    stagesUnlocked.push(key);
+    ensureAudio();
+    sfx.coin();
+    updateCurrencyDisplay();
+    persist();
+    checkAchievements();
+    if (!setStage(key)) renderStageMenu(); // mid-cast: stays open as 이동 for later
+    return true;
+  }
+  stageBtn.addEventListener('click', openStageMenu);
+  stageCloseBtn.addEventListener('click', closeStageMenu);
+  stageOverlay.addEventListener('click', (e) => { if (e.target === stageOverlay) closeStageMenu(); });
+  applyStageToUi();
 
   const menuSettingsBtn = document.getElementById('menu-settings-btn');
   const settingsOverlay = document.getElementById('settings-overlay');
@@ -1364,7 +1443,7 @@ function __zzhInit() {
     // Outside it, the first-ever reel is still forced to 희귀 (see above).
     const forcedFirstCatch = tutorial.active ? 'common' : (!hasReeledBefore ? 'rare' : null);
     const baitExclude = FishData.baitExcludeTiers(equippedBait);
-    currentCatch = FishData.pickCatch(devForceTier || forcedFirstCatch, baitExclude, stats.luck);
+    currentCatch = FishData.pickCatch(devForceTier || forcedFirstCatch, baitExclude, stats.luck, stage);
     // 설정 > 다시 보기 run: the fish is practice only -- it never reaches the
     // bucket, the 도감 or the 도전과제 counters (see catchSuccess/catchFail).
     // Tagged on the catch itself so it holds even if the guide is skipped
@@ -1713,7 +1792,7 @@ function __zzhInit() {
       isNewSpecies = !catches[c.id];
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
-      caughtFish.push({ uid: nextFishUid++, id: c.id, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc });
+      caughtFish.push({ uid: nextFishUid++, id: c.id, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc, stage: c.stage });
       recordCatch(c);
       pendingMaterial = rollGem();
       persist();
@@ -2274,7 +2353,7 @@ function __zzhInit() {
   achievementsClaimAllBtn.addEventListener('click', () => claimAchievements(unclaimedAchievementIds()));
 
   function achievementCtx() {
-    return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats };
+    return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats, stagesUnlocked };
   }
 
   // Counters only a live catch can supply (streaks, size, time of day);
@@ -2487,10 +2566,38 @@ function __zzhInit() {
   // junk drops (FishData.JUNK_ITEMS) aren't species.
   const LOG_TIER_ORDER = ['legendary', 'epic', 'rare', 'common'];
 
+  // Which 낚시터 the 도감 tab shows. Follows the current one until the
+  // player picks another tab (setStage() resets it).
+  let logStage = null;
+  const logStageTabsEl = document.getElementById('log-stage-tabs');
   function renderLog() {
+    if (!logStage || !FishData.STAGES[logStage] || !stageUnlocked(logStage)) logStage = stage;
+    logStageTabsEl.innerHTML = '';
+    FishData.STAGE_ORDER.forEach((key) => {
+      const locked = !stageUnlocked(key);
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'log-stage-tab' + (key === logStage ? ' active' : '') + (locked ? ' locked' : '');
+      tab.textContent = FishData.STAGES[key].name + (locked ? ' · 잠김' : '');
+      tab.disabled = locked;
+      tab.addEventListener('click', () => { logStage = key; renderLog(); });
+      logStageTabsEl.appendChild(tab);
+    });
     logListEl.innerHTML = '';
+    if (!FishData.stageReady(logStage)) {
+      const p = document.createElement('p');
+      p.className = 'log-summary';
+      p.textContent = '준비 중인 낚시터예요.';
+      logListEl.appendChild(p);
+      return;
+    }
+    const summary = document.createElement('p');
+    summary.className = 'log-summary';
+    summary.textContent = `${stageDexCount(logStage)} / ${stageSpeciesTotal(logStage)}종 발견`;
+    logListEl.appendChild(summary);
+    const pools = FishData.FISH_BY_STAGE[logStage];
     LOG_TIER_ORDER.forEach(tier => {
-      const species = FishData.FISH_BY_TIER[tier];
+      const species = pools[tier];
       if (!species || !species.length) return;
       const header = document.createElement('div');
       header.className = 'log-section-title';
@@ -2529,9 +2636,12 @@ function __zzhInit() {
 
   function openSpeciesDetail(tier, speciesId) {
     const record = catches[speciesId];
-    const sp = (FishData.FISH_BY_TIER[tier] || []).find(s => s.id === speciesId);
-    if (!record || !sp) return;
+    const found = FishData.speciesById(speciesId);
+    if (!record || !found) return;
+    const sp = found.species;
+    tier = found.tier;
     const tierInfo = FishData.TIERS[tier];
+    const priceRange = FishData.stagePriceRange(found.stage, tier);
     speciesDetailIcon.src = FishData.speciesIconPath(tier, speciesId);
     speciesDetailTierBadge.textContent = tierInfo.label;
     speciesDetailTierBadge.className = `tier-badge tier-${tier}`;
@@ -2539,7 +2649,8 @@ function __zzhInit() {
     speciesDetailDesc.textContent = sp.desc;
     speciesDetailStats.innerHTML = `
       <div class="species-detail-row"><span>크기</span><span>${sp.sizeRange[0]}~${sp.sizeRange[1]}cm</span></div>
-      <div class="species-detail-row"><span>판매가</span><span><img class="price-icon" src="icons/ui/shell.svg" alt="">${tierInfo.priceMin.toLocaleString('ko-KR')}~${tierInfo.priceMax.toLocaleString('ko-KR')}</span></div>
+      <div class="species-detail-row"><span>낚시터</span><span>${FishData.STAGES[found.stage].name}</span></div>
+      <div class="species-detail-row"><span>판매가</span><span><img class="price-icon" src="icons/ui/shell.svg" alt="">${priceRange.min.toLocaleString('ko-KR')}~${priceRange.max.toLocaleString('ko-KR')}</span></div>
       <div class="species-detail-row"><span>낚은 기록</span><span>${record.count}회 · 최고 ${record.best}cm</span></div>
     `;
     const history = record.history || [];
@@ -3021,6 +3132,16 @@ function __zzhInit() {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
     gachaPity = Math.max(0, value || 0);
     persist();
+  };
+  window.__zzhDevUnlockStage = function (key) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }
+    if (!FishData.STAGES[key] || stagesUnlocked.includes(key)) return;
+    stagesUnlocked.push(key);
+    persist();
+  };
+  window.__zzhDevSetStage = function (key) {
+    try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return false; } catch (e) { return false; }
+    return setStage(key);
   };
   window.__zzhDevGiveGems = function (amount) {
     try { if (localStorage.getItem(DEV_FLAG_KEY) !== '1') return; } catch (e) { return; }

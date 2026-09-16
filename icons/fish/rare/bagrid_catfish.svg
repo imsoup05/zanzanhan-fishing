@@ -1,8 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">
-  <path d="M28.0 16L38.2 10.0L38.2 22.0z" fill="#6199d1"/>
-  <path d="M4.0 16C8.3 10.0 23.7 10.0 28.0 16C23.7 22.0 8.3 22.0 4.0 16z" fill="#6199d1"/>
-  <path d="M13.6 12.7q2.9 -4.5 6.2 -0.9" stroke="#1a3d60" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-  <path d="M5.0 15q-4 -2.4 -7.5 -1.6" stroke="#1a3d60" stroke-width="1" fill="none" stroke-linecap="round"/>
-  <path d="M5.0 17q-4 2.4 -7.5 2.6" stroke="#1a3d60" stroke-width="1" fill="none" stroke-linecap="round"/>
-  <circle cx="9.8" cy="14.1" r="1.9" fill="#0a1a1e"/>
+<defs><clipPath id="b"><path d="M5.24,13.35 C8.69,10.7 12.64,10.98 15.1,10.98 C23.53,10.98 30.08,14.33 33.83,14.33 L33.83,18.67 C30.08,18.67 23.53,21.63 15.1,21.63 C12.64,21.63 8.69,21.88 5.24,19.65 Q3.74,16.5 5.24,13.35 Z"/></clipPath></defs>
+<path d="M33.33,14.33 L41.83,11.3 L37.83,16.5 L41.83,21.7 L33.33,18.67 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" stroke-linejoin="round" opacity="0.95"/>
+<path d="M11.1,12.38 L14.1,7.18 L21.1,11.98 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" stroke-linejoin="round"/>
+<path d="M16.24,20.43 L18.24,23.63 L21.24,20.63 Z" fill="#74b7d1" opacity="0.9"/>
+<path d="M5.24,13.35 C8.69,10.7 12.64,10.98 15.1,10.98 C23.53,10.98 30.08,14.33 33.83,14.33 L33.83,18.67 C30.08,18.67 23.53,21.63 15.1,21.63 C12.64,21.63 8.69,21.88 5.24,19.65 Q3.74,16.5 5.24,13.35 Z" fill="#d5e8ef"/>
+<g clip-path="url(#b)"><rect x="0" y="0" width="48" height="17.94" fill="#74b7d1"/>
+<rect x="0" y="0" width="48" height="14.02" fill="#1f4b60" opacity="0.22"/>
+<ellipse cx="15.25" cy="14.84" rx="3" ry="2" fill="#1f4b60" opacity="0.42"/><ellipse cx="20.97" cy="18.71" rx="3.4" ry="2.2" fill="#1f4b60" opacity="0.42"/><ellipse cx="26.4" cy="14.57" rx="2.8" ry="1.9" fill="#1f4b60" opacity="0.42"/><ellipse cx="10.96" cy="18.98" rx="2.2" ry="1.6" fill="#1f4b60" opacity="0.42"/><ellipse cx="30.4" cy="17.88" rx="2" ry="1.5" fill="#1f4b60" opacity="0.42"/>
+</g>
+<path d="M5.24,13.35 C8.69,10.7 12.64,10.98 15.1,10.98 C23.53,10.98 30.08,14.33 33.83,14.33 L33.83,18.67 C30.08,18.67 23.53,21.63 15.1,21.63 C12.64,21.63 8.69,21.88 5.24,19.65 Q3.74,16.5 5.24,13.35 Z" fill="none" stroke="#1f4b60" stroke-width="0.8" opacity="0.55"/>
+<path d="M14.24,13.19 Q12.74,16.5 14.74,19.58" stroke="#1f4b60" stroke-width="0.8" fill="none" opacity="0.45"/>
+<path d="M15.24,17 Q20.74,18 19.24,21 Q16.24,20.5 15.24,17 Z" fill="#74b7d1" stroke="#1f4b60" stroke-width="0.6" opacity="0.95"/>
+<circle cx="12.02" cy="15.44" r="2" fill="#f6f4ea"/><circle cx="12.32" cy="15.44" r="1.1" fill="#0d161a"/><circle cx="11.52" cy="14.74" r="0.5" fill="#fff"/>
+<path d="M5.84,17.45 l2.6,0.9" stroke="#1f4b60" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+<path d="M7.24,19.65 q-3.5,2.2 -5.6,5.5" stroke="#1f4b60" stroke-width="1" fill="none" stroke-linecap="round"/><path d="M8.94,19.65 q-1,2.6 -1.6,6.5" stroke="#1f4b60" stroke-width="1" fill="none" stroke-linecap="round"/>
 </svg>

@@ -35,7 +35,7 @@
   <div id="title-overlay" class="title-overlay">
     <div class="title-block">
       <h1 class="title-wordmark">잔잔한 낚시터</h1>
-      <p class="title-tagline">다리 밑에서 보내는 조용한 낚시 한 판</p>
+      <p class="title-tagline">호수에서 심해까지, 조용한 낚시 한 판</p>
     </div>
     <div class="title-bottom">
       <!-- Only shown where the host has a leaderboard (Apps in Toss); a
@@ -58,7 +58,11 @@
          close button there, over the page. Navigation lives in the bottom
          tab bar instead. -->
     <div class="status-bar">
-      <div class="status-location"><img class="ui-icon" src="icons/ui/location.svg" alt="">다리 밑</div>
+      <!-- Current 낚시터; tapping opens the stage menu (#stage-overlay). -->
+      <button type="button" id="stage-btn" class="status-location" title="낚시터">
+        <img class="ui-icon" src="icons/ui/location.svg" alt=""><span id="stage-name">호수</span>
+        <svg class="status-location-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <div class="status-currencies">
         <button type="button" id="shells-info-btn" class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></button>
         <button type="button" id="gems-info-btn" class="status-currency"><img class="ui-icon" src="icons/shop/gem.svg" alt=""> <span id="gems-count-top">0</span></button>
@@ -274,6 +278,8 @@
           <p id="bucket-empty" class="shop-placeholder hidden">아직 보관 중인 물고기가 없어요.</p>
         </div>
         <div id="bucket-tab-log" class="shop-tab-panel hidden">
+          <!-- One tab per 낚시터 (locked ones disabled); game.js fills both. -->
+          <div id="log-stage-tabs" class="log-stage-tabs"></div>
           <div id="log-list" class="sell-list"></div>
         </div>
       </div>
@@ -330,6 +336,23 @@
       <p class="species-detail-history-title">낚은 크기 기록 (최근 20개)</p>
       <div id="species-detail-history" class="species-detail-history"></div>
       <button id="species-detail-close-btn" class="main-btn">닫기</button>
+    </div>
+  </div>
+
+  <!-- 낚시터 menu: opened from the status bar's location label. One card
+       per stage (see renderStageMenu() in game.js): current / 이동 / 해금
+       with live conditions / 준비 중. -->
+  <div id="stage-overlay" class="overlay hidden">
+    <div id="stage-panel" class="shop-panel stage-panel">
+      <div class="shop-header">
+        <h2 class="shop-title">낚시터</h2>
+        <button id="stage-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
+        </button>
+      </div>
+      <div class="shop-body">
+        <div id="stage-list" class="stage-list"></div>
+      </div>
     </div>
   </div>
 

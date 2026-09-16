@@ -57,7 +57,7 @@
 
   const FISH_BY_TIER = {
     common: [
-      { id: 'pale_chub', name: '피라미', sizeRange: [5, 12], desc: '다리 밑 어디서나 떼로 몰려다니는 흔한 민물고기.' },
+      { id: 'pale_chub', name: '피라미', sizeRange: [5, 12], desc: '호수 어디서나 떼로 몰려다니는 흔한 민물고기.' },
       { id: 'galgyeoni', name: '갈겨니', sizeRange: [6, 16], desc: '맑은 여울을 좋아하는 은빛 물고기.' },
       { id: 'beodeulchi', name: '버들치', sizeRange: [5, 13], desc: '돌 틈 사이에 잘 숨는 작은 토종 물고기.' },
       { id: 'crucian_carp', name: '붕어', sizeRange: [10, 32], desc: '어디서나 만날 수 있는 대표적인 민물고기.' },
@@ -85,7 +85,7 @@
       { id: 'daenongaengi', name: '대농갱이', sizeRange: [15, 30], desc: '탁한 물을 좋아하는 좀처럼 안 보이는 물고기.' }
     ],
     epic: [
-      { id: 'giant_catfish', name: '초대형 메기', sizeRange: [80, 150], desc: '이 다리 밑에 이런 크기가 살 리 없는데... 실존하는 괴어.' },
+      { id: 'giant_catfish', name: '초대형 메기', sizeRange: [80, 150], desc: '이 호수에 이런 크기가 살 리 없는데... 실존하는 괴어.' },
       { id: 'platinum_koi', name: '백금잉어', sizeRange: [60, 120], desc: '비늘이 백금빛으로 빛나는, 현실에는 존재할 수 없는 잉어.' },
       { id: 'abyssal_angler', name: '심해아귀', sizeRange: [50, 100], desc: '민물에 나타날 수 없는 심해의 포식자. 어떻게 여기에?' },
       { id: 'glowing_ayu', name: '빛의 은어', sizeRange: [40, 80], desc: '몸 전체가 은은하게 빛나는 은어. 목격담만 존재했다.' },
@@ -101,6 +101,60 @@
     { id: 'crushed_can', name: '찌그러진 깡통', desc: '녹슬고 찌그러진 빈 깡통.' },
     { id: 'waterlogged_wood', name: '물에 불은 나무토막', desc: '물을 잔뜩 먹어 흐물흐물해진 나무토막.' }
   ];
+
+  // ================= 낚시터 (stages) =================
+  // Three fishing spots, unlocked in order. A stage decides WHICH species
+  // (its own pools per tier, its own 꽝 items) and at what price
+  // (priceMult on top of the tier's base range); tier odds and the reel
+  // minigame are stage-independent. `unlock` is checked by game.js:
+  // dexCount species of dexStage discovered + rodGrade at least + shells
+  // paid once. A stage whose pools are still empty (content shipping in a
+  // later release) shows as 준비 중 -- see stageReady().
+  const STAGE_ORDER = ['lake', 'sea', 'abyss'];
+  const STAGES = {
+    lake: {
+      key: 'lake', name: '호수', tagline: '새벽 안개, 잔잔한 물결',
+      desc: '호숫가 낡은 돌다리 아래. 민물고기가 산다.',
+      priceMult: 1, unlock: null
+    },
+    sea: {
+      key: 'sea', name: '바다', tagline: '방파제 끝, 탁 트인 수평선',
+      desc: '파도가 치는 방파제 끝. 바닷고기는 크고 값이 나간다.',
+      priceMult: 1.6, unlock: { dexStage: 'lake', dexCount: 12, shells: 5000 }
+    },
+    abyss: {
+      key: 'abyss', name: '심해', tagline: '빛이 닿지 않는 깊은 곳',
+      desc: '아무것도 보이지 않는 깊은 바다. 이상한 것들이 올라온다.',
+      priceMult: 2.5, unlock: { dexStage: 'sea', dexCount: 12, rodGrade: 'rare', shells: 15000 }
+    }
+  };
+  // FISH_BY_TIER / JUNK_ITEMS above ARE the 호수 pools (kept under their old
+  // names: the 도감 achievements and legacy-save rebuild read them as the
+  // lake's roster on purpose). 바다/심해 pools get filled by later steps.
+  const FISH_BY_STAGE = {
+    lake: FISH_BY_TIER,
+    sea: { common: [], rare: [], epic: [], legendary: [] },
+    abyss: { common: [], rare: [], epic: [], legendary: [] }
+  };
+  const JUNK_BY_STAGE = { lake: JUNK_ITEMS, sea: [], abyss: [] };
+  function stageReady(stageKey) {
+    const pools = FISH_BY_STAGE[stageKey];
+    return !!pools && ['common', 'rare', 'epic', 'legendary'].every((t) => pools[t] && pools[t].length) && (JUNK_BY_STAGE[stageKey] || []).length > 0;
+  }
+  // id -> { stage, tier, species }; ids are unique across every stage.
+  const SPECIES_INDEX = {};
+  STAGE_ORDER.forEach((st) => {
+    Object.keys(FISH_BY_STAGE[st]).forEach((tier) => {
+      FISH_BY_STAGE[st][tier].forEach((sp) => { SPECIES_INDEX[sp.id] = { stage: st, tier, species: sp }; });
+    });
+  });
+  function speciesById(id) { return SPECIES_INDEX[id] || null; }
+  // Sale price range of a tier at a stage (tier base x the stage's multiplier).
+  function stagePriceRange(stageKey, tierKey) {
+    const mult = (STAGES[stageKey] || STAGES.lake).priceMult;
+    const tier = TIERS[tierKey];
+    return { min: Math.round(tier.priceMin * mult), max: Math.round(tier.priceMax * mult) };
+  }
 
   // Per-species icon path -- icons/fish/<tier>/<speciesId>.svg, one hand
   // -drawn file per species (see icons/ICONS.md).
@@ -126,7 +180,8 @@
     if (entry.tier === 'junk') return 0;
     const tier = TIERS[entry.tier];
     const frac = sizeFrac(entry.size, entry.sizeRange);
-    return Math.round(tier.priceMin + (tier.priceMax - tier.priceMin) * frac);
+    const mult = (STAGES[entry.stage] || STAGES.lake).priceMult;
+    return Math.round((tier.priceMin + (tier.priceMax - tier.priceMin) * frac) * mult);
   }
 
   const ALL_TIER_KEYS = ['junk', 'common', 'rare', 'epic', 'legendary'];
@@ -170,7 +225,9 @@
   // low-tier skip in game.js); luckLevel (행운 stat, 0~5) shifts weight from
   // 꽝/일반 toward 희귀/특급/전설, weighted heavily toward 특급. Neither
   // applies when forceTierKey is set.
-  function pickCatch(forceTierKey, excludeTierKeys, luckLevel) {
+  // stageKey picks the pools (defaults to the lake for anything unknown).
+  function pickCatch(forceTierKey, excludeTierKeys, luckLevel, stageKey) {
+    const st = STAGES[stageKey] && stageReady(stageKey) ? stageKey : 'lake';
     let tierKey = forceTierKey;
     if (!tierKey || !TIERS[tierKey]) {
       const exclude = excludeTierKeys && excludeTierKeys.length ? new Set(excludeTierKeys) : null;
@@ -187,9 +244,9 @@
         if (roll < acc) { tierKey = key; break; }
       }
     }
-    const pool = tierKey === 'junk' ? JUNK_ITEMS : FISH_BY_TIER[tierKey];
+    const pool = tierKey === 'junk' ? JUNK_BY_STAGE[st] : FISH_BY_STAGE[st][tierKey];
     const species = pool[Math.floor(Math.random() * pool.length)];
-    const entry = { ...species, tier: tierKey };
+    const entry = { ...species, tier: tierKey, stage: st };
     if (tierKey !== 'junk') entry.size = randSize(species.sizeRange);
     entry.price = priceForCatch(entry);
     return entry;
@@ -377,6 +434,7 @@
   // the weight tables, grade order) stay private to this file.
   window.FishData = {
     TIERS, FISH_BY_TIER, JUNK_ITEMS, pickCatch, randSize, speciesIconPath, junkIconPath,
+    STAGE_ORDER, STAGES, FISH_BY_STAGE, JUNK_BY_STAGE, stageReady, speciesById, stagePriceRange,
     ROD_GRADES, ROD_MAX_LEVEL, ROD_GRADE_UP, rodLevelCost, rodEase, rodMissBonus, rodSlowBonus,
     GEM_LABEL, ROD_GEM_DROP_CHANCE,
     PLAYER_STAT_ORDER, PLAYER_STATS, PLAYER_STAT_MAX_LEVEL, statLevelCost,

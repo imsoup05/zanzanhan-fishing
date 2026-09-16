@@ -1,7 +1,7 @@
 {
   "name": "잔잔한 낚시터",
   "short_name": "낚시터",
-  "description": "다리 밑에서 조용히 낚싯대를 드리우는 낚시 게임",
+  "description": "호수에서 심해까지, 조용히 낚싯대를 드리우는 낚시 게임",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
