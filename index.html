@@ -136,12 +136,6 @@
         </span>
         <span class="tab-label">도전과제</span>
       </button>
-      <!-- Only shown where the host has a leaderboard (Apps in Toss) --
-           game.js unhides it; the bar is five tabs everywhere else. -->
-      <button id="menu-leaderboard-btn" class="tab-item hidden" title="랭킹">
-        <img class="tab-icon" src="icons/ui/ranking.svg" alt="">
-        <span class="tab-label">랭킹</span>
-      </button>
       <button id="menu-settings-btn" class="tab-item" title="설정">
         <img class="tab-icon" src="icons/ui/settings.svg" alt="">
         <span class="tab-label">설정</span>
@@ -330,8 +324,6 @@
     <div id="achievements-panel" class="shop-panel">
       <div class="shop-header">
         <h2 class="shop-title">도전과제</h2>
-        <!-- Only shown where the host has a leaderboard (Apps in Toss). -->
-        <button id="leaderboard-btn" class="leaderboard-btn hidden">랭킹</button>
         <span id="achievements-summary" class="achievements-summary"></span>
         <!-- Shown only while two or more rewards are waiting. -->
         <button type="button" id="achievements-claim-all-btn" class="achievements-claim-all-btn hidden">모두 받기</button>
@@ -339,8 +331,27 @@
           <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
         </button>
       </div>
+      <!-- Tab strip only where the host has a leaderboard (Apps in Toss);
+           elsewhere the popup is just the list, no strip. -->
+      <nav id="achievements-tabs" class="shop-tabs hidden">
+        <button class="shop-tab active" data-atab="list">도전과제</button>
+        <button class="shop-tab" data-atab="rank">랭킹</button>
+      </nav>
       <div class="shop-body">
-        <div id="achievements-list" class="sell-list"></div>
+        <div id="achievements-tab-list" class="shop-tab-panel">
+          <div id="achievements-list" class="sell-list"></div>
+        </div>
+        <!-- 랭킹: my score (누적 판매 조개, the leaderboard's metric) and the
+             button that opens the host's board. -->
+        <div id="achievements-tab-rank" class="shop-tab-panel hidden">
+          <div class="rank-card">
+            <img class="rank-icon" src="icons/ui/ranking.svg" alt="">
+            <div class="rank-label">내 점수 · 누적 판매 조개</div>
+            <div id="rank-score" class="rank-score">0</div>
+            <p class="rank-desc">물고기를 팔아 번 조개를 모두 더한 값이에요. 다른 낚시꾼과 순위를 겨뤄 보세요.</p>
+            <button type="button" id="leaderboard-btn" class="main-btn rank-open-btn">랭킹 보기</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

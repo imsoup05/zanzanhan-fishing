@@ -3074,6 +3074,7 @@ function __zzhInit() {
     }
   }
   function openAchievements() {
+    switchAchievementsTab('list');
     renderAchievements();
     achievementsOverlay.classList.remove('hidden');
   }
@@ -3085,15 +3086,26 @@ function __zzhInit() {
   // ---- 랭킹 (host leaderboard, Apps in Toss only) ----
   // Score = 누적 판매 조개, the same counter 도전과제 keeps. Sent after every
   // sale and once at startup (covers a submission the last session lost).
-  // Three entry points to the same board -- launch title, bottom tab bar,
-  // and the 도전과제 header -- so it's never more than one tap away; all
-  // hidden together on hosts without one (the tab bar is then five tabs).
-  const leaderboardBtns = ['title-leaderboard-btn', 'menu-leaderboard-btn', 'leaderboard-btn']
+  // Two entry points to the same board: the launch title's pill and the
+  // 랭킹 tab inside the 도전과제 popup (v2.0: it used to be a sixth bottom
+  // tab too, which pushed 미끼 off centre on Toss). Hosts without a
+  // leaderboard get neither -- the popup then has no tab strip at all.
+  const leaderboardBtns = ['title-leaderboard-btn', 'leaderboard-btn']
     .map((id) => document.getElementById(id));
   leaderboardBtns.forEach((btn) => {
-    btn.classList.toggle('hidden', !Platform.hasLeaderboard);
     btn.addEventListener('click', () => Platform.openLeaderboard());
   });
+  document.getElementById('title-leaderboard-btn').classList.toggle('hidden', !Platform.hasLeaderboard);
+  const achievementsTabsEl = document.getElementById('achievements-tabs');
+  const rankScoreEl = document.getElementById('rank-score');
+  achievementsTabsEl.classList.toggle('hidden', !Platform.hasLeaderboard);
+  function switchAchievementsTab(key) {
+    achievementsTabsEl.querySelectorAll('.shop-tab').forEach((t) => t.classList.toggle('active', t.dataset.atab === key));
+    document.getElementById('achievements-tab-list').classList.toggle('hidden', key !== 'list');
+    document.getElementById('achievements-tab-rank').classList.toggle('hidden', key !== 'rank');
+    if (key === 'rank') rankScoreEl.textContent = Math.round(achievements.stats.shellsEarned || 0).toLocaleString('ko-KR');
+  }
+  achievementsTabsEl.querySelectorAll('.shop-tab').forEach((t) => t.addEventListener('click', () => switchAchievementsTab(t.dataset.atab)));
   function submitLeaderboardScore() {
     if (!Platform.hasLeaderboard || achievements.stats.shellsEarned <= 0) return;
     Platform.submitScore(achievements.stats.shellsEarned);

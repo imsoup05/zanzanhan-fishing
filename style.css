@@ -954,6 +954,14 @@ body {
 }
 .shop-tab-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .shop-tab-panel.hidden { display: none; }
+.shop-tabs.hidden { display: none; }
+/* 도전과제 popup's 랭킹 tab (Apps in Toss only): one centred card. */
+.rank-card { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 8px 6px 18px; }
+.rank-icon { width: 44px; height: 44px; margin-bottom: 4px; }
+.rank-label { font-size: 13px; opacity: 0.7; }
+.rank-score { font-family: var(--font-display); font-weight: 700; font-size: 38px; color: var(--accent); line-height: 1.1; }
+.rank-desc { font-size: 13px; opacity: 0.75; line-height: 1.5; margin: 6px 0 14px; max-width: 260px; }
+.rank-open-btn { padding: 12px 34px; }
 
 .shop-placeholder {
   margin: auto;
@@ -1040,8 +1048,10 @@ body {
    leaks over the rate chips below. */
 .gacha-stage {
   position: relative;
-  width: min(250px, 66vw);
-  height: min(250px, 66vw);
+  /* Also capped by height: on a 360x640 phone the 72vh shop panel is only
+     ~460px tall and a 250px stage pushed the pull buttons off the panel. */
+  width: min(250px, 66vw, calc(var(--vh-px, 100dvh) * 0.3));
+  height: min(250px, 66vw, calc(var(--vh-px, 100dvh) * 0.3));
   border-radius: 50%;
   overflow: hidden;
   display: flex;
@@ -1636,7 +1646,7 @@ body {
 .stage-card-badge.soon { color: var(--text-light); background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); opacity: 0.85; }
 .stage-card-badge.hidden { display: none; }
 .stage-card-desc { font-size: 12.5px; opacity: 0.85; margin: 8px 0 0; line-height: 1.45; }
-.stage-card-meta { font-size: 12px; color: var(--accent); }
+.stage-card-meta { font-size: 12px; color: var(--accent); word-break: keep-all; }
 .stage-conds { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .stage-conds:empty { display: none; }
 .stage-conds li { display: flex; align-items: center; gap: 7px; opacity: 0.8; }
@@ -1801,9 +1811,9 @@ body {
 .leaderboard-btn.hidden { display: none; }
 /* The same pill on the launch title (below the wordmark, above the "화면을
    눌러" hint) so the board is reachable before the first cast. The in-game
-   entry is a 랭킹 tab in the bottom bar (.tab-item.hidden above) rather
-   than a status-bar chip: the status bar's right end belongs to the Toss
-   close pill, and a 6-digit shell count would have pushed a chip under it. */
+   entry is the 랭킹 tab inside the 도전과제 popup (v2.0; a sixth bottom tab
+   pushed 미끼 off centre, and a status-bar chip would sit under the Toss
+   close pill). */
 .leaderboard-btn .ui-icon { width: 15px; height: 15px; margin-right: 5px; display: inline-block; vertical-align: -3px; }
 .title-action-btn {
   margin-left: 0;
