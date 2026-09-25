@@ -219,7 +219,7 @@ function __zzhInit() {
   function bgmVolume() { return bgmMasterVolume * 0.3; } // internal balance scale, not the raw slider value
   function startBgm() {
     if (!actx || bgmNodes || !bgmOn) return;
-    bgmThemeKey = (typeof stage === 'string' && BGM_THEMES[stage]) ? stage : 'lake';
+    bgmThemeKey = bgmTargetKey();
     const master = actx.createGain();
     master.gain.value = bgmVolume();
     master.connect(actx.destination);
@@ -250,11 +250,17 @@ function __zzhInit() {
     bgmNodes = null;
     bgmThemeKey = null;
   }
-  // 낚시터 changed: crossfade to that stage's theme (a no-op while silent --
-  // the next startBgm() picks the right theme on its own).
+  // Which theme should be playing: the current 낚시터's, or -- in the
+  // 수족관 -- the theme of the 낚시터 whose tank is on screen.
+  function bgmTargetKey() {
+    const key = view === 'aquarium' ? aqTank : stage;
+    return BGM_THEMES[key] ? key : 'lake';
+  }
+  // 낚시터 (or 수족관 tank) changed: crossfade to that theme (a no-op while
+  // silent -- the next startBgm() picks the right theme on its own).
   function switchBgmForStage() {
     if (!bgmNodes) return;
-    if (bgmThemeKey === stage) return;
+    if (bgmThemeKey === bgmTargetKey()) return;
     stopBgm(1.5);
     setTimeout(() => { if (bgmOn && !bgmNodes) startBgm(); }, 900);
   }
@@ -1142,6 +1148,11 @@ function __zzhInit() {
   function renderLoop(now) {
     const t = now / 1000;
     ctx.clearRect(0, 0, W, H);
+    if (view === 'aquarium') {
+      drawAquarium(t);
+      requestAnimationFrame(renderLoop);
+      return;
+    }
     ctx.save();
     applyZoom(ctx);
     scene().paintWater(t);
@@ -1209,7 +1220,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 12;
+  const SAVE_SCHEMA_VERSION = 13;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -1220,9 +1231,17 @@ function __zzhInit() {
       baits: { common: 0, rare: 0, epic: 0, legendary: 0 }, equippedBait: 'none',
       gachaPity: 0,
       achievements: Achievements.freshState(),
-      stage: 'lake', stagesUnlocked: ['lake']
+      stage: 'lake', stagesUnlocked: ['lake'],
+      aquarium: freshAquarium()
     };
   }
+  // 수족관 (see md/AQUARIUM.md): tanks only get a key once bought.
+  //   tanks[stageKey] = { cap, fish: [{ uid, id, tier, size }], floor, back, light }
+  //   decor = ids of bought (non-default) decor; putHintSeen = the one-time
+  //   "넣으면 팔 수 없어요" confirm has been acknowledged; introSeen = the
+  //   one-time "수족관이 열렸어요" card has been shown; visited = entered at
+  //   least once (clears the 낚시터 button dot and the card's NEW badge).
+  function freshAquarium() { return { tanks: {}, decor: [], putHintSeen: false, introSeen: false, visited: false }; }
   // Each step upgrades a save from exactly one schema to the next, so a
   // save several versions behind just runs through all of them in order.
   // Add a new entry here whenever SAVE_SCHEMA_VERSION bumps -- write it to
@@ -1332,7 +1351,9 @@ function __zzhInit() {
       baits: { common: 0, ...(save.baits || {}) },
       equippedBait: save.equippedBait === 'common' || !save.equippedBait ? 'none' : save.equippedBait,
       schemaVersion: 12
-    })
+    }),
+    // schema 12 -> 13: 수족관. Nobody owns a tank yet -- just the empty shell.
+    (save) => ({ ...save, aquarium: save.aquarium || freshAquarium(), schemaVersion: 13 })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1374,7 +1395,7 @@ function __zzhInit() {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
         catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements,
-        stage, stagesUnlocked
+        stage, stagesUnlocked, aquarium
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1419,6 +1440,34 @@ function __zzhInit() {
   let stagesUnlocked = Array.isArray(initialSave.stagesUnlocked) ? initialSave.stagesUnlocked.filter((k) => FishData.STAGES[k]) : [];
   if (!stagesUnlocked.includes('lake')) stagesUnlocked.unshift('lake');
   if (!stagesUnlocked.includes(stage) || !FishData.stageReady(stage)) stage = 'lake';
+  // 수족관: saved state (normalized so a hand-edited/partial blob can't
+  // break the painters), plus the screen mode -- never saved, every launch
+  // starts at the 낚시터 -- and which tank is on screen.
+  const aquarium = normalizeAquarium(initialSave.aquarium);
+  function normalizeAquarium(a) {
+    const out = freshAquarium();
+    if (!a || typeof a !== 'object') return out;
+    out.putHintSeen = !!a.putHintSeen;
+    out.introSeen = !!a.introSeen;
+    out.visited = !!a.visited;
+    out.decor = Array.isArray(a.decor) ? a.decor.filter((id) => AquariumData.decorById(id)) : [];
+    AquariumData.TANK_ORDER.forEach((key) => {
+      const tk = a.tanks && a.tanks[key];
+      if (!tk) return;
+      const pick = (cat) => {
+        const d = AquariumData.decorById(tk[cat]);
+        return d && d.tank === key && d.cat === cat ? d.id : AquariumData.defaultDecor(key, cat).id;
+      };
+      out.tanks[key] = {
+        cap: Math.min(Math.max(Number(tk.cap) || 0, 0), AquariumData.MAX_CAP_LEVEL),
+        fish: Array.isArray(tk.fish) ? tk.fish.filter((f) => f && FishData.speciesById(f.id)) : [],
+        floor: pick('floor'), back: pick('back'), light: pick('light')
+      };
+    });
+    return out;
+  }
+  let view = 'fishing'; // 'fishing' | 'aquarium'
+  let aqTank = 'lake';
   // Guided tutorial (see the "Tutorial" section) has run to the end or been
   // skipped. false = owed: it starts as soon as the launch title clears.
   let tutorialDone = initialSave.tutorialDone;
@@ -1666,7 +1715,7 @@ function __zzhInit() {
       const info = FishData.STAGES[key];
       const ready = FishData.stageReady(key);
       const unlocked = stageUnlocked(key);
-      const current = key === stage;
+      const current = key === stage && view !== 'aquarium';
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'stage-card stage-' + key + (current ? ' current' : '') + (unlocked ? '' : ' locked') + (ready ? '' : ' soon');
@@ -1706,6 +1755,8 @@ function __zzhInit() {
       card.addEventListener('click', () => openStageDetail(key));
       stageListEl.appendChild(card);
     });
+    stageListEl.appendChild(Object.assign(document.createElement('div'), { className: 'stage-list-divider' }));
+    stageListEl.appendChild(renderAquariumCard());
     const hint = document.createElement('p');
     hint.className = 'stage-list-hint';
     hint.textContent = '낚시터를 누르면 자세히 볼 수 있어요';
@@ -1713,10 +1764,11 @@ function __zzhInit() {
     if (stageDetailKey) fillStageDetail(stageDetailKey);
   }
   function fillStageDetail(key) {
+    if (key === 'aquarium') { fillAquariumDetail(); return; }
     const info = FishData.STAGES[key];
     const ready = FishData.stageReady(key);
     const unlocked = stageUnlocked(key);
-    const current = key === stage;
+    const current = key === stage && view !== 'aquarium';
     const idle = state === 'idle';
     stageDetailBannerEl.className = 'stage-detail-banner stage-' + key;
     stageDetailIconEl.src = `icons/ui/stage-${key}.svg`;
@@ -1772,6 +1824,7 @@ function __zzhInit() {
   stageDetailBtn.addEventListener('click', () => {
     const key = stageDetailKey;
     if (!key) return;
+    if (key === 'aquarium') { enterAquarium(); return; }
     if (stageUnlocked(key)) setStage(key); else unlockStage(key);
   });
   function openStageMenu() { closeStageDetail(); renderStageMenu(); stageOverlay.classList.remove('hidden'); }
@@ -1779,6 +1832,8 @@ function __zzhInit() {
   function setStage(key) {
     if (!FishData.STAGES[key] || !stageUnlocked(key) || !FishData.stageReady(key)) return false;
     if (state !== 'idle') return false;
+    const fromAquarium = view === 'aquarium';
+    if (fromAquarium) leaveAquarium();
     if (key !== stage) {
       stage = key;
       switchBgmForStage();
@@ -1790,6 +1845,8 @@ function __zzhInit() {
       persist();
       showStatus(`${FishData.STAGES[key].name}에 도착했어요`, null, 2200);
       checkAchievements();
+    } else if (fromAquarium) {
+      showStatus(`${FishData.STAGES[key].name}에 돌아왔어요`, null, 2200);
     }
     closeStageMenu();
     return true;
@@ -1808,12 +1865,1126 @@ function __zzhInit() {
     persist();
     checkAchievements();
     if (!setStage(key)) renderStageMenu(); // mid-cast: stays open as 이동 for later
+    // Unlocking 바다 is what opens the 수족관 -- say so once the player is there.
+    setTimeout(maybeShowAquariumIntro, 2400);
     return true;
   }
   stageBtn.addEventListener('click', openStageMenu);
   stageCloseBtn.addEventListener('click', closeStageMenu);
   stageOverlay.addEventListener('click', (e) => { if (e.target === stageOverlay) closeStageMenu(); });
   applyStageToUi();
+
+  // ================= 수족관 (md/AQUARIUM.md) =================
+  // A second screen mode, entered from the 낚시터 popup's 수족관 card: the
+  // canvas paints the open tank (drawAquarium) instead of the 낚시터, and
+  // the fishing tab bar swaps for #aq-bar (style.css, #game.in-aquarium).
+  // `stage` never changes in here, so leaving drops the player back at the
+  // 낚시터 they came from. Nothing in this section touches sale prices,
+  // tier odds or reeling -- it only spends shells and takes fish out of
+  // the bucket.
+  const AQ = AquariumData;
+  const aqTankTabsEl = document.getElementById('aq-tank-tabs');
+  const aqCardEl = document.getElementById('aq-card');
+  const aqCardTitleEl = document.getElementById('aq-card-title');
+  const aqCardDescEl = document.getElementById('aq-card-desc');
+  const aqCardBtn = document.getElementById('aq-card-btn');
+  const aqDisplayBtn = document.getElementById('aq-display-btn');
+  const aqDecorBtn = document.getElementById('aq-decor-btn');
+  const aqExitBtn = document.getElementById('aq-exit-btn');
+  const aqDisplayOverlay = document.getElementById('aq-display-overlay');
+  const aqDisplayTitleEl = document.getElementById('aq-display-title');
+  const aqDisplayTabs = document.querySelectorAll('[data-aqtab]');
+  const aqDisplayPanels = { put: document.getElementById('aq-tab-put'), tank: document.getElementById('aq-tab-tank') };
+  const aqPutListEl = document.getElementById('aq-put-list');
+  const aqPutEmptyEl = document.getElementById('aq-put-empty');
+  const aqTankListEl = document.getElementById('aq-tank-list');
+  const aqTankEmptyEl = document.getElementById('aq-tank-empty');
+  const aqCapCountEl = document.getElementById('aq-cap-count');
+  const aqExpandBtn = document.getElementById('aq-expand-btn');
+  const aqDecorOverlay = document.getElementById('aq-decor-overlay');
+  const aqDecorTitleEl = document.getElementById('aq-decor-title');
+  const aqDecorTabsEl = document.getElementById('aq-decor-tabs');
+  const aqDecorListEl = document.getElementById('aq-decor-list');
+  const aqConfirmOverlay = document.getElementById('aq-confirm-overlay');
+  const aqConfirmTitleEl = document.getElementById('aq-confirm-title');
+  const aqConfirmDescEl = document.getElementById('aq-confirm-desc');
+  const aqConfirmOkBtn = document.getElementById('aq-confirm-ok-btn');
+  const aqConfirmCancelBtn = document.getElementById('aq-confirm-cancel-btn');
+  const shellPrice = (n) => `<img class="price-icon" src="icons/ui/shell.svg" alt="">${n.toLocaleString('ko-KR')}`;
+  // 을/를 by whether the name ends in a final consonant (받침).
+  function objParticle(word) {
+    const code = word.charCodeAt(word.length - 1) - 0xac00;
+    return code >= 0 && code <= 11171 && code % 28 !== 0 ? '을' : '를';
+  }
+
+  function aquariumUnlocked() { return stageUnlocked(AQ.UNLOCK_STAGE); }
+  function tankAvailable(key) { return stageUnlocked(AQ.TANKS[key].requires); }
+  function tankOf(key) { return aquarium.tanks[key] || null; }
+  function aqFishTotal() { return AQ.TANK_ORDER.reduce((n, k) => n + (tankOf(k) ? tankOf(k).fish.length : 0), 0); }
+  // Distinct species on display across every tank (the long-run goal: 72).
+  function aqSpeciesShown() {
+    const ids = new Set();
+    AQ.TANK_ORDER.forEach((k) => { if (tankOf(k)) tankOf(k).fish.forEach((f) => ids.add(f.id)); });
+    return ids.size;
+  }
+  function aqSpeciesTotal() { return AQ.TANK_ORDER.reduce((n, k) => n + stageSpeciesTotal(k), 0); }
+  // Older bucket entries predate the `stage` field -- the species knows.
+  function fishStage(f) {
+    if (f.stage) return f.stage;
+    const found = FishData.speciesById(f.id);
+    return found ? found.stage : null;
+  }
+  const AQ_TIER_RANK = { legendary: 0, epic: 1, rare: 2, common: 3 };
+  const byTierThenSize = (a, b) => (AQ_TIER_RANK[a.tier] - AQ_TIER_RANK[b.tier]) || (b.size - a.size);
+
+  // ---- 낚시터 popup: card + detail sheet ----
+  function aquariumMetaText() {
+    const owned = AQ.TANK_ORDER.filter((k) => tankOf(k)).length;
+    return `수조 ${owned} / ${AQ.TANK_ORDER.length} · 전시 ${aqFishTotal()}마리`;
+  }
+  function renderAquariumCard() {
+    const unlocked = aquariumUnlocked();
+    const inside = view === 'aquarium';
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'stage-card stage-aquarium' + (inside ? ' current' : '') + (unlocked ? '' : ' locked');
+    card.innerHTML = `
+      <span class="stage-card-art"><img class="stage-card-icon" src="icons/ui/stage-aquarium.svg" alt=""></span>
+      <span class="stage-card-body">
+        <span class="stage-card-head"><span class="stage-card-name">수족관</span><span class="stage-card-badge hidden"></span></span>
+        <span class="stage-card-tagline">잡은 물고기를 곁에 두는 곳</span>
+        <span class="stage-card-meta"></span>
+        <span class="stage-card-bar"><i></i></span>
+      </span>
+      <span class="stage-card-chevron"></span>`;
+    const badge = card.querySelector('.stage-card-badge');
+    if (inside) { badge.textContent = '현재'; badge.classList.remove('hidden'); }
+    else if (!unlocked) { badge.textContent = '잠김'; badge.classList.add('soon'); badge.classList.remove('hidden'); }
+    else if (!aquarium.visited) { badge.textContent = 'NEW'; badge.classList.add('new'); badge.classList.remove('hidden'); }
+    const meta = card.querySelector('.stage-card-meta');
+    const bar = card.querySelector('.stage-card-bar i');
+    if (unlocked) {
+      meta.textContent = aquariumMetaText();
+      bar.style.width = `${(aqSpeciesShown() / aqSpeciesTotal()) * 100}%`;
+    } else {
+      meta.textContent = `${FishData.STAGES[AQ.UNLOCK_STAGE].name}${objParticle(FishData.STAGES[AQ.UNLOCK_STAGE].name)} 해금하면 열려요`;
+      bar.style.width = '0%';
+    }
+    card.addEventListener('click', () => openStageDetail('aquarium'));
+    return card;
+  }
+  function fillAquariumDetail() {
+    const unlocked = aquariumUnlocked();
+    const inside = view === 'aquarium';
+    const needName = FishData.STAGES[AQ.UNLOCK_STAGE].name;
+    stageDetailBannerEl.className = 'stage-detail-banner stage-aquarium';
+    stageDetailIconEl.src = 'icons/ui/stage-aquarium.svg';
+    stageDetailNameEl.textContent = '수족관';
+    stageDetailTaglineEl.textContent = '잡은 물고기를 곁에 두는 곳';
+    stageDetailDescEl.textContent = '낚은 물고기를 팔지 않고 수조에 넣어 두는 곳이에요. 수조 칸을 늘리고 바닥재·배경·조명으로 꾸밀 수 있어요. 낚시 실력이나 판매가에는 영향을 주지 않아요.';
+    stageDetailMetaEl.textContent = unlocked ? `${aquariumMetaText()} · 전시한 종 ${aqSpeciesShown()} / ${aqSpeciesTotal()}` : '';
+    stageDetailCondsEl.innerHTML = '';
+    if (!unlocked) {
+      const li = document.createElement('li');
+      li.textContent = `${needName} 해금`;
+      stageDetailCondsEl.appendChild(li);
+    }
+    stageDetailBadgeEl.className = 'stage-card-badge hidden';
+    stageDetailBtn.classList.add('hidden');
+    stageDetailBtn.disabled = false;
+    stageDetailNoteEl.classList.add('hidden');
+    if (inside) {
+      stageDetailBadgeEl.textContent = '지금 여기'; stageDetailBadgeEl.classList.remove('hidden');
+    } else if (unlocked) {
+      stageDetailBtn.textContent = '입장'; stageDetailBtn.classList.remove('hidden');
+      stageDetailBtn.disabled = state !== 'idle';
+      if (state !== 'idle') { stageDetailNoteEl.textContent = '낚시 중에는 이동할 수 없어요'; stageDetailNoteEl.classList.remove('hidden'); }
+    } else {
+      stageDetailNoteEl.textContent = `${needName}${objParticle(needName)} 해금하면 열려요`; stageDetailNoteEl.classList.remove('hidden');
+    }
+  }
+
+  // ---- enter / leave ----
+  function enterAquarium() {
+    if (!aquariumUnlocked() || state !== 'idle') return;
+    closeStageMenu();
+    setBaitMenuOpen(false);
+    hideStatus();
+    if (!tankOf(aqTank)) aqTank = AQ.TANK_ORDER.find((k) => tankOf(k)) || AQ.TANK_ORDER[0];
+    view = 'aquarium';
+    gameEl.classList.add('in-aquarium');
+    stageNameEl.textContent = '수족관';
+    if (!aquarium.visited) {
+      aquarium.visited = true;
+      aquarium.introSeen = true; // found it on their own -- no need to announce it
+      persist();
+    }
+    updateAquariumDot();
+    aqGeom = null;
+    aqSwimmers = [];
+    syncAquariumScene();
+    renderAquariumHud();
+    switchBgmForStage();
+  }
+  // Only the mode flip; setStage() is what callers use to actually go back
+  // (it also closes the 낚시터 popup and says where the player is).
+  function leaveAquarium() {
+    if (view !== 'aquarium') return;
+    closeAquariumPopups();
+    view = 'fishing';
+    gameEl.classList.remove('in-aquarium');
+    aqSwimmers = [];
+    applyStageToUi();
+    bridgeCache = null;
+    switchBgmForStage();
+  }
+  function closeAquariumPopups() {
+    [aqDisplayOverlay, aqDecorOverlay, aqConfirmOverlay].forEach((el) => el.classList.add('hidden'));
+    aqConfirmAction = null;
+  }
+  function selectTank(key) {
+    if (key === aqTank) return;
+    aqTank = key;
+    syncAquariumScene();
+    renderAquariumHud();
+    switchBgmForStage();
+  }
+  aqExitBtn.addEventListener('click', () => setStage(stage));
+
+  // ---- HUD: tank chips + the centred card over an unbought/empty tank ----
+  function renderAquariumHud() {
+    aqTankTabsEl.innerHTML = '';
+    AQ.TANK_ORDER.forEach((key) => {
+      const tk = tankOf(key);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'aq-tank-tab' + (key === aqTank ? ' active' : '') + (tk ? '' : ' unowned');
+      chip.textContent = AQ.TANKS[key].short;
+      const count = document.createElement('span');
+      count.className = 'aq-tank-tab-count';
+      count.textContent = tk ? `${tk.fish.length}/${AQ.capacity(tk.cap)}` : (tankAvailable(key) ? '구입' : '잠김');
+      chip.appendChild(count);
+      chip.addEventListener('click', () => selectTank(key));
+      aqTankTabsEl.appendChild(chip);
+    });
+    const tk = tankOf(aqTank);
+    const info = AQ.TANKS[aqTank];
+    aqCardBtn.classList.add('hidden');
+    aqCardBtn.disabled = false;
+    if (!tk) {
+      aqCardEl.classList.remove('hidden');
+      aqCardTitleEl.textContent = info.name;
+      if (tankAvailable(aqTank)) {
+        aqCardDescEl.textContent = `${info.desc} ${AQ.capacity(0)}칸으로 시작하고, 칸은 나중에 늘릴 수 있어요.`;
+        aqCardBtn.innerHTML = `수조 들이기 ${shellPrice(info.price)}`;
+        aqCardBtn.classList.remove('hidden');
+        aqCardBtn.disabled = shells < info.price;
+      } else {
+        const need = FishData.STAGES[info.requires].name;
+        aqCardDescEl.textContent = `${need}${objParticle(need)} 해금하면 들일 수 있어요.`;
+      }
+    } else if (!tk.fish.length) {
+      aqCardEl.classList.remove('hidden');
+      aqCardTitleEl.textContent = info.name;
+      aqCardDescEl.textContent = `아직 비어 있어요. 아래 전시에서 보관함의 ${FishData.STAGES[aqTank].name} 물고기를 넣어 보세요.`;
+    } else {
+      aqCardEl.classList.add('hidden');
+    }
+    aqDisplayBtn.disabled = !tk;
+    aqDecorBtn.disabled = !tk;
+  }
+  aqCardBtn.addEventListener('click', () => buyTank(aqTank));
+  function buyTank(key) {
+    if (tankOf(key) || !tankAvailable(key)) return;
+    const price = AQ.TANKS[key].price;
+    if (shells < price) return;
+    shells -= price;
+    aquarium.tanks[key] = {
+      cap: 0, fish: [],
+      floor: AQ.defaultDecor(key, 'floor').id, back: AQ.defaultDecor(key, 'back').id, light: AQ.defaultDecor(key, 'light').id
+    };
+    sfx.coin();
+    updateCurrencyDisplay();
+    persist();
+    syncAquariumScene();
+    renderAquariumHud();
+    showStatus(`${AQ.TANKS[key].name}${objParticle(AQ.TANKS[key].name)} 들였어요`, null, 2200);
+  }
+
+  // ---- shared confirm ----
+  let aqConfirmAction = null;
+  function confirmAq(title, desc, okLabel, onOk) {
+    aqConfirmTitleEl.textContent = title;
+    aqConfirmDescEl.textContent = desc;
+    aqConfirmOkBtn.textContent = okLabel;
+    aqConfirmAction = onOk;
+    aqConfirmOverlay.classList.remove('hidden');
+  }
+  aqConfirmOkBtn.addEventListener('click', () => {
+    aqConfirmOverlay.classList.add('hidden');
+    const fn = aqConfirmAction;
+    aqConfirmAction = null;
+    if (fn) fn();
+  });
+  aqConfirmCancelBtn.addEventListener('click', () => { aqConfirmOverlay.classList.add('hidden'); aqConfirmAction = null; });
+  aqConfirmOverlay.addEventListener('click', (e) => { if (e.target === aqConfirmOverlay) { aqConfirmOverlay.classList.add('hidden'); aqConfirmAction = null; } });
+
+  // ---- 전시 popup ----
+  let aqDisplayTab = 'put';
+  function openAquariumDisplay() {
+    if (!tankOf(aqTank)) return;
+    switchAqDisplayTab('put');
+    aqDisplayOverlay.classList.remove('hidden');
+  }
+  function closeAquariumDisplay() { aqDisplayOverlay.classList.add('hidden'); }
+  aqDisplayBtn.addEventListener('click', openAquariumDisplay);
+  document.getElementById('aq-display-close-btn').addEventListener('click', closeAquariumDisplay);
+  aqDisplayOverlay.addEventListener('click', (e) => { if (e.target === aqDisplayOverlay) closeAquariumDisplay(); });
+  function switchAqDisplayTab(key) {
+    aqDisplayTab = key;
+    aqDisplayTabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.aqtab === key));
+    Object.entries(aqDisplayPanels).forEach(([k, el]) => el.classList.toggle('hidden', k !== key));
+    renderAquariumDisplay();
+  }
+  aqDisplayTabs.forEach((btn) => btn.addEventListener('click', () => switchAqDisplayTab(btn.dataset.aqtab)));
+  function aqFishRow(f, meta, btnHtml) {
+    const found = FishData.speciesById(f.id);
+    const row = document.createElement('div');
+    row.className = 'sell-row';
+    row.innerHTML = `
+      <div class="sell-row-icon"><img src="${FishData.speciesIconPath(f.tier, f.id)}" alt=""></div>
+      <div class="sell-row-info">
+        <div class="sell-row-name">
+          <span class="tier-badge tier-${f.tier}">${FishData.TIERS[f.tier].label}</span>
+          ${found ? found.species.name : f.id} · ${f.size}cm
+        </div>
+        <div class="sell-row-meta">${meta}</div>
+      </div>
+      ${btnHtml}`;
+    return row;
+  }
+  function renderAquariumDisplay() {
+    const tk = tankOf(aqTank);
+    if (!tk) return;
+    const cap = AQ.capacity(tk.cap);
+    const full = tk.fish.length >= cap;
+    aqDisplayTitleEl.textContent = AQ.TANKS[aqTank].name;
+    aqCapCountEl.textContent = `${tk.fish.length} / ${cap}`;
+    const cost = AQ.expandCost(aqTank, tk.cap);
+    if (cost === null) {
+      aqExpandBtn.textContent = '최대 칸';
+      aqExpandBtn.disabled = true;
+    } else {
+      aqExpandBtn.innerHTML = `${AQ.capacity(tk.cap + 1)}칸으로 늘리기 ${shellPrice(cost)}`;
+      aqExpandBtn.disabled = shells < cost;
+    }
+    aqDisplayTabs.forEach((btn) => {
+      if (btn.dataset.aqtab === 'tank') btn.textContent = `수조 안 ${tk.fish.length}`;
+    });
+    // 넣기: this tank's 낚시터 fish still in the bucket, best first.
+    const bucket = caughtFish.filter((f) => fishStage(f) === aqTank).sort(byTierThenSize);
+    aqPutListEl.innerHTML = '';
+    aqPutListEl.classList.toggle('hidden', bucket.length === 0);
+    aqPutEmptyEl.classList.toggle('hidden', bucket.length > 0);
+    const stName = FishData.STAGES[aqTank].name;
+    aqPutEmptyEl.innerHTML = `보관함에 ${stName} 물고기가 없어요.<br>${stName}에서 낚은 물고기만 이 수조에 넣을 수 있어요.`;
+    bucket.forEach((f) => {
+      aqPutListEl.appendChild(aqFishRow(f, `판매가 ${shellPrice(f.price)}`,
+        `<button class="sell-btn aq-row-btn" data-aq-put="${f.uid}" ${full ? 'disabled' : ''}>넣기</button>`));
+    });
+    // 수조 안: what's on display, same order.
+    const inTank = tk.fish.slice().sort(byTierThenSize);
+    aqTankListEl.innerHTML = '';
+    aqTankListEl.classList.toggle('hidden', inTank.length === 0);
+    aqTankEmptyEl.classList.toggle('hidden', inTank.length > 0);
+    inTank.forEach((f) => {
+      aqTankListEl.appendChild(aqFishRow(f, '전시 중',
+        `<button class="sell-btn aq-row-btn quiet" data-aq-release="${f.uid}">놓아주기</button>`));
+    });
+  }
+  aqPutListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-aq-put]');
+    if (btn && !btn.disabled) putFish(Number(btn.dataset.aqPut));
+  });
+  aqTankListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-aq-release]');
+    if (btn) { sfx.tap(); askReleaseFish(Number(btn.dataset.aqRelease)); }
+  });
+  aqExpandBtn.addEventListener('click', expandTank);
+  function putFish(uid) {
+    const tk = tankOf(aqTank);
+    const f = caughtFish.find((x) => x.uid === uid);
+    if (!tk || !f || fishStage(f) !== aqTank || tk.fish.length >= AQ.capacity(tk.cap)) return;
+    const go = () => {
+      const idx = caughtFish.findIndex((x) => x.uid === uid);
+      if (idx === -1 || tk.fish.length >= AQ.capacity(tk.cap)) return;
+      caughtFish.splice(idx, 1);
+      tk.fish.push({ uid: f.uid, id: f.id, tier: f.tier, size: f.size });
+      persist();
+      sfx.splash();
+      syncAquariumScene(uid);
+      renderAquariumDisplay();
+      renderAquariumHud();
+    };
+    // The one irreversible part of the 수족관 is said out loud once.
+    if (!aquarium.putHintSeen) {
+      confirmAq('수조에 넣을까요?', '수조에 넣은 물고기는 팔 수 없어요. 나중에 놓아주면 사라지고, 조개도 받지 않아요.', '넣기', () => {
+        aquarium.putHintSeen = true;
+        go();
+      });
+    } else {
+      go();
+    }
+  }
+  function askReleaseFish(uid) {
+    const tk = tankOf(aqTank);
+    const f = tk && tk.fish.find((x) => x.uid === uid);
+    if (!f) return;
+    const name = FishData.speciesById(f.id).species.name;
+    confirmAq(`${name}${objParticle(name)} 놓아줄까요?`, '놓아준 물고기는 돌아오지 않아요. 조개도 받지 않아요.', '놓아주기', () => {
+      const idx = tk.fish.findIndex((x) => x.uid === uid);
+      if (idx === -1) return;
+      tk.fish.splice(idx, 1);
+      persist();
+      sfx.splash();
+      syncAquariumScene();
+      renderAquariumDisplay();
+      renderAquariumHud();
+    });
+  }
+  function expandTank() {
+    const tk = tankOf(aqTank);
+    if (!tk) return;
+    const cost = AQ.expandCost(aqTank, tk.cap);
+    if (cost === null || shells < cost) return;
+    shells -= cost;
+    tk.cap++;
+    sfx.coin();
+    updateCurrencyDisplay();
+    persist();
+    renderAquariumDisplay();
+    renderAquariumHud();
+  }
+
+  // ---- 꾸미기 popup ----
+  let aqDecorCat = AQ.DECOR_CATEGORIES[0].key;
+  const DECOR_BADGE_CLASS = { basic: 'tier-junk', common: 'tier-common', rare: 'tier-rare', epic: 'tier-epic' };
+  function decorOwned(d) { return d.tier === 'basic' || aquarium.decor.includes(d.id); }
+  function openAquariumDecor() {
+    if (!tankOf(aqTank)) return;
+    renderAquariumDecor();
+    aqDecorOverlay.classList.remove('hidden');
+  }
+  function closeAquariumDecor() { aqDecorOverlay.classList.add('hidden'); }
+  aqDecorBtn.addEventListener('click', openAquariumDecor);
+  document.getElementById('aq-decor-close-btn').addEventListener('click', closeAquariumDecor);
+  aqDecorOverlay.addEventListener('click', (e) => { if (e.target === aqDecorOverlay) closeAquariumDecor(); });
+  function renderAquariumDecor() {
+    const tk = tankOf(aqTank);
+    if (!tk) return;
+    aqDecorTitleEl.textContent = `${AQ.TANKS[aqTank].short} 수조 꾸미기`;
+    aqDecorTabsEl.innerHTML = '';
+    AQ.DECOR_CATEGORIES.forEach((c) => {
+      const tab = document.createElement('button');
+      tab.className = 'shop-tab' + (c.key === aqDecorCat ? ' active' : '');
+      tab.textContent = c.label;
+      tab.addEventListener('click', () => { aqDecorCat = c.key; renderAquariumDecor(); });
+      aqDecorTabsEl.appendChild(tab);
+    });
+    aqDecorListEl.innerHTML = '';
+    AQ.decorFor(aqTank, aqDecorCat).forEach((d) => {
+      const applied = tk[d.cat] === d.id;
+      const owned = decorOwned(d);
+      const price = AQ.decorPrice(d.id);
+      let right;
+      if (applied) right = '<span class="aq-inuse">적용 중</span>';
+      else if (owned) right = `<button class="sell-btn aq-row-btn quiet" data-aq-decor="${d.id}">적용</button>`;
+      else right = `<button class="sell-btn aq-row-btn" data-aq-decor="${d.id}" ${shells < price ? 'disabled' : ''}>${shellPrice(price)}</button>`;
+      const row = document.createElement('div');
+      row.className = 'sell-row' + (applied ? ' aq-current' : '');
+      row.innerHTML = `
+        <div class="sell-row-icon"><span class="aq-swatch" style="background: linear-gradient(160deg, ${d.swatch[0]}, ${d.swatch[1]})"></span></div>
+        <div class="sell-row-info">
+          <div class="sell-row-name">
+            <span class="tier-badge ${DECOR_BADGE_CLASS[d.tier]}">${AQ.DECOR_TIER_LABEL[d.tier]}</span>
+            ${d.name}
+          </div>
+          <div class="sell-row-meta">${owned ? '가지고 있어요' : '사면 바로 적용돼요'}</div>
+        </div>
+        ${right}`;
+      aqDecorListEl.appendChild(row);
+    });
+  }
+  aqDecorListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-aq-decor]');
+    if (btn && !btn.disabled) buyOrApplyDecor(btn.dataset.aqDecor);
+  });
+  function buyOrApplyDecor(id) {
+    const d = AQ.decorById(id);
+    const tk = d && tankOf(d.tank);
+    if (!tk || d.tank !== aqTank) return;
+    if (!decorOwned(d)) {
+      const price = AQ.decorPrice(id);
+      if (shells < price) return;
+      shells -= price;
+      aquarium.decor.push(id);
+      sfx.coin();
+      updateCurrencyDisplay();
+    } else {
+      sfx.tap();
+    }
+    tk[d.cat] = id;
+    persist();
+    renderAquariumDecor();
+  }
+
+  // ---- "수족관이 열렸어요": one card, once, plus a dot until visited ----
+  // The card only shows at a calm moment (idle, no popup, no tutorial, not
+  // behind the title), so it never lands on top of a reel or a result.
+  const aqIntroOverlay = document.getElementById('aq-intro-overlay');
+  const stageBtnDot = document.getElementById('stage-btn-dot');
+  function updateAquariumDot() {
+    stageBtnDot.classList.toggle('hidden', !aquariumUnlocked() || aquarium.visited || view === 'aquarium');
+  }
+  function maybeShowAquariumIntro() {
+    updateAquariumDot();
+    if (aquarium.introSeen || !aquariumUnlocked()) return;
+    if (state !== 'idle' || tutorial.active || view === 'aquarium') return;
+    if (gameEl.classList.contains('title-up') || document.querySelector('.overlay:not(.hidden)')) return;
+    aquarium.introSeen = true;
+    persist();
+    aqIntroOverlay.classList.remove('hidden');
+  }
+  function closeAquariumIntro() { aqIntroOverlay.classList.add('hidden'); }
+  document.getElementById('aq-intro-later-btn').addEventListener('click', closeAquariumIntro);
+  document.getElementById('aq-intro-go-btn').addEventListener('click', () => { closeAquariumIntro(); enterAquarium(); });
+  aqIntroOverlay.addEventListener('click', (e) => { if (e.target === aqIntroOverlay) closeAquariumIntro(); });
+  updateAquariumDot();
+
+  // ---- Scene ----
+  // Tank rectangle in canvas space, measured off the real HUD (status bar
+  // above, tab bar below, tank chips) so it lines up on every screen.
+  // Rebuilt lazily after a resize or on entry.
+  let aqGeom = null;
+  window.addEventListener('resize', () => { aqGeom = null; });
+  function aqGeometry() {
+    if (aqGeom && aqGeom.W === W && aqGeom.H === H) return aqGeom;
+    const cr = canvas.getBoundingClientRect();
+    const tb = document.querySelector('.topbar').getBoundingClientRect();
+    const bb = document.querySelector('.bottombar').getBoundingClientRect();
+    const chips = aqTankTabsEl.getBoundingClientRect();
+    const tankTop = Math.max(0, tb.bottom - cr.top) + 4;
+    const tankBottom = (bb.height ? Math.min(H, bb.top - cr.top) : H - 90) - 6;
+    const floorTop = tankBottom - Math.max(44, (tankBottom - tankTop) * 0.11);
+    const top = chips.height ? chips.bottom - cr.top + 10 : tankTop + 46;
+    aqGeom = { W, H, x0: 8, x1: W - 8, tankTop, tankBottom, floorTop, top };
+    return aqGeom;
+  }
+  // Deterministic PRNG so the painters lay pebbles/plants out identically
+  // every frame (no shimmer) -- same idea as ridgeTop()'s sum of sines.
+  function aqRand(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  }
+  function aqSeed(str) {
+    let h = 7;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 2147483647;
+    return h;
+  }
+  const pickOf = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+  function aqRoundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  // A swaying blade/stalk: quadratic from the base, tip pushed by `lean`.
+  function aqBlade(x, baseY, h, lean, width, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, baseY);
+    ctx.quadraticCurveTo(x + lean * 0.2, baseY - h * 0.55, x + lean, baseY - h);
+    ctx.stroke();
+  }
+  const AQ_RAY = { lake: 'rgba(255, 228, 190, ', sea: 'rgba(220, 245, 255, ', abyss: 'rgba(126, 224, 255, ' };
+
+  function paintAqFloor(look, g, t, seed) {
+    const rnd = aqRand(seed);
+    const w = g.x1 - g.x0;
+    const edge = (x) => g.floorTop + Math.sin(x * 0.03) * 3 + Math.sin(x * 0.011 + 1) * 5;
+    ctx.beginPath();
+    ctx.moveTo(g.x0, g.tankBottom);
+    for (let x = g.x0; x <= g.x1; x += 8) ctx.lineTo(x, edge(x));
+    ctx.lineTo(g.x1, g.tankBottom);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, g.floorTop - 6, 0, g.tankBottom);
+    grad.addColorStop(0, look.base[0]);
+    grad.addColorStop(1, look.base[1]);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    const depth = g.tankBottom - g.floorTop;
+    if (look.kind === 'pebbles') {
+      const n = Math.round(w / 5);
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + rnd() * w;
+        const y = edge(x) + 4 + rnd() * (depth - 6);
+        const rx = 2.5 + rnd() * 5.5;
+        ctx.fillStyle = pickOf(look.dots, rnd);
+        ctx.beginPath();
+        ctx.ellipse(x, y, rx, rx * (0.55 + rnd() * 0.2), rnd() * 0.6 - 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      const n = Math.round(w * 0.6);
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + rnd() * w;
+        const y = edge(x) + 2 + rnd() * (depth - 3);
+        ctx.fillStyle = pickOf(look.dots, rnd);
+        ctx.fillRect(x, y, 1 + rnd() * 1.4, 1 + rnd() * 1.2);
+      }
+    }
+    if (look.extra === 'shells') {
+      for (let i = 0; i < 12; i++) {
+        const x = g.x0 + 10 + rnd() * (w - 20);
+        const y = edge(x) + 6 + rnd() * (depth - 12);
+        const r = 3 + rnd() * 3;
+        ctx.fillStyle = pickOf(['#fbeee4', '#f6c9b8', '#ffe3c2'], rnd);
+        ctx.beginPath();
+        ctx.moveTo(x, y + r * 0.4);
+        ctx.arc(x, y + r * 0.4, r, Math.PI * 1.05, Math.PI * 1.95);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (look.extra === 'glow') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 26; i++) {
+        const x = g.x0 + rnd() * w;
+        const y = edge(x) + 2 + rnd() * (depth - 4);
+        const pulse = 0.35 + 0.35 * Math.sin(t * (0.6 + rnd()) + i);
+        const r = 4 + rnd() * 7;
+        const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, `rgba(126, 240, 200, ${0.55 * pulse})`);
+        rg.addColorStop(1, 'rgba(126, 240, 200, 0)');
+        ctx.fillStyle = rg;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      ctx.restore();
+    } else if (look.extra === 'cracks') {
+      ctx.save();
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(255, 110, 60, 0.9)';
+      for (let i = 0; i < 6; i++) {
+        let x = g.x0 + 10 + rnd() * (w - 20);
+        let y = edge(x) + 4 + rnd() * (depth * 0.5);
+        const glow = 0.5 + 0.3 * Math.sin(t * 0.8 + i * 1.7);
+        ctx.shadowBlur = 8 * glow;
+        ctx.strokeStyle = `rgba(255, 122, 74, ${0.55 + 0.35 * glow})`;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let k = 0; k < 4; k++) { x += 6 + rnd() * 10; y += (rnd() - 0.4) * 7; ctx.lineTo(x, Math.min(y, g.tankBottom - 2)); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  const AQ_BACK = {
+    reeds(look, g, t, rnd) {
+      const w = g.x1 - g.x0, tankH = g.floorTop - g.tankTop;
+      const n = Math.round(w / 22);
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + 6 + rnd() * (w - 12);
+        const h = tankH * (0.16 + rnd() * 0.3);
+        const lean = (rnd() - 0.5) * 22 + Math.sin(t * 0.7 + i) * 4;
+        aqBlade(x, g.floorTop + 8, h, lean, 2.2 + rnd() * 1.4, pickOf(look.colors, rnd));
+        if (rnd() < 0.3) {
+          ctx.fillStyle = '#5a3a26';
+          ctx.beginPath();
+          ctx.ellipse(x + lean, g.floorTop + 8 - h + 9, 3.2, 10, -lean / h, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    },
+    weeds(look, g, t, rnd) {
+      const w = g.x1 - g.x0, tankH = g.floorTop - g.tankTop;
+      const n = Math.round(w / 40);
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + 12 + rnd() * (w - 24);
+        const blades = 2 + Math.floor(rnd() * 3);
+        for (let k = 0; k < blades; k++) {
+          const h = tankH * (0.28 + rnd() * 0.4);
+          const sway = Math.sin(t * 0.8 + i * 1.3 + k) * 10;
+          const color = pickOf(look.colors, rnd);
+          const bx = x + (k - blades / 2) * 5;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 4 + rnd() * 3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(bx, g.floorTop + 8);
+          ctx.bezierCurveTo(bx - 10 + sway * 0.3, g.floorTop - h * 0.35, bx + 12 + sway * 0.7, g.floorTop - h * 0.7, bx + sway, g.floorTop - h);
+          ctx.stroke();
+        }
+      }
+    },
+    rocks(look, g, t, rnd) {
+      const w = g.x1 - g.x0;
+      const clusters = [g.x0 + w * 0.14, g.x0 + w * 0.8, g.x0 + w * 0.5];
+      clusters.forEach((cx, ci) => {
+        const scale = ci === 2 ? 0.6 : 1;
+        for (let k = 0; k < 3; k++) {
+          const rx = (26 + rnd() * 26) * scale;
+          const ry = rx * (0.55 + rnd() * 0.2);
+          const x = cx + (k - 1) * rx * 0.9;
+          const y = g.floorTop + 10 - ry * 0.6 - (k === 1 ? ry * 0.5 : 0);
+          ctx.fillStyle = look.colors[k % 2];
+          ctx.beginPath();
+          ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.beginPath();
+          ctx.ellipse(x - rx * 0.25, y - ry * 0.35, rx * 0.5, ry * 0.3, -0.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = look.colors[2];
+          ctx.beginPath();
+          ctx.ellipse(x + rx * 0.1, y - ry * 0.8, rx * 0.55, ry * 0.22, 0, Math.PI, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      for (let i = 0; i < 8; i++) {
+        const x = g.x0 + rnd() * w;
+        aqBlade(x, g.floorTop + 6, 18 + rnd() * 26, Math.sin(t * 0.8 + i) * 4, 2, look.colors[2]);
+      }
+    },
+    kelp(look, g, t, rnd) {
+      const w = g.x1 - g.x0, tankH = g.floorTop - g.tankTop;
+      const n = Math.round(w / 55);
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + 14 + rnd() * (w - 28);
+        const h = tankH * (0.5 + rnd() * 0.35);
+        const color = pickOf(look.colors, rnd);
+        const segs = 10;
+        let px = x, py = g.floorTop + 8;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        for (let s = 1; s <= segs; s++) {
+          const f = s / segs;
+          const nx = x + Math.sin(t * 0.6 + i * 1.1 + f * 2.4) * 14 * f;
+          const ny = g.floorTop + 8 - h * f;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke();
+          if (s % 2 === 0) {
+            const side = s % 4 === 0 ? 1 : -1;
+            ctx.beginPath();
+            ctx.ellipse(nx + side * 9, ny + 4, 10, 4, side * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          px = nx; py = ny;
+        }
+      }
+    },
+    coral(look, g, t, rnd) {
+      const w = g.x1 - g.x0;
+      const k0 = Math.max(1, (g.floorTop - g.tankTop) / 380); // taller tank, bigger coral
+      const n = Math.max(4, Math.round(w / 70));
+      const branch = (x, y, len, ang, width, depth) => {
+        const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+        ctx.lineWidth = width;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+        if (depth > 0) {
+          branch(x2, y2, len * 0.72, ang - 0.45 - rnd() * 0.2, width * 0.7, depth - 1);
+          branch(x2, y2, len * 0.72, ang + 0.45 + rnd() * 0.2, width * 0.7, depth - 1);
+        }
+      };
+      for (let i = 0; i < n; i++) {
+        const x = g.x0 + (i + 0.5) * (w / n) + (rnd() - 0.5) * 20;
+        const base = g.floorTop + 8;
+        const color = pickOf(look.colors, rnd);
+        const type = i % 3;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineCap = 'round';
+        if (type === 0) {
+          branch(x, base, (22 + rnd() * 12) * k0, -Math.PI / 2, 6 * k0, 3);
+        } else if (type === 1) {
+          const r = (16 + rnd() * 10) * k0;
+          ctx.beginPath(); ctx.ellipse(x, base - r * 0.5, r, r * 0.8, 0, Math.PI, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+          ctx.lineWidth = 1.4;
+          for (let k = 1; k < 4; k++) {
+            ctx.beginPath(); ctx.ellipse(x, base - r * 0.5, r * k / 4, r * 0.8 * k / 4, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+          }
+        } else {
+          ctx.lineWidth = 2 * k0;
+          const r = (30 + rnd() * 14) * k0;
+          const sway = Math.sin(t * 0.5 + i) * 0.05;
+          for (let k = 0; k <= 10; k++) {
+            const a = Math.PI * (1.15 + k * 0.07) + sway;
+            ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x + Math.cos(a) * r, base + Math.sin(a) * r); ctx.stroke();
+          }
+        }
+      }
+    },
+    tetrapod(look, g, t, rnd) {
+      const w = g.x1 - g.x0;
+      const pods = [[g.x0 + w * 0.16, 1], [g.x0 + w * 0.84, 0.9], [g.x0 + w * 0.3, 0.6]];
+      pods.forEach(([cx, sc], i) => {
+        const s = 38 * sc * Math.max(1, (g.floorTop - g.tankTop) / 420);
+        const cy = g.floorTop + 6 - s * 0.55;
+        const rot = (i - 1) * 0.35;
+        [[-Math.PI / 2], [Math.PI / 6], [Math.PI * 5 / 6]].forEach(([a], k) => {
+          const ang = a + rot;
+          ctx.strokeStyle = look.colors[k === 0 ? 0 : 1];
+          ctx.lineWidth = s * 0.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang) * s, cy + Math.sin(ang) * s); ctx.stroke();
+        });
+        ctx.fillStyle = look.colors[2];
+        ctx.beginPath(); ctx.arc(cx, cy, s * 0.34, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.beginPath(); ctx.arc(cx - s * 0.1, cy - s * 0.1, s * 0.14, 0, Math.PI * 2); ctx.fill();
+      });
+    },
+    cliff(look, g, t, rnd) {
+      const tankH = g.floorTop - g.tankTop, w = g.x1 - g.x0;
+      [-1, 1].forEach((side) => {
+        const edgeX = side < 0 ? g.x0 : g.x1;
+        ctx.fillStyle = side < 0 ? look.colors[0] : look.colors[1];
+        ctx.beginPath();
+        ctx.moveTo(edgeX, g.tankTop);
+        const steps = 9;
+        for (let k = 0; k <= steps; k++) {
+          const y = g.tankTop + (tankH + 12) * (k / steps);
+          const reach = w * (0.06 + rnd() * 0.12 + (k / steps) * 0.08);
+          ctx.lineTo(edgeX - side * reach, y);
+        }
+        ctx.lineTo(edgeX, g.floorTop + 12);
+        ctx.closePath();
+        ctx.fill();
+      });
+      for (let i = 0; i < 3; i++) {
+        const x = g.x0 + w * (0.3 + i * 0.2) + (rnd() - 0.5) * 20;
+        const h = tankH * (0.12 + rnd() * 0.16);
+        ctx.fillStyle = look.colors[2];
+        ctx.beginPath();
+        ctx.moveTo(x - 14, g.floorTop + 10); ctx.lineTo(x - 3, g.floorTop - h); ctx.lineTo(x + 5, g.floorTop - h * 0.8); ctx.lineTo(x + 16, g.floorTop + 10);
+        ctx.closePath(); ctx.fill();
+      }
+    },
+    vent(look, g, t, rnd) {
+      const w = g.x1 - g.x0, tankH = g.floorTop - g.tankTop;
+      [0.26, 0.7].forEach((fx, i) => {
+        const cx = g.x0 + w * fx;
+        const h = tankH * (0.2 + i * 0.08);
+        const topY = g.floorTop + 6 - h;
+        ctx.fillStyle = look.colors[i];
+        ctx.beginPath();
+        ctx.moveTo(cx - 24, g.floorTop + 10); ctx.lineTo(cx - 9, topY); ctx.lineTo(cx + 9, topY); ctx.lineTo(cx + 24, g.floorTop + 10);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        for (let k = 1; k < 4; k++) ctx.fillRect(cx - 16 + k * 2, topY + h * k / 4, 32 - k * 4, 2);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const glow = ctx.createRadialGradient(cx, topY, 0, cx, topY, 26);
+        glow.addColorStop(0, `rgba(255, 154, 92, ${0.35 + 0.1 * Math.sin(t * 1.3 + i)})`);
+        glow.addColorStop(1, 'rgba(255, 154, 92, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - 26, topY - 26, 52, 52);
+        ctx.restore();
+        for (let k = 0; k < 9; k++) {
+          const ph = (t * 0.18 + k / 9 + i * 0.37) % 1;
+          const y = topY - ph * tankH * 0.55;
+          const x = cx + Math.sin(ph * 5 + k) * 10 * ph;
+          const r = 6 + ph * 20;
+          ctx.fillStyle = `rgba(70, 60, 58, ${0.28 * (1 - ph)})`;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        }
+      });
+    },
+    bones(look, g, t, rnd) {
+      const w = g.x1 - g.x0;
+      const sx0 = g.x0 + w * 0.12, sx1 = g.x0 + w * 0.78;
+      const sy = g.floorTop - 4;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = look.colors[1];
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(sx0, sy + 4); ctx.quadraticCurveTo((sx0 + sx1) / 2, sy - 16, sx1, sy); ctx.stroke();
+      const ribs = 8;
+      for (let i = 0; i < ribs; i++) {
+        const f = i / (ribs - 1);
+        const x = sx0 + (sx1 - sx0) * (0.12 + f * 0.8);
+        const h = 34 + Math.sin(f * Math.PI) * 46;
+        ctx.strokeStyle = look.colors[i % 2 === 0 ? 0 : 1];
+        ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.moveTo(x, sy - 6); ctx.quadraticCurveTo(x - 22, sy - h * 0.7, x - 6, sy - h); ctx.stroke();
+      }
+      ctx.fillStyle = look.colors[0];
+      ctx.beginPath();
+      ctx.ellipse(sx1 + 26, sy - 12, 34, 16, -0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = look.colors[2];
+      ctx.beginPath(); ctx.ellipse(sx1 + 14, sy - 16, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  };
+
+  function paintAqLight(look, g, t, seed) {
+    const w = g.x1 - g.x0, h = g.tankBottom - g.tankTop;
+    if (look.tint) { ctx.fillStyle = look.tint; ctx.fillRect(g.x0, g.tankTop, w, h); }
+    const rnd = aqRand(seed);
+    if (look.particles === 'firefly') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 16; i++) {
+        const bx = g.x0 + rnd() * w, by = g.top + rnd() * (g.floorTop - g.top);
+        const x = bx + Math.sin(t * 0.4 + i) * 14, y = by + Math.cos(t * 0.3 + i * 2) * 10;
+        const a = Math.max(0, Math.sin(t * (0.8 + rnd()) + i * 1.3));
+        const rg = ctx.createRadialGradient(x, y, 0, x, y, 9);
+        rg.addColorStop(0, `rgba(232, 245, 154, ${0.9 * a})`);
+        rg.addColorStop(1, 'rgba(232, 245, 154, 0)');
+        ctx.fillStyle = rg;
+        ctx.fillRect(x - 9, y - 9, 18, 18);
+      }
+      ctx.restore();
+    } else if (look.particles === 'caustic') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(200, 251, 255, 0.05)';
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < 7; i++) {
+        const y0 = g.tankTop + h * (0.06 + i * 0.09);
+        ctx.beginPath();
+        for (let x = g.x0; x <= g.x1; x += 14) {
+          const y = y0 + Math.sin(x * 0.025 + t * 0.9 + i) * 8 + Math.sin(x * 0.06 - t * 0.6 + i * 2) * 4;
+          if (x === g.x0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (look.particles === 'glow') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 6; i++) {
+        const x = g.x0 + rnd() * w, y = g.top + rnd() * (g.floorTop - g.top);
+        const r = 40 + rnd() * 50;
+        const a = 0.08 + 0.06 * Math.sin(t * 0.5 + i * 1.9);
+        const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, `rgba(126, 224, 255, ${a})`);
+        rg.addColorStop(1, 'rgba(126, 224, 255, 0)');
+        ctx.fillStyle = rg;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      ctx.restore();
+    } else if (look.particles === 'star') {
+      for (let i = 0; i < 46; i++) {
+        const x = g.x0 + rnd() * w, y = g.tankTop + rnd() * (g.floorTop - g.tankTop);
+        const a = 0.25 + 0.6 * Math.max(0, Math.sin(t * (0.7 + rnd() * 1.4) + i));
+        ctx.fillStyle = `rgba(255, 244, 196, ${a})`;
+        ctx.fillRect(x, y, 1.6, 1.6);
+      }
+    }
+    if (look.vignette) {
+      const cx = (g.x0 + g.x1) / 2, cy = (g.tankTop + g.tankBottom) / 2;
+      const vg = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.25, cx, cy, Math.max(w, h) * 0.7);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, `rgba(0,0,0,${look.vignette})`);
+      ctx.fillStyle = vg;
+      ctx.fillRect(g.x0, g.tankTop, w, h);
+    }
+  }
+
+  // ---- Swimmers: one per displayed fish ----
+  // Fish SVGs face LEFT, so a fish swimming right is drawn mirrored.
+  // `flip` eases between -1 and 1 so a turn reads as a quick squash
+  // instead of an instant pop.
+  const aqImgCache = {};
+  function aqFishImage(tier, id) {
+    if (!aqImgCache[id]) {
+      const img = new Image();
+      img.src = FishData.speciesIconPath(tier, id);
+      aqImgCache[id] = img;
+    }
+    return aqImgCache[id];
+  }
+  const AQ_TIER_SPEED = { common: 40, rare: 32, epic: 24, legendary: 18 }; // px/s
+  let aqSwimmers = [];
+  let aqLastT = 0;
+  function aqSwimBounds(s, g) {
+    return {
+      minX: g.x0 + s.len * 0.5 + 4, maxX: g.x1 - s.len * 0.5 - 4,
+      minY: g.top + s.len * 0.3 + 4, maxY: g.floorTop - s.len * 0.3 - 2
+    };
+  }
+  function aqPickTarget(s, g) {
+    const b = aqSwimBounds(s, g);
+    const span = Math.max(40, (b.maxX - b.minX) * 0.7);
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    s.tx = Math.min(b.maxX, Math.max(b.minX, s.x + dir * (40 + Math.random() * span)));
+    // Mostly a gentle drift up or down from where it is, sometimes a new
+    // depth anywhere in the tank -- so a school doesn't stay stuck at the
+    // height it was dropped in at.
+    s.ty = Math.random() < 0.4
+      ? b.minY + Math.random() * Math.max(0, b.maxY - b.minY)
+      : Math.min(b.maxY, Math.max(b.minY, s.y + (Math.random() - 0.5) * (b.maxY - b.minY) * 0.4));
+  }
+  function makeSwimmer(f, dropIn) {
+    const g = aqGeometry();
+    const s = {
+      uid: f.uid, id: f.id, tier: f.tier, size: f.size, len: AQ.fishPixelLength(f.size),
+      img: aqFishImage(f.tier, f.id), vx: 0, vy: 0, wait: 0,
+      phase: Math.random() * Math.PI * 2, speed: AQ_TIER_SPEED[f.tier] * (0.8 + Math.random() * 0.4)
+    };
+    const b = aqSwimBounds(s, g);
+    s.x = b.minX + Math.random() * Math.max(0, b.maxX - b.minX);
+    s.y = dropIn ? g.top : b.minY + Math.random() * Math.max(0, b.maxY - b.minY);
+    s.flip = s.face = Math.random() < 0.5 ? -1 : 1;
+    aqPickTarget(s, g);
+    // Just put in: sink from the surface to somewhere in the lower 2/3.
+    if (dropIn) s.ty = b.minY + (b.maxY - b.minY) * (0.35 + Math.random() * 0.6);
+    return s;
+  }
+  // Rebuild the swimmer list from the open tank's fish, keeping the ones
+  // already swimming where they are; `droppedUid` enters from the surface.
+  function syncAquariumScene(droppedUid) {
+    const tk = tankOf(aqTank);
+    const keep = new Map(aqSwimmers.map((s) => [s.uid, s]));
+    aqSwimmers = (tk ? tk.fish : []).map((f) => keep.get(f.uid) || makeSwimmer(f, f.uid === droppedUid));
+    aqSwimmers.sort((a, b) => b.len - a.len); // big ones behind
+  }
+  function updateSwimmer(s, g, dt) {
+    const b = aqSwimBounds(s, g);
+    let wantX = 0, wantY = 0;
+    if (s.wait > 0) {
+      s.wait -= dt;
+    } else {
+      const dx = s.tx - s.x, dy = s.ty - s.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 6) {
+        s.wait = Math.random() * 2;
+        aqPickTarget(s, g);
+      } else {
+        wantX = (dx / d) * s.speed;
+        wantY = (dy / d) * s.speed * 0.6;
+      }
+    }
+    const ease = Math.min(1, dt * 1.6);
+    s.vx += (wantX - s.vx) * ease;
+    s.vy += (wantY - s.vy) * ease;
+    s.x = Math.min(Math.max(s.x + s.vx * dt, b.minX), Math.max(b.minX, b.maxX));
+    s.y = Math.min(Math.max(s.y + s.vy * dt, b.minY), Math.max(b.minY, b.maxY));
+    if (Math.abs(s.vx) > 4) s.face = s.vx > 0 ? 1 : -1;
+    s.flip += (s.face - s.flip) * Math.min(1, dt * 6);
+  }
+  function drawSwimmer(s, t) {
+    const h = s.len / 1.5; // every species icon is 48x32
+    ctx.save();
+    ctx.translate(s.x, s.y + Math.sin(t * 1.6 + s.phase) * 2.5);
+    ctx.rotate(Math.max(-0.3, Math.min(0.3, s.vy / 70)) * s.face);
+    ctx.scale(-s.flip, 1);
+    if (s.tier === 'legendary') {
+      ctx.shadowColor = 'rgba(255, 207, 107, 0.85)';
+      ctx.shadowBlur = 12 + Math.sin(t * 2 + s.phase) * 4;
+    }
+    if (s.img.complete && s.img.naturalWidth !== 0) {
+      ctx.drawImage(s.img, -s.len / 2, -h / 2, s.len, h);
+    } else {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath(); ctx.ellipse(0, 0, s.len / 2.4, h / 3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---- Frame ----
+  function drawAquarium(t) {
+    const g = aqGeometry();
+    const dt = Math.min(0.05, Math.max(0, t - aqLastT));
+    aqLastT = t;
+    const info = AQ.TANKS[aqTank];
+    const tk = tankOf(aqTank);
+    const looks = {};
+    ['floor', 'back', 'light'].forEach((cat) => {
+      looks[cat] = AQ.decorById(tk ? tk[cat] : AQ.defaultDecor(aqTank, cat).id);
+    });
+    // Room behind the tank.
+    const room = ctx.createLinearGradient(0, 0, 0, H);
+    room.addColorStop(0, '#1b2f35');
+    room.addColorStop(1, '#0c181c');
+    ctx.fillStyle = room;
+    ctx.fillRect(0, 0, W, H);
+    const tw = g.x1 - g.x0, th = g.tankBottom - g.tankTop;
+    ctx.save();
+    aqRoundRect(g.x0, g.tankTop, tw, th, 10);
+    ctx.clip();
+    // Water.
+    const water = ctx.createLinearGradient(0, g.tankTop, 0, g.tankBottom);
+    info.water.forEach((c, i) => water.addColorStop(i / (info.water.length - 1), c));
+    ctx.fillStyle = water;
+    ctx.fillRect(g.x0, g.tankTop, tw, th);
+    if (looks.light.look.rays) {
+      ctx.save();
+      ctx.globalAlpha = looks.light.look.rays;
+      drawLightShafts(t, (g.x0 + g.x1) / 2, g.tankTop - 10, tw * 0.3, AQ_RAY[aqTank], 5);
+      ctx.restore();
+    }
+    AQ_BACK[looks.back.look.kind](looks.back.look, g, t, aqRand(aqSeed(looks.back.id + W)));
+    paintAqFloor(looks.floor.look, g, t, aqSeed(looks.floor.id + W));
+    // Air-stone bubbles in the back corner.
+    for (let k = 0; k < 7; k++) {
+      const ph = (t * 0.22 + k / 7) % 1;
+      const x = g.x1 - 26 + Math.sin(ph * 9 + k) * 4;
+      const y = g.floorTop - ph * (g.floorTop - g.tankTop);
+      ctx.strokeStyle = `rgba(230, 247, 252, ${0.5 * (1 - ph * 0.6)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 2 + ph * 3, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Fish -- stepped only while the tank is on screen.
+    aqSwimmers.forEach((s) => { updateSwimmer(s, g, dt); drawSwimmer(s, t); });
+    paintAqLight(looks.light.look, g, t, aqSeed(looks.light.id));
+    // Water surface line + glass sheen.
+    ctx.strokeStyle = 'rgba(230, 247, 252, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let x = g.x0; x <= g.x1; x += 10) {
+      const y = g.tankTop + 8 + Math.sin(x * 0.04 + t * 1.2) * 1.5;
+      if (x === g.x0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    const sheen = ctx.createLinearGradient(g.x0, g.tankTop, g.x0 + tw * 0.5, g.tankTop + th * 0.5);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.07)');
+    sheen.addColorStop(0.5, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(g.x0, g.tankTop, tw, th);
+    ctx.restore();
+    // Glass frame.
+    ctx.strokeStyle = 'rgba(230, 247, 252, 0.45)';
+    ctx.lineWidth = 3;
+    aqRoundRect(g.x0, g.tankTop, tw, th, 10);
+    ctx.stroke();
+  }
+
+  // Tapping a fish names it (same status line the 낚시터 uses).
+  function aquariumTap(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    for (let i = aqSwimmers.length - 1; i >= 0; i--) {
+      const s = aqSwimmers[i];
+      if (Math.abs(x - s.x) <= s.len / 2 + 8 && Math.abs(y - s.y) <= s.len / 3 + 10) {
+        const found = FishData.speciesById(s.id);
+        showStatus(`${found.species.name} · ${s.size}cm`, null, 2200);
+        sfx.tap();
+        s.wait = 0;
+        aqPickTarget(s, aqGeometry());
+        return;
+      }
+    }
+  }
 
   const menuSettingsBtn = document.getElementById('menu-settings-btn');
   const settingsOverlay = document.getElementById('settings-overlay');
@@ -1900,6 +3071,7 @@ function __zzhInit() {
 
   canvas.addEventListener('click', (e) => {
     ensureAudio();
+    if (view === 'aquarium') { aquariumTap(e); return; }
     const p = canvasPointFromEvent(e);
     if (state === 'idle') {
       const topBound = H * TAP_ZONE_TOP_FRAC;
@@ -2389,6 +3561,8 @@ function __zzhInit() {
   function closeResult() {
     resultOverlay.classList.add('hidden');
     state = 'idle';
+    // A pending 수족관 announcement waits behind any gem popup below.
+    setTimeout(maybeShowAquariumIntro, 350);
     bobber = null;
     reel = null;
     currentCatch = null;
@@ -3675,6 +4849,9 @@ function __zzhInit() {
   history.pushState(GUARD_STATE, '');
   window.addEventListener('popstate', () => {
     history.pushState(GUARD_STATE, '');
+    // In the 수족관, back means "back to the 낚시터" -- the same as its own
+    // 낚시하러 가기 button -- not "leave the game".
+    if (view === 'aquarium') { closeAquariumPopups(); setStage(stage); return; }
     exitConfirmOverlay.classList.remove('hidden');
   });
   function closeExitConfirm() { exitConfirmOverlay.classList.add('hidden'); }
@@ -3808,6 +4985,9 @@ function __zzhInit() {
     setTimeout(() => {
       titleOverlay.classList.add('hidden');
       if (!tutorialDone && !tutorial.active) tutorialGo('cast');
+      // The launch tap is also a cast, so this usually waits for that
+      // catch's result card to close (closeResult retries it).
+      maybeShowAquariumIntro();
     }, 600);
     titleEvents.forEach((evt) => document.removeEventListener(evt, dismissTitle));
   };
@@ -3831,7 +5011,7 @@ function __zzhInit() {
   // handful of buttons that already play their own more specific sound
   // (coin pickup, etc.); without it those would double up into a jarring
   // back-to-back blip.
-  const NO_TAP_SELECTOR = '#rod-upgrade-btn, [data-stat-btn], #gacha-pull1-btn, #gacha-pull10-btn, .sell-btn';
+  const NO_TAP_SELECTOR = '#rod-upgrade-btn, [data-stat-btn], #gacha-pull1-btn, #gacha-pull10-btn, .sell-btn, #aq-card-btn, #aq-confirm-ok-btn';
   document.getElementById('game').addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn || btn.matches(NO_TAP_SELECTOR)) return;

@@ -12,6 +12,7 @@ const ASSETS = [
   './game.js',
   './platform.js',
   './fish-data.js',
+  './aquarium-data.js',
   './achievements-data.js',
   './version.js',
   './manifest.json',

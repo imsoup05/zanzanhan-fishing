@@ -1,8 +1,9 @@
 # Local-only dev tooling -- never pushed. See game.js's __zzhDevCast hook.
 dev-mode.js
 
-# Local-only agent work-rules doc -- never pushed. See AGENT.md itself.
-AGENT.md
+# Local-only agent work-rules doc (Claude Code reads it automatically) -- never pushed.
+CLAUDE.md
 
 # Local-only research notes for the Apps in Toss submission -- never pushed.
 APPS_IN_TOSS_GUIDE.md
+md/APPS_IN_TOSS_GUIDE.md

@@ -62,6 +62,8 @@
       <button type="button" id="stage-btn" class="status-location" title="낚시터">
         <img class="ui-icon" src="icons/ui/location.svg" alt=""><span id="stage-name">호수</span>
         <svg class="status-location-caret" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- "Something new in here" dot: the 수족관 is open but never visited. -->
+        <span id="stage-btn-dot" class="stage-btn-dot hidden"></span>
       </button>
       <div class="status-currencies">
         <button type="button" id="shells-info-btn" class="status-currency"><img class="ui-icon" src="icons/ui/shell.svg" alt=""> <span id="shells-count">0</span></button>
@@ -71,6 +73,18 @@
   </header>
 
   <p id="status-text" class="status-text hidden"></p>
+
+  <!-- 수족관 HUD (only while #game.in-aquarium): one chip per tank under
+       the status bar, and a centred card over a tank that isn't bought yet
+       (or is still empty). game.js fills both. -->
+  <div id="aq-hud" class="aq-hud">
+    <div id="aq-tank-tabs" class="aq-tank-tabs"></div>
+    <div id="aq-card" class="aq-card hidden">
+      <div id="aq-card-title" class="aq-card-title"></div>
+      <p id="aq-card-desc" class="aq-card-desc"></p>
+      <button type="button" id="aq-card-btn" class="main-btn aq-card-btn hidden"></button>
+    </div>
+  </div>
 
   <!-- Reeling gauge: vertical, left side, thumb sweeps top-bottom.
        Left-to-right: position gauge, per-hit time limit, then fish (hits)
@@ -180,6 +194,23 @@
           <span class="bait-menu-name">없음</span>
         </button>
       </div>
+    </nav>
+    <!-- 수족관 mode's own bar (see #game.in-aquarium in style.css): swaps in
+         for the fishing tabs above while the player is in the aquarium, so
+         the 5-tab limit of the fishing bar is untouched. -->
+    <nav id="aq-bar" class="tab-bar aq-bar">
+      <button id="aq-display-btn" class="tab-item" title="전시">
+        <img class="tab-icon" src="icons/ui/aq-display.svg" alt="">
+        <span class="tab-label">전시</span>
+      </button>
+      <button id="aq-decor-btn" class="tab-item" title="꾸미기">
+        <img class="tab-icon" src="icons/ui/aq-decor.svg" alt="">
+        <span class="tab-label">꾸미기</span>
+      </button>
+      <button id="aq-exit-btn" class="tab-item" title="낚시하러 가기">
+        <img class="tab-icon" src="icons/ui/aq-exit.svg" alt="">
+        <span class="tab-label">낚시하러 가기</span>
+      </button>
     </nav>
   </footer>
 
@@ -428,6 +459,85 @@
     </div>
   </div>
 
+  <!-- 수족관 전시 popup: the open tank's fish (방생) and the bucket's fish of
+       that tank's 낚시터 (넣기), with the 칸 count + 칸 늘리기 on top. -->
+  <div id="aq-display-overlay" class="overlay hidden">
+    <div class="shop-panel">
+      <div class="shop-header">
+        <h2 id="aq-display-title" class="shop-title">전시</h2>
+        <button id="aq-display-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
+        </button>
+      </div>
+      <nav class="shop-tabs">
+        <button class="shop-tab active" data-aqtab="put">넣기</button>
+        <button class="shop-tab" data-aqtab="tank">수조 안</button>
+      </nav>
+      <div class="shop-body">
+        <div class="aq-cap-row">
+          <div class="aq-cap-info">
+            <span class="aq-cap-label">칸</span>
+            <span id="aq-cap-count" class="aq-cap-count">0 / 3</span>
+          </div>
+          <button type="button" id="aq-expand-btn" class="sell-btn aq-expand-btn"></button>
+        </div>
+        <div id="aq-tab-put" class="shop-tab-panel">
+          <div id="aq-put-list" class="sell-list"></div>
+          <p id="aq-put-empty" class="shop-placeholder hidden"></p>
+        </div>
+        <div id="aq-tab-tank" class="shop-tab-panel hidden">
+          <div id="aq-tank-list" class="sell-list"></div>
+          <p id="aq-tank-empty" class="shop-placeholder hidden">아직 수조가 비어 있어요.<br>넣기 탭에서 물고기를 옮겨 보세요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 수족관 꾸미기 popup: one tab per decor category of the open tank. -->
+  <div id="aq-decor-overlay" class="overlay hidden">
+    <div class="shop-panel">
+      <div class="shop-header">
+        <h2 id="aq-decor-title" class="shop-title">꾸미기</h2>
+        <button id="aq-decor-close-btn" class="shop-close-btn" title="닫기">
+          <img class="shop-close-icon" src="icons/ui/close.svg" alt="닫기">
+        </button>
+      </div>
+      <nav id="aq-decor-tabs" class="shop-tabs"></nav>
+      <div class="shop-body">
+        <div id="aq-decor-list" class="sell-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- One-time 수족관 announcement: the first idle moment after the 수족관
+       becomes available (existing players: first launch of this version;
+       new players: right after unlocking 바다). See maybeShowAquariumIntro. -->
+  <div id="aq-intro-overlay" class="overlay hidden">
+    <div class="result-card aq-intro-card">
+      <div class="result-icon"><img class="aq-intro-icon" src="icons/ui/stage-aquarium.svg" alt=""></div>
+      <h2 class="result-title">수족관이 열렸어요</h2>
+      <p class="result-desc aq-intro-desc">낚은 물고기를 팔지 않고 수조에 넣어 곁에 둘 수 있어요. 수조를 넓히고 바닥재·배경·조명으로 꾸며 보세요.</p>
+      <p class="aq-intro-where">상단 낚시터 이름을 누르면 언제든 갈 수 있어요</p>
+      <div class="reset-confirm-actions">
+        <button id="aq-intro-later-btn" class="quiet-btn">나중에</button>
+        <button id="aq-intro-go-btn" class="main-btn">가 보기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared yes/no confirm for the aquarium (first 넣기, 방생). Sits above
+       the popup it was opened from. -->
+  <div id="aq-confirm-overlay" class="overlay hidden">
+    <div class="result-card reset-confirm-card">
+      <h2 id="aq-confirm-title" class="result-title"></h2>
+      <p id="aq-confirm-desc" class="result-desc"></p>
+      <div class="reset-confirm-actions">
+        <button id="aq-confirm-cancel-btn" class="quiet-btn">취소</button>
+        <button id="aq-confirm-ok-btn" class="main-btn"></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings popup: opened from the side menu's 설정 button. -->
   <div id="settings-overlay" class="overlay hidden">
     <div id="settings-panel" class="shop-panel settings-panel">
@@ -585,6 +695,7 @@
 </div>
 <script src="version.js"></script>
 <script src="fish-data.js"></script>
+<script src="aquarium-data.js"></script>
 <script src="achievements-data.js"></script>
 <script src="platform.js"></script>
 <script src="game.js"></script>

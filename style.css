@@ -2027,3 +2027,99 @@ body {
 }
 .main-btn:hover { transform: translateY(-2px); }
 .main-btn:active { transform: translateY(0); }
+
+/* ================= 수족관 =================
+   A second mode of the same screen (#game.in-aquarium, see game.js's
+   enterAquarium): the canvas paints the tank instead of the 낚시터, the
+   fishing tab bar swaps for #aq-bar, and #aq-hud adds the tank chips. */
+.aq-bar { display: none; }
+#game.in-aquarium #tab-bar { display: none; }
+#game.in-aquarium .aq-bar { display: flex; }
+.aq-hud { display: none; }
+#game.in-aquarium .aq-hud {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  top: calc(52px + max(env(safe-area-inset-top, 0px), var(--host-safe-top)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px 110px;
+  pointer-events: none;
+  z-index: 4;
+}
+.aq-tank-tabs { display: flex; gap: 6px; pointer-events: auto; }
+.aq-tank-tab {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(20, 40, 45, 0.78);
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.aq-tank-tab:active { transform: scale(0.95); }
+.aq-tank-tab.active { border-color: rgba(255, 207, 107, 0.8); color: var(--accent); background: rgba(20, 40, 45, 0.92); }
+.aq-tank-tab.unowned { opacity: 0.6; }
+.aq-tank-tab-count { margin-left: 5px; font-size: 11.5px; opacity: 0.75; }
+.aq-card {
+  margin: auto 0;
+  pointer-events: auto;
+  width: min(320px, 100%);
+  background: var(--surface-menu);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 22px 20px;
+  text-align: center;
+}
+.aq-card.hidden { display: none; }
+.aq-card-title { font-family: var(--font-display); font-weight: 700; font-size: 19px; color: var(--accent); }
+.aq-card-desc { margin: 8px 0 0; font-size: 13.5px; line-height: 1.55; opacity: 0.85; word-break: keep-all; }
+.aq-card-btn { margin-top: 16px; width: 100%; padding: 12px 0; font-size: 15px; }
+.aq-card-btn.hidden { display: none; }
+.aq-card-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* 전시 popup: 칸 count + 칸 늘리기 above both tabs. */
+.aq-cap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+.aq-cap-info { display: flex; align-items: baseline; gap: 8px; }
+.aq-cap-label { font-size: 13px; opacity: 0.7; }
+.aq-cap-count { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--accent); }
+.aq-expand-btn:disabled, .aq-row-btn:disabled { opacity: 0.4; cursor: default; }
+.aq-expand-btn:disabled:active, .aq-row-btn:disabled:active { transform: none; }
+.aq-row-btn.quiet { background: rgba(255,255,255,0.1); color: var(--text-light); }
+.aq-inuse { font-size: 12.5px; color: var(--accent); white-space: nowrap; flex-shrink: 0; padding: 0 4px; }
+.aq-swatch { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); }
+.sell-row.aq-current { border-color: rgba(255, 207, 107, 0.6); }
+#aq-confirm-overlay { z-index: 11; }
+
+/* 낚시터 popup: the 수족관 card sits under the three stages, after a rule. */
+.stage-list-divider { height: 1px; background: var(--panel-border); margin: 2px 4px; flex-shrink: 0; }
+.stage-card.stage-aquarium { background: linear-gradient(100deg, rgba(92, 201, 232, 0.35), rgba(143, 217, 168, 0.22) 55%, rgba(255,255,255,0.04)); border-color: rgba(143, 217, 168, 0.4); }
+.stage-detail-banner.stage-aquarium { background: linear-gradient(180deg, #2b4a52 0%, #6fd0e0 40%, #2482a8 85%, #e3d6b4 100%); }
+.aq-bar .tab-item:disabled { opacity: 0.35; cursor: default; }
+.aq-bar .tab-item:disabled:active { background: transparent; }
+#aq-confirm-desc { word-break: keep-all; }
+
+/* 수족관 announcement + "new here" markers */
+.aq-intro-card { padding: 30px 26px 26px; }
+.aq-intro-icon { width: 72px !important; height: 72px; border-radius: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+.aq-intro-desc { font-size: 15.5px; margin-bottom: 10px; word-break: keep-all; }
+.aq-intro-where { font-size: 12.5px; opacity: 0.6; margin: 0 0 20px; word-break: keep-all; }
+#aq-intro-overlay { z-index: 11; }
+.status-location { position: relative; }
+.stage-btn-dot { position: absolute; top: -2px; right: -8px; width: 8px; height: 8px; border-radius: 50%; background: #ff5a4a; box-shadow: 0 0 0 2px rgb(20, 40, 45); }
+.stage-btn-dot.hidden { display: none; }
+.stage-card-badge.new { color: #fff; background: #ff5a4a; border-color: #ff5a4a; font-weight: bold; }
