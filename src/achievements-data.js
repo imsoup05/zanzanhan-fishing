@@ -90,7 +90,7 @@
     if (reward.shells) parts.push({ icon: 'icons/ui/shell.svg', text: `조개 ${reward.shells.toLocaleString('ko-KR')}` });
     if (reward.gems) parts.push({ icon: 'icons/shop/gem.svg', text: `보석 ${reward.gems}` });
     if (reward.bait) {
-      ['rare', 'epic', 'legendary'].forEach((tier) => {
+      ['common', 'rare', 'epic', 'legendary'].forEach((tier) => {
         const n = reward.bait[tier];
         if (n) parts.push({ icon: `icons/ui/bait-${tier}.svg`, text: `${FishData.BAITS[tier].label} ${n}` });
       });

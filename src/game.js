@@ -1220,7 +1220,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 13;
+  const SAVE_SCHEMA_VERSION = 14;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -1232,7 +1232,8 @@ function __zzhInit() {
       gachaPity: 0,
       achievements: Achievements.freshState(),
       stage: 'lake', stagesUnlocked: ['lake'],
-      aquarium: freshAquarium()
+      aquarium: freshAquarium(),
+      requests: freshRequests()
     };
   }
   // 수족관 (see md/AQUARIUM.md): tanks only get a key once bought.
@@ -1242,6 +1243,11 @@ function __zzhInit() {
   //   one-time "수족관이 열렸어요" card has been shown; visited = entered at
   //   least once (clears the 낚시터 button dot and the card's NEW badge).
   function freshAquarium() { return { tanks: {}, decor: [], putHintSeen: false, introSeen: false, visited: false }; }
+  // 의뢰 게시판 (see md/REQUESTS.md): `list` has RequestsData.SLOT_COUNT
+  // slots, null = claimed and waiting for tomorrow. `refillDay` is the local
+  // date (YYYY-MM-DD) the empty slots were last filled -- null until the
+  // board first opens up. `rerollDay` = the day the one daily 바꾸기 was used.
+  function freshRequests() { return { list: [], refillDay: null, rerollDay: null, claimedTotal: 0 }; }
   // Each step upgrades a save from exactly one schema to the next, so a
   // save several versions behind just runs through all of them in order.
   // Add a new entry here whenever SAVE_SCHEMA_VERSION bumps -- write it to
@@ -1353,7 +1359,10 @@ function __zzhInit() {
       schemaVersion: 12
     }),
     // schema 12 -> 13: 수족관. Nobody owns a tank yet -- just the empty shell.
-    (save) => ({ ...save, aquarium: save.aquarium || freshAquarium(), schemaVersion: 13 })
+    (save) => ({ ...save, aquarium: save.aquarium || freshAquarium(), schemaVersion: 13 }),
+    // schema 13 -> 14: 의뢰 게시판. An empty board; it fills itself on the
+    // next launch for anyone past the tutorial.
+    (save) => ({ ...save, requests: save.requests || freshRequests(), schemaVersion: 14 })
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1395,7 +1404,7 @@ function __zzhInit() {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
         schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
         catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements,
-        stage, stagesUnlocked, aquarium
+        stage, stagesUnlocked, aquarium, requests
       }));
     } catch (e) { /* ignore */ }
   }
@@ -1444,6 +1453,8 @@ function __zzhInit() {
   // break the painters), plus the screen mode -- never saved, every launch
   // starts at the 낚시터 -- and which tank is on screen.
   const aquarium = normalizeAquarium(initialSave.aquarium);
+  const requests = { ...freshRequests(), ...(initialSave.requests || {}) };
+  requests.list = RequestsData.normalizeList(requests.list);
   function normalizeAquarium(a) {
     const out = freshAquarium();
     if (!a || typeof a !== 'object') return out;
@@ -1859,6 +1870,7 @@ function __zzhInit() {
     if (shells < cost) return false;
     shells -= cost;
     stagesUnlocked.push(key);
+    Platform.track('stage_unlock', { stage: key });
     ensureAudio();
     sfx.coin();
     updateCurrencyDisplay();
@@ -2018,6 +2030,7 @@ function __zzhInit() {
       aquarium.visited = true;
       aquarium.introSeen = true; // found it on their own -- no need to announce it
       persist();
+      Platform.track('aquarium_first_visit', { tanks: Object.keys(aquarium.tanks).length });
     }
     updateAquariumDot();
     aqGeom = null;
@@ -3490,6 +3503,7 @@ function __zzhInit() {
       return;
     }
     noteCatchForAchievements(c);
+    noteCatchForRequests(c);
     let desc;
     let isNewSpecies = false;
     if (c.tier === 'junk') {
@@ -3917,6 +3931,7 @@ function __zzhInit() {
     s.shellsEarned += price;
     if (price > s.maxSalePrice) s.maxSalePrice = price;
     persist();
+    if (s.sells === 1) Platform.track('first_sale', { price });
     updateCurrencyDisplay();
     renderSellList();
     checkAchievements();
@@ -3989,6 +4004,7 @@ function __zzhInit() {
       shells -= cost;
       rod.level += 1;
       persist();
+      if (rod.grade === 'common' && rod.level === 2) Platform.track('first_rod_upgrade', {});
       updateCurrencyDisplay();
       renderUpgradeTab();
       checkAchievements();
@@ -4002,6 +4018,7 @@ function __zzhInit() {
     rod.grade = gradeInfo.next;
     rod.level = 1;
     persist();
+    Platform.track('rod_grade_up', { grade: rod.grade });
     updateCurrencyDisplay();
     renderUpgradeTab();
     checkAchievements();
@@ -4077,9 +4094,12 @@ function __zzhInit() {
     return Achievements.LIST.filter((a) => achievements.unlocked[a.id] && !achievements.claimed[a.id]).map((a) => a.id);
   }
   function updateAchievementBadge() {
-    const n = unclaimedAchievementIds().length;
+    // The 도전과제 tab also carries the 의뢰 board, so its badge counts both.
+    const done = claimableRequestCount();
+    const n = unclaimedAchievementIds().length + done;
     achievementsBtnBadge.textContent = n;
     achievementsBtnBadge.classList.toggle('hidden', n === 0);
+    requestsTabDotEl.classList.toggle('hidden', done === 0);
   }
   function grantReward(reward) {
     if (reward.shells) shells += reward.shells;
@@ -4141,11 +4161,17 @@ function __zzhInit() {
     toastShowing = true;
     const a = toastQueue.shift();
     const el = document.createElement('div');
-    el.className = 'achievement-toast trophy-' + Achievements.trophyTier(a).key;
-    el.innerHTML = '<img class="achievement-toast-icon" src="' + Achievements.trophyTier(a).icon + '" alt="">'
-      + '<div><div class="achievement-toast-label">도전과제 달성</div><div class="achievement-toast-title"></div><div class="achievement-toast-reward"></div></div>';
-    el.querySelector('.achievement-toast-title').textContent = a.title;
-    el.querySelector('.achievement-toast-reward').textContent = `보상 ${Achievements.rewardLabel(a.reward)} · 도전과제에서 받기`;
+    // Queue items are achievements, or { request } for a finished 의뢰.
+    const isRequest = !!a.request;
+    el.className = 'achievement-toast' + (isRequest ? '' : ' trophy-' + Achievements.trophyTier(a).key);
+    el.innerHTML = '<img class="achievement-toast-icon" alt="">'
+      + '<div><div class="achievement-toast-label"></div><div class="achievement-toast-title"></div><div class="achievement-toast-reward"></div></div>';
+    el.querySelector('.achievement-toast-icon').src = isRequest ? RequestsData.iconPath(a.request) : Achievements.trophyTier(a).icon;
+    el.querySelector('.achievement-toast-label').textContent = isRequest ? '의뢰 완료' : '도전과제 달성';
+    el.querySelector('.achievement-toast-title').textContent = isRequest ? RequestsData.title(a.request) : a.title;
+    el.querySelector('.achievement-toast-reward').textContent = isRequest
+      ? `보상 ${Achievements.rewardLabel(a.request.reward)} · 도전과제 > 의뢰에서 받기`
+      : `보상 ${Achievements.rewardLabel(a.reward)} · 도전과제에서 받기`;
     achievementToastsEl.appendChild(el);
     requestAnimationFrame(() => el.classList.add('in'));
     setTimeout(() => {
@@ -4178,7 +4204,8 @@ function __zzhInit() {
     const done = Achievements.LIST.filter((a) => achievements.unlocked[a.id]).length;
     achievementsSummaryEl.textContent = `${done} / ${total}`;
     // 모두 받기 only earns its place once there's more than one thing to collect.
-    achievementsClaimAllBtn.classList.toggle('hidden', unclaimedAchievementIds().length < 2);
+    const onListTab = !document.getElementById('achievements-tab-list').classList.contains('hidden');
+    achievementsClaimAllBtn.classList.toggle('hidden', !onListTab || unclaimedAchievementIds().length < 2);
     achievementsListEl.innerHTML = '';
     ACHIEVEMENT_CATEGORIES.forEach((cat) => {
       // Hidden ones don't exist here until cleared -- then they surface in
@@ -4248,8 +4275,9 @@ function __zzhInit() {
     }
   }
   function openAchievements() {
-    switchAchievementsTab('list');
     renderAchievements();
+    // Land where the waiting reward is: 의뢰 if that's the only thing to claim.
+    switchAchievementsTab(claimableRequestCount() && !unclaimedAchievementIds().length ? 'requests' : 'list');
     achievementsOverlay.classList.remove('hidden');
   }
   function closeAchievements() { achievementsOverlay.classList.add('hidden'); }
@@ -4272,11 +4300,15 @@ function __zzhInit() {
   document.getElementById('title-leaderboard-btn').classList.toggle('hidden', !Platform.hasLeaderboard);
   const achievementsTabsEl = document.getElementById('achievements-tabs');
   const rankScoreEl = document.getElementById('rank-score');
-  achievementsTabsEl.classList.toggle('hidden', !Platform.hasLeaderboard);
+  achievementsTabsEl.querySelector('[data-atab="rank"]').classList.toggle('hidden', !Platform.hasLeaderboard);
   function switchAchievementsTab(key) {
     achievementsTabsEl.querySelectorAll('.shop-tab').forEach((t) => t.classList.toggle('active', t.dataset.atab === key));
     document.getElementById('achievements-tab-list').classList.toggle('hidden', key !== 'list');
+    document.getElementById('achievements-tab-requests').classList.toggle('hidden', key !== 'requests');
     document.getElementById('achievements-tab-rank').classList.toggle('hidden', key !== 'rank');
+    // 모두 받기 is for 도전과제 rewards only.
+    achievementsClaimAllBtn.classList.toggle('hidden', key !== 'list' || unclaimedAchievementIds().length < 2);
+    if (key === 'requests') { refreshRequests(); renderRequests(); }
     if (key === 'rank') rankScoreEl.textContent = Math.round(achievements.stats.shellsEarned || 0).toLocaleString('ko-KR');
   }
   achievementsTabsEl.querySelectorAll('.shop-tab').forEach((t) => t.addEventListener('click', () => switchAchievementsTab(t.dataset.atab)));
@@ -4284,6 +4316,136 @@ function __zzhInit() {
     if (!Platform.hasLeaderboard || achievements.stats.shellsEarned <= 0) return;
     Platform.submitScore(achievements.stats.shellsEarned);
   }
+
+  // ================= 의뢰 게시판 (see md/REQUESTS.md) =================
+  // Three catch goals with no deadline. A claimed slot stays empty until the
+  // next local day, then gets a new request; unfinished ones never expire.
+  // Rewards are bait/gems only (RequestsData.REWARDS) and go through the
+  // same grantReward() as 도전과제.
+  const requestsListEl = document.getElementById('requests-list');
+  const requestsTabDotEl = document.getElementById('requests-tab-dot');
+  function localDay() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function claimableRequestCount() {
+    return requests.list.filter(RequestsData.isDone).length;
+  }
+  function takenRequestKeys(exceptIndex) {
+    return requests.list.filter((r, i) => r && i !== exceptIndex).map(RequestsData.keyOf);
+  }
+  // Fills empty slots once per day. Opens only after the tutorial + 시스템
+  // 소개, so a brand-new player isn't handed a list before they can fish.
+  function refreshRequests() {
+    if (!tutorialDone || !introDone) return;
+    const today = localDay();
+    if (requests.refillDay === today) return;
+    let changed = false;
+    requests.list.forEach((r, i) => {
+      if (r) return;
+      requests.list[i] = RequestsData.make(stagesUnlocked, takenRequestKeys(i));
+      changed = true;
+    });
+    requests.refillDay = today;
+    persist();
+    if (changed) updateAchievementBadge();
+  }
+  function noteCatchForRequests(c) {
+    const finished = [];
+    requests.list.forEach((r) => {
+      if (!r || RequestsData.isDone(r) || !RequestsData.matches(r, c)) return;
+      r.progress++;
+      if (RequestsData.isDone(r)) finished.push(r);
+    });
+    if (!finished.length) return;
+    updateAchievementBadge();
+    finished.forEach((r) => toastQueue.push({ request: r }));
+    pumpToasts();
+  }
+  function claimRequest(i) {
+    const r = requests.list[i];
+    if (!RequestsData.isDone(r)) return;
+    grantReward(r.reward);
+    requests.list[i] = null;
+    requests.claimedTotal = (requests.claimedTotal || 0) + 1;
+    persist();
+    Platform.track('request_claim', { kind: r.kind, stage: r.stage, total: requests.claimedTotal });
+    ensureAudio();
+    sfx.coin();
+    updateCurrencyDisplay();
+    updateBaitButton();
+    renderRequests();
+    updateAchievementBadge();
+    checkAchievements(); // a gem reward can complete 보석 goals
+  }
+  // One swap a day, for a request the player would rather not chase.
+  function rerollRequest(i) {
+    const r = requests.list[i];
+    const today = localDay();
+    if (!r || RequestsData.isDone(r) || requests.rerollDay === today) return;
+    requests.list[i] = RequestsData.make(stagesUnlocked, [...takenRequestKeys(i), RequestsData.keyOf(r)]);
+    requests.rerollDay = today;
+    persist();
+    renderRequests();
+  }
+  function renderRequests() {
+    requestsListEl.innerHTML = '';
+    if (!tutorialDone || !introDone) {
+      const note = document.createElement('p');
+      note.className = 'achievement-footnote';
+      note.textContent = '낚시 방법 안내를 마치면 의뢰가 들어와요.';
+      requestsListEl.appendChild(note);
+      return;
+    }
+    const canReroll = requests.rerollDay !== localDay();
+    requests.list.forEach((r, i) => {
+      const row = document.createElement('div');
+      if (!r) {
+        row.className = 'sell-row achievement-row request-row empty';
+        row.textContent = '내일 새 의뢰가 들어와요';
+        requestsListEl.appendChild(row);
+        return;
+      }
+      const done = RequestsData.isDone(r);
+      row.className = 'sell-row achievement-row request-row ' + (done ? 'cleared claimable' : '');
+      row.innerHTML = '<div class="sell-row-icon"><img alt=""></div>'
+        + '<div class="sell-row-info"><div class="sell-row-name"></div><div class="sell-row-meta"></div><div class="achievement-reward"></div></div>'
+        + '<div class="achievement-state"></div>';
+      row.querySelector('.sell-row-icon img').src = RequestsData.iconPath(r);
+      row.querySelector('.sell-row-name').textContent = RequestsData.title(r);
+      row.querySelector('.sell-row-meta').textContent = `${FishData.STAGES[r.stage].name} · ${Math.min(r.progress, r.count)} / ${r.count}`;
+      const rewardEl = row.querySelector('.achievement-reward');
+      Achievements.rewardParts(r.reward).forEach((p) => {
+        const chip = document.createElement('span');
+        chip.className = 'achievement-reward-part';
+        chip.innerHTML = '<img alt="">';
+        chip.querySelector('img').src = p.icon;
+        chip.appendChild(document.createTextNode(p.text));
+        rewardEl.appendChild(chip);
+      });
+      const stateEl = row.querySelector('.achievement-state');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      if (done) {
+        btn.className = 'sell-btn achievement-claim-btn';
+        btn.textContent = '받기';
+        btn.addEventListener('click', () => claimRequest(i));
+      } else if (canReroll) {
+        btn.className = 'request-reroll-btn';
+        btn.textContent = '바꾸기';
+        btn.title = '하루에 한 번 다른 의뢰로 바꿀 수 있어요';
+        btn.addEventListener('click', () => rerollRequest(i));
+      }
+      if (btn.className) stateEl.appendChild(btn);
+      requestsListEl.appendChild(row);
+    });
+  }
+  // A day can roll over while the game sits in the background.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    refreshRequests();
+    if (!document.getElementById('achievements-tab-requests').classList.contains('hidden')) renderRequests();
+  });
 
   // ================= Bucket (보관함 / 도감) =================
   function openBucket() {
@@ -4674,6 +4836,9 @@ function __zzhInit() {
     requestAnimationFrame(tutorialLayout);
   }
   function tutorialFinish() {
+    // First run only -- the 설정 replay is practice and was already counted.
+    // `step` tells a finish ('finish') apart from a skip, and where.
+    if (!tutorialDone && !tutorial.practice) Platform.track('tutorial_end', { step: tutorial.step || 'none' });
     if (reel && reel.tutorial) {
       // Skipped mid-reel: hand the fight back to the normal clock from now.
       reel.tutorial = false;
@@ -4692,6 +4857,7 @@ function __zzhInit() {
     tutorialDone = true;
     introDone = true;
     persist();
+    refreshRequests(); // the 의뢰 board opens once the tutorial is behind them
     renderGachaTab(); // drops the 무료 label if the tutorial was skipped on that step
     if (state === 'idle' && pendingMaterial) {
       showMaterialPopup(pendingMaterial);
@@ -4869,8 +5035,21 @@ function __zzhInit() {
   // Anything an older save already qualifies for (or that a migration
   // rebuilt) is granted quietly at startup, not announced.
   checkAchievements({ silent: true });
+  refreshRequests();
   updateAchievementBadge();
   submitLeaderboardScore();
+  // One progress snapshot per launch: where returning players stand, even
+  // for saves that passed their milestones before logging existed.
+  Platform.track('game_open', {
+    stage_max: [...FishData.STAGE_ORDER].reverse().find(stageUnlocked) || 'lake',
+    rod_grade: rod.grade,
+    rod_level: rod.level,
+    species: Object.keys(catches).length,
+    tutorial_done: tutorialDone,
+    aquarium_visited: !!aquarium.visited,
+    requests_claimed: requests.claimedTotal || 0,
+    version: window.GAME_VERSION,
+  });
 
   // ================= Dev hook (inert without dev-mode.js) =================
   // dev-mode.js is gitignored -- it never leaves this machine on push. This

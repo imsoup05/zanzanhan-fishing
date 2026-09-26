@@ -159,6 +159,7 @@
 | 설정 | 왼손 모드, 저등급 스킵, 볼륨·음소거 2채널, 다시 보기, 데이터 삭제 | (localStorage 별도 키) | (별도 키) | ○ |
 | 랭킹 | 누적 판매 조개, 토스 게임센터 | — | Platform.submitScore | v1.0 |
 | 수족관 | 수조 3개 구입·칸 확장, 보관함 물고기 전시·놓아주기, 장식 27종, 1회 알림 | shells, caughtFish, aquarium, stagesUnlocked | shells, caughtFish, aquarium | v2.1 |
+| 의뢰 게시판 | 낚시로 채우는 의뢰 3칸, 기한 없음, 받은 칸은 다음 날 갱신, 하루 1번 바꾸기 ([REQUESTS.md](REQUESTS.md)) | requests, stagesUnlocked | requests, gems, baits | v2.1 |
 | 종료 확인 | 시스템 뒤로가기 → 확인창 | — | — | ○ |
 
 ## 6. 화면 구조도
@@ -226,11 +227,12 @@
 | `fish-data.js` | 등급(확률·가격·릴링)·어종·낚시터·미끼. DOM 접근 없음 | 밸런스 패치마다 |
 | `aquarium-data.js` | 수족관 수조·칸·장식 카탈로그와 가격. DOM 접근 없음 | 수족관 가격 조정 시 |
 | `achievements-data.js` | 도전과제 정의 + 판정 `evaluate()` | 콘텐츠 추가 시 |
+| `requests-data.js` | 의뢰 생성·판정·문구, 보상표. DOM 접근 없음 | 의뢰 조정 시 |
 | `platform.js` | 토스 SDK 어댑터 | SDK 변경 시 |
 | `version.js` | 릴리즈 번호 | 배포마다 |
 | `game.js` | 나머지 전부 | — |
 
-### 세이브 (토스 Storage, 단일 JSON, 스키마 v13)
+### 세이브 (토스 Storage, 단일 JSON, 스키마 v14)
 
 ```
 schemaVersion, shells, gems,
@@ -241,10 +243,11 @@ baits { common, rare, epic, legendary }, equippedBait, gachaPity,
 achievements { unlocked, claimed, stats {...} },
 stage, stagesUnlocked [],
 aquarium { tanks {stage: {cap, fish[], floor, back, light}}, decor [], putHintSeen, introSeen, visited },   ← v2.1
+requests { list [req|null ×3], refillDay, rerollDay, claimedTotal },   ← v2.1 의뢰 게시판
 tutorialDone, introDone, hasReeledBefore
 ```
 
-설정(볼륨·왼손·스킵)은 별도 키. 릴리즈 버전(`GAME_VERSION` 2.1)과 스키마 버전(13)은 독립.
+설정(볼륨·왼손·스킵)은 별도 키. 릴리즈 버전(`GAME_VERSION` 2.1)과 스키마 버전(14)은 독립.
 
 ### 마이그레이션 정책
 
@@ -264,6 +267,7 @@ tutorialDone, introDone, hasReeledBefore
 | 종료 | `Screen.close` |
 | 랭킹 | `Game.setLeaderboardScore` / `Game.openLeaderboard`, 누적 판매 조개 |
 | 안전 영역 | `SafeArea.get/subscribe` → CSS 변수 `--host-safe-top/bottom` |
+| 분석 로그 | `Platform.track` → `Analytics.log`. 이벤트 8종(아래) |
 | 세로 고정 | 컨테이너 |
 | 업데이트 | 번들 배포 |
 
@@ -271,6 +275,22 @@ tutorialDone, introDone, hasReeledBefore
 - game.js에 저장 키(`*_KEY`)를 새로 만들면 `platform.js`의 키 목록에도 넣어야 한다. 목록에 없는 키는 시작 시 읽어 오지 않는다.
 - SDK 호출이 5초 안에 응답하지 않으면 건너뛰고 게임을 시작한다. 저장소를 못 읽었을 때는 실제 세이브를 덮어쓰지 않도록 토스 저장소에 쓰지 않는다.
 - 심의 대응: 확률·천장 상시 표시, 종료 확인창, 데이터 삭제는 3초 지연 버튼.
+
+### 분석 이벤트 (v2.1)
+
+| log_name | 시점 | 파라미터 |
+|---|---|---|
+| `game_open` | 실행마다 (초기화 직후) | stage_max, rod_grade, rod_level, species(도감 종 수), tutorial_done, aquarium_visited, requests_claimed, version |
+| `tutorial_end` | 첫 튜토리얼을 끝내거나 건너뛸 때 (설정의 다시 보기는 제외) | step (`finish`면 끝까지, 그 외는 건너뛴 단계) |
+| `first_sale` | 첫 판매 | price |
+| `first_rod_upgrade` | 일반 낚싯대 Lv1 → 2 | — |
+| `rod_grade_up` | 낚싯대 등급업 | grade |
+| `stage_unlock` | 낚시터 해금 | stage |
+| `aquarium_first_visit` | 수족관 첫 입장 | tanks(산 수조 수) |
+| `request_claim` | 의뢰 보상 받기 | kind, stage, total(누적) |
+
+- 사용자 정보·자유 입력 문자열은 보내지 않는다. SDK가 `anonymous_key`(토스 익명 키)를 자동으로 붙인다.
+- 집계는 라이브 번들에서만 된다(QR 테스트 데이터는 제공되지 않음).
 
 ## 10. 범위와 순서 (실제 이력)
 

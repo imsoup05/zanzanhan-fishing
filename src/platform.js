@@ -2,7 +2,7 @@
 // SDK directly -- everything host-specific goes through window.Platform
 // (storage / haptic / lockPortrait / exit / leaderboard / ready), so this
 // file is the only place that imports @apps-in-toss/web-framework.
-import { Device, Game, Migration, SafeArea, Screen, Storage, User } from '@apps-in-toss/web-framework';
+import { Analytics, Device, Game, Migration, SafeArea, Screen, Storage, User } from '@apps-in-toss/web-framework';
 
 // Every key game.js reads through Platform.storage.get(). Toss Storage is
 // async but game.js reads synchronously, so these are pulled into `cache`
@@ -138,6 +138,13 @@ const Platform = {
   },
   openLeaderboard() {
     quietly(() => Game.openLeaderboard());
+  },
+  // Progress milestones for the console's 분석 > 이벤트 view. Callers pass
+  // only coarse game state (stage key, rod grade, counts) -- never free text
+  // or anything about the player. The SDK attaches the Toss anonymous key
+  // on its own.
+  track(name, params) {
+    quietly(() => Analytics.log({ log_name: name, log_type: 'event', params: params || {} }));
   },
   ready: null,
 };
