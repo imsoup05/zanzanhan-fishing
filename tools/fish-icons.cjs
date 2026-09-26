@@ -1,12 +1,12 @@
-// Parametric fish icon generator -> icons/fish/<tier>/<id>.svg (48x32, fish faces left).
-// Run: node tools/fish-icons.js  -- regenerates every fish + 꽝 icon for all three
+// Parametric fish icon generator -> public/icons/fish/<tier>/<id>.svg (48x32, fish faces left).
+// Run: node tools/fish-icons.cjs  -- regenerates every fish + 꽝 icon for all three
 // 낚시터 and prunes SVGs of species that are no longer in the roster.
 // Each species picks a body silhouette, tail, dorsal fin, pattern, extras and a
 // two-tone palette so they read as different animals at 24-34px. 특급 add
 // halo/sheen/teeth/lure/horns/sparkles; most 전설 are drawn by hand below so
 // the nine of them read as clearly different creatures.
 const fs = require('fs'); const path = require('path');
-const ROOT = path.join(__dirname, '..'); // repo root
+const ROOT = path.join(__dirname, '..', 'public'); // served as-is by Vite
 const f = (n) => +n.toFixed(2);
 
 // ---- body silhouettes: return { d, nx, tx, mx, th, bh, tbh, cy, nh } ----

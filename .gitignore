@@ -7,3 +7,9 @@ CLAUDE.md
 # Local-only research notes for the Apps in Toss submission -- never pushed.
 APPS_IN_TOSS_GUIDE.md
 md/APPS_IN_TOSS_GUIDE.md
+
+# Apps in Toss build (npm run build): Vite output and the packaged bundle.
+node_modules
+dist
+*.ait
+.DS_Store

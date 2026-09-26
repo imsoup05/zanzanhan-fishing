@@ -157,10 +157,9 @@
 | 도전과제 | 61개, 수동 수령 보상, 토스트, 트로피 등급 | achievements.stats | achievements, shells, gems, baits | v1.0 |
 | 튜토리얼 | 낚시 방법(반복 가능, 연습 모드) + 시스템 소개(1회, 무료 10뽑) | tutorialDone, introDone | tutorialDone, introDone, baits | ○ |
 | 설정 | 왼손 모드, 저등급 스킵, 볼륨·음소거 2채널, 다시 보기, 데이터 삭제 | (localStorage 별도 키) | (별도 키) | ○ |
-| 랭킹 | 누적 판매 조개, 토스 게임센터 | — | Platform.submitScore | 앱인토스만 |
+| 랭킹 | 누적 판매 조개, 토스 게임센터 | — | Platform.submitScore | v1.0 |
 | 수족관 | 수조 3개 구입·칸 확장, 보관함 물고기 전시·놓아주기, 장식 27종, 1회 알림 | shells, caughtFish, aquarium, stagesUnlocked | shells, caughtFish, aquarium | v2.1 |
 | 종료 확인 | 시스템 뒤로가기 → 확인창 | — | — | ○ |
-| 업데이트 배너 | PWA 새 버전 감지(5분·복귀 시) | — | — | 웹만 |
 
 ## 6. 화면 구조도
 
@@ -227,11 +226,11 @@
 | `fish-data.js` | 등급(확률·가격·릴링)·어종·낚시터·미끼. DOM 접근 없음 | 밸런스 패치마다 |
 | `aquarium-data.js` | 수족관 수조·칸·장식 카탈로그와 가격. DOM 접근 없음 | 수족관 가격 조정 시 |
 | `achievements-data.js` | 도전과제 정의 + 판정 `evaluate()` | 콘텐츠 추가 시 |
-| `platform.js` | 호스트 어댑터 | 플랫폼별 1회 |
-| `version.js` | 릴리즈 번호 (sw.js 캐시명에도 사용) | 배포마다 |
+| `platform.js` | 토스 SDK 어댑터 | SDK 변경 시 |
+| `version.js` | 릴리즈 번호 | 배포마다 |
 | `game.js` | 나머지 전부 | — |
 
-### 세이브 (localStorage, 단일 JSON, 스키마 v13)
+### 세이브 (토스 Storage, 단일 JSON, 스키마 v13)
 
 ```
 schemaVersion, shells, gems,
@@ -255,19 +254,23 @@ tutorialDone, introDone, hasReeledBefore
 
 ## 9. 플랫폼 요구사항
 
-| 항목 | 웹(PWA) | 원스토어(Capacitor) | 앱인토스 |
-|---|---|---|---|
-| 저장 | localStorage | localStorage | 토스 스토리지 (userKey 기반, 시작 시 hydration) |
-| 햅틱 | navigator.vibrate 근사 | 동일 | 토스 SDK 햅틱 어휘 그대로 |
-| 종료 | history.go(-2) | App.exitApp 네이티브 | SDK |
-| 랭킹 | 없음 (UI 숨김) | 없음 | 게임센터, 누적 판매 조개 |
-| 세로 고정 | manifest + orientation.lock | 네이티브 | 컨테이너 |
-| 업데이트 | sw.js 배너 | — | 번들 배포 |
+앱인토스 전용(웹 PWA·원스토어 배포는 v2.1 이후 중단). SDK는 `@apps-in-toss/web-framework` 3.x.
 
-- `window.Platform` 하나가 경계. game.js는 `storage / haptic / lockPortrait / exit / hasLeaderboard / submitScore / openLeaderboard / ready`만 호출한다. 앱인토스 빌드는 `platform.js`만 교체(별도 저장소 `zanzanhan-fishing-ait`).
-- 토스 SDK 없이도 전체 게임이 동작한다. 랭킹만 숨겨진다.
+| 항목 | 구현 (`src/platform.js`) |
+|---|---|
+| 저장 | 토스 `Storage`. 시작 시 알려진 키를 모두 읽어 캐시(hydration). 없으면 WebView `localStorage` → 이전 도메인 `localStorage`(`Migration.getOriginStorage`) 순으로 찾아 옮김 |
+| 사용자 식별 | `User.getAnonymousKey` 해시 → `Platform.userKey` |
+| 햅틱 | `Device.triggerHaptic` (게임의 햅틱 어휘 그대로) |
+| 종료 | `Screen.close` |
+| 랭킹 | `Game.setLeaderboardScore` / `Game.openLeaderboard`, 누적 판매 조개 |
+| 안전 영역 | `SafeArea.get/subscribe` → CSS 변수 `--host-safe-top/bottom` |
+| 세로 고정 | 컨테이너 |
+| 업데이트 | 번들 배포 |
+
+- `window.Platform` 하나가 경계. game.js는 `storage / haptic / lockPortrait / exit / hasLeaderboard / submitScore / openLeaderboard / ready`만 호출한다.
+- game.js에 저장 키(`*_KEY`)를 새로 만들면 `platform.js`의 키 목록에도 넣어야 한다. 목록에 없는 키는 시작 시 읽어 오지 않는다.
+- SDK 호출이 5초 안에 응답하지 않으면 건너뛰고 게임을 시작한다. 저장소를 못 읽었을 때는 실제 세이브를 덮어쓰지 않도록 토스 저장소에 쓰지 않는다.
 - 심의 대응: 확률·천장 상시 표시, 종료 확인창, 데이터 삭제는 3초 지연 버튼.
-- 오프라인: sw.js 네트워크 우선 + 캐시 폴백으로 동작.
 
 ## 10. 범위와 순서 (실제 이력)
 

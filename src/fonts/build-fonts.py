@@ -4,7 +4,7 @@ Subset = KS X 1001's 2,350 hangul syllables + ASCII + compatibility jamo +
 common punctuation + every character actually present in the game's text
 files, so any normal Korean UI string renders without a fallback glyph.
 
-Usage:  python3 fonts/build-fonts.py        (needs: pip install fonttools brotli)
+Usage:  python3 src/fonts/build-fonts.py        (needs: pip install fonttools brotli)
 Originals are downloaded once into the OS temp dir.
 """
 import os
@@ -15,12 +15,12 @@ import urllib.request
 from fontTools import subset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GAME = os.path.dirname(HERE)
+GAME = os.path.dirname(os.path.dirname(HERE))  # repo root
 SOURCES = {
     'PretendardVariable-subset.woff2':
         'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2',
 }
-TEXT_SOURCES = ('index.html', 'game.js', 'fish-data.js', 'version.js')
+TEXT_SOURCES = ('index.html', 'src/game.js', 'src/fish-data.js', 'src/version.js')
 SYMBOLS = ('·…—–‘’“”※→←↑↓×÷°℃㎝㎏㎜㎞○●◎□■△▲▽▼☆★♪♡♥・ㆍ‥「」『』【】〈〉《》〔〕'
            '±≠≤≥∞√∼～ⅠⅡⅢ①②③④⑤⑥⑦⑧⑨⑩ ')
 

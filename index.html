@@ -4,26 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>잔잔한 낚시터</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/app/icon-192.png">
-<link rel="apple-touch-icon" href="icons/app/icon-180.png">
 <meta name="theme-color" content="#0f4b5c">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="낚시터">
-<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="game" class="title-up">
-  <!-- Shown mid-play once a new deployed version has actually taken over
-       this tab's service worker (see the registration script at the
-       bottom) -- never blocks the game, just offers a manual refresh. -->
-  <div id="update-banner" class="update-banner hidden">
-    <span class="update-banner-text">새 버전이 있어요</span>
-    <button id="update-refresh-btn" class="update-refresh-btn">새로고침</button>
-  </div>
-
   <canvas id="bg-canvas"></canvas>
 
   <!-- Launch title laid over the live scene (see .title-overlay). Present
@@ -520,7 +504,7 @@
       <p class="aq-intro-where">상단 낚시터 이름을 누르면 언제든 갈 수 있어요</p>
       <div class="reset-confirm-actions">
         <button id="aq-intro-later-btn" class="quiet-btn">나중에</button>
-        <button id="aq-intro-go-btn" class="main-btn">가 보기</button>
+        <button id="aq-intro-go-btn" class="main-btn">보러가기</button>
       </div>
     </div>
   </div>
@@ -693,51 +677,8 @@
     </div>
   </div>
 </div>
-<script src="version.js"></script>
-<script src="fish-data.js"></script>
-<script src="aquarium-data.js"></script>
-<script src="achievements-data.js"></script>
-<script src="platform.js"></script>
-<script src="game.js"></script>
-<script src="dev-mode.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      // Snapshot BEFORE registering -- clients.claim() in sw.js makes even
-      // a first-ever install claim this already-open tab, which fires
-      // 'controllerchange' too. Only a controllerchange AFTER this tab
-      // already had a controller is a genuine "new version took over"
-      // event; the very first one is just this tab getting its first
-      // controller and shouldn't show the banner.
-      let hadController = !!navigator.serviceWorker.controller;
-
-      navigator.serviceWorker.register('sw.js').then((reg) => {
-        if (!reg) return;
-        const banner = document.getElementById('update-banner');
-        const refreshBtn = document.getElementById('update-refresh-btn');
-
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!hadController) { hadController = true; return; }
-          banner.classList.remove('hidden');
-        });
-        refreshBtn.addEventListener('click', () => location.reload());
-
-        // The browser only re-checks the SW script for changes around
-        // navigation events by default -- someone who just leaves the tab
-        // open and keeps playing would never trigger that on its own. Poll
-        // manually (interval picked to balance battery/network cost
-        // against how soon an update should be noticed), and also check
-        // immediately whenever the tab/app comes back to the foreground,
-        // which is free and catches the common background-then-resume
-        // case right away regardless of the interval.
-        const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-        setInterval(() => reg.update().catch(() => {}), UPDATE_CHECK_INTERVAL_MS);
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') reg.update().catch(() => {});
-        });
-      }).catch(() => { /* offline support is a nice-to-have, not required */ });
-    });
-  }
-</script>
+<!-- Everything (style.css, the Toss host adapter, data, game) loads through
+     this one module entry; see src/main.js for the order. -->
+<script type="module" src="/src/main.js"></script>
 </body>
 </html>
