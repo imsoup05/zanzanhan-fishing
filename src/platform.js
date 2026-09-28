@@ -45,13 +45,17 @@ function localRemove(key) { try { localStorage.removeItem(key); } catch (e) { /*
 
 // SDK 3.x moved mini-apps to a new origin (<appName>.web.tossmini.com), so a
 // save kept in the old origin's localStorage is only reachable through
-// Migration. Only consulted when Toss Storage has nothing for a key.
+// Migration. Only consulted when Toss Storage has nothing for a key, and
+// only until the carry-over has been done once (MIGRATED_KEY) -- otherwise
+// 데이터 삭제 would empty Toss Storage and the next launch would pull the old
+// origin's save right back in.
+const MIGRATED_KEY = 'zanzanhan-origin-migrated-v1';
 async function readPreviousOriginLocalStorage() {
   try {
     const dump = await withTimeout(Migration.getOriginStorage());
-    return (dump && dump.previous && dump.previous.localStorage) || {};
+    return { ok: true, data: (dump && dump.previous && dump.previous.localStorage) || {} };
   } catch (e) {
-    return {};
+    return { ok: false, data: {} };
   }
 }
 
@@ -71,27 +75,39 @@ async function hydrate() {
   const keys = [SAVE_KEY, ...SETTING_KEYS];
   if (Platform.userKey) keys.push(`${SAVE_KEY}:${Platform.userKey}`);
 
+  const readKeys = [...keys, MIGRATED_KEY];
   let values;
   try {
-    values = await withTimeout(Promise.all(keys.map((k) => Storage.getItem(k))));
+    values = await withTimeout(Promise.all(readKeys.map((k) => Storage.getItem(k))));
   } catch (e) {
     storageUnreadable = true;
-    values = keys.map(() => null);
+    values = readKeys.map(() => null);
   }
+  const migrated = values.pop() != null || localGet(MIGRATED_KEY) != null;
 
   let previousOrigin = null;
   for (let i = 0; i < keys.length; i++) {
     let value = values[i];
     if (value == null) value = localGet(keys[i]);
-    if (value == null) {
+    if (value == null && !migrated) {
       if (!previousOrigin) previousOrigin = await readPreviousOriginLocalStorage();
-      value = previousOrigin[keys[i]] ?? null;
+      value = previousOrigin.data[keys[i]] ?? null;
     }
     if (value == null) continue;
     cache.set(keys[i], value);
     // Found only in a fallback location -- copy it into Toss Storage so the
     // next launch reads it from there directly.
-    if (values[i] == null && !storageUnreadable) quietly(() => Storage.setItem(keys[i], value));
+    if (values[i] == null && !storageUnreadable) {
+      localSet(keys[i], value);
+      quietly(() => Storage.setItem(keys[i], value));
+    }
+  }
+  // Mark the carry-over done only when it really ran: Toss Storage was
+  // readable (so the copies above went out) and the old origin either
+  // answered or wasn't needed. A timed-out Migration call retries next launch.
+  if (!migrated && !storageUnreadable && (!previousOrigin || previousOrigin.ok)) {
+    localSet(MIGRATED_KEY, '1');
+    quietly(() => Storage.setItem(MIGRATED_KEY, '1'));
   }
 
   try {
@@ -115,10 +131,14 @@ const Platform = {
       localSet(key, str);
       if (!storageUnreadable) quietly(() => Storage.setItem(key, str));
     },
+    // Only used by 데이터 삭제, which reloads right after -- so this resolves
+    // once Toss Storage has dropped the key (or gave up), and it removes even
+    // when startup couldn't read Storage: an explicit delete is exactly the
+    // overwrite the storageUnreadable guard otherwise holds back.
     remove(key) {
       cache.delete(key);
       localRemove(key);
-      if (!storageUnreadable) quietly(() => Storage.removeItem(key));
+      return withTimeout(Promise.resolve().then(() => Storage.removeItem(key))).catch(() => {});
     },
   },
   // game.js already speaks the SDK's haptic vocabulary (tickWeak,

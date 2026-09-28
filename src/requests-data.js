@@ -67,7 +67,9 @@
   // the board (`taken` = keyOf() of the others). Gives up on uniqueness
   // after a few tries rather than looping -- a duplicate is harmless.
   function make(stagesUnlocked, taken) {
-    const stages = FishData.STAGE_ORDER.filter((s) => stagesUnlocked.includes(s));
+    // An unlocked stage a later build marks 준비 중 has no pools to pick from.
+    const ready = FishData.STAGE_ORDER.filter((s) => stagesUnlocked.includes(s) && FishData.stageReady(s));
+    const stages = ready.length ? ready : ['lake'];
     let req = build(pick(stages));
     for (let i = 0; i < 8 && taken.includes(keyOf(req)); i++) req = build(pick(stages));
     return { ...req, progress: 0 };
@@ -88,7 +90,7 @@
     if (req.kind === 'tier') return `${FishData.TIERS[req.tier].label} 이상 ${req.count}마리 낚기`;
     const sp = FishData.speciesById(req.speciesId);
     const name = sp ? sp.species.name : req.speciesId;
-    if (req.kind === 'size') return `${req.minSize}cm 넘는 ${name} 낚기`;
+    if (req.kind === 'size') return `${req.minSize}cm 이상 ${name} 낚기`;
     return `${name} ${req.count}마리 낚기`;
   }
 
@@ -98,12 +100,17 @@
   }
 
   // Drops requests that no longer make sense for this build (a species
-  // removed from the roster, a stage renamed) and pads to SLOT_COUNT.
+  // removed from the roster or moved to another stage/tier, a stage renamed)
+  // and pads to SLOT_COUNT.
+  function speciesStillFits(r) {
+    const sp = FishData.speciesById(r.speciesId);
+    return !!sp && sp.stage === r.stage && sp.tier === r.tier;
+  }
   function normalizeList(list) {
     const out = [];
     for (let i = 0; i < SLOT_COUNT; i++) {
       const r = Array.isArray(list) ? list[i] : null;
-      const ok = r && FishData.STAGES[r.stage] && (r.kind === 'tier' ? TIER_RANK[r.tier] : FishData.speciesById(r.speciesId));
+      const ok = r && FishData.STAGES[r.stage] && (r.kind === 'tier' ? TIER_RANK[r.tier] : speciesStillFits(r));
       out.push(ok ? r : null);
     }
     return out;

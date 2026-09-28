@@ -9,5 +9,5 @@
 // Unrelated to SAVE_SCHEMA_VERSION in game.js (a plain integer that tracks
 // save-DATA-SHAPE compatibility, not the release number -- see CLAUDE.md).
 // Never compare the two against each other.
-const GAME_VERSION = '2.1';
+const GAME_VERSION = '2.1.1';
 if (typeof window !== 'undefined') window.GAME_VERSION = GAME_VERSION;

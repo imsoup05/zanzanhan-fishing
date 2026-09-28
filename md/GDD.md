@@ -261,7 +261,7 @@ tutorialDone, introDone, hasReeledBefore
 
 | 항목 | 구현 (`src/platform.js`) |
 |---|---|
-| 저장 | 토스 `Storage`. 시작 시 알려진 키를 모두 읽어 캐시(hydration). 없으면 WebView `localStorage` → 이전 도메인 `localStorage`(`Migration.getOriginStorage`) 순으로 찾아 옮김 |
+| 저장 | 토스 `Storage`. 시작 시 알려진 키를 모두 읽어 캐시(hydration). 없으면 WebView `localStorage` → 이전 도메인 `localStorage`(`Migration.getOriginStorage`) 순으로 찾아 옮김. 이전 도메인은 한 번 옮기고 나면(`zanzanhan-origin-migrated-v1` 표시) 다시 읽지 않는다 — 데이터 삭제 뒤 옛 세이브가 되살아나지 않도록 |
 | 사용자 식별 | `User.getAnonymousKey` 해시 → `Platform.userKey` |
 | 햅틱 | `Device.triggerHaptic` (게임의 햅틱 어휘 그대로) |
 | 종료 | `Screen.close` |
@@ -320,4 +320,4 @@ tutorialDone, introDone, hasReeledBefore
 3. **가격보다 시간 곡선을 먼저.** 경제를 두 번 갈아엎은 원인.
 4. **콘텐츠 단위(낚시터)를 초기에 결정하면 유닛(어종) 배치가 한 번에 끝난다.**
 5. **화면 구조도에서 탭 상한을 정한다.** 랭킹 위치가 두 번 바뀐 원인.
-6. **파일 구조는 시스템 목록이 나온 뒤에.** game.js 3,900줄 단일 클로저는 "처음엔 300줄"의 결과.
+6. **파일 구조는 시스템 목록이 나온 뒤에.** game.js 5,200줄 단일 클로저는 "처음엔 300줄"의 결과.

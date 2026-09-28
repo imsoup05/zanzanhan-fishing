@@ -4997,8 +4997,10 @@ function __zzhInit() {
   resetConfirmOverlay.addEventListener('click', (e) => { if (e.target === resetConfirmOverlay) closeResetConfirm(); });
   resetConfirmBtn.addEventListener('click', () => {
     if (resetConfirmBtn.disabled) return;
-    Platform.storage.remove(SAVE_KEY);
-    location.reload();
+    resetConfirmBtn.disabled = true;
+    // Wait for Toss Storage to drop the save -- reloading first could read
+    // it back before the async remove lands.
+    Platform.storage.remove(SAVE_KEY).then(() => location.reload());
   });
 
   // ================= Host back button -> exit confirm =================
