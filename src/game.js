@@ -1220,7 +1220,7 @@ function __zzhInit() {
   // below tries to upgrade it field-by-field first, so a player only ever
   // loses progress when a field's actual MEANING changed in a way nothing
   // can safely reinterpret, not just because the version marker moved.
-  const SAVE_SCHEMA_VERSION = 14;
+  const SAVE_SCHEMA_VERSION = 15;
   function defaultSave() {
     return {
       schemaVersion: SAVE_SCHEMA_VERSION,
@@ -1237,12 +1237,16 @@ function __zzhInit() {
     };
   }
   // 수족관 (see md/AQUARIUM.md): tanks only get a key once bought.
-  //   tanks[stageKey] = { cap, fish: [{ uid, id, tier, size }], floor, back, light }
-  //   decor = ids of bought (non-default) decor; putHintSeen = the one-time
-  //   "넣으면 팔 수 없어요" confirm has been acknowledged; introSeen = the
-  //   one-time "수족관이 열렸어요" card has been shown; visited = entered at
-  //   least once (clears the 낚시터 button dot and the card's NEW badge).
-  function freshAquarium() { return { tanks: {}, decor: [], putHintSeen: false, introSeen: false, visited: false }; }
+  //   tanks[stageKey] = { cap, fish: [{ uid, id, tier, size }], floor, back, light,
+  //                       props: [decorId | null] × PROP_SLOTS }
+  //   decor = ids of owned (non-default) decor, bought or 도전과제 rewards;
+  //   putHintSeen = the one-time "넣으면 팔 수 없어요" confirm has been
+  //   acknowledged; introSeen = the one-time "수족관이 열렸어요" card has
+  //   been shown; visited = entered at least once (clears the 낚시터 button
+  //   dot and the card's NEW badge); capRefund = v2.2 확장 price-cut refund
+  //   already added to shells, still to be announced once (0 = nothing owed).
+  function freshAquarium() { return { tanks: {}, decor: [], putHintSeen: false, introSeen: false, visited: false, capRefund: 0 }; }
+  function emptyProps() { return AquariumData.PROP_SLOTS.map(() => null); }
   // 의뢰 게시판 (see md/REQUESTS.md): `list` has RequestsData.SLOT_COUNT
   // slots, null = claimed and waiting for tomorrow. `refillDay` is the local
   // date (YYYY-MM-DD) the empty slots were last filled -- null until the
@@ -1362,7 +1366,24 @@ function __zzhInit() {
     (save) => ({ ...save, aquarium: save.aquarium || freshAquarium(), schemaVersion: 13 }),
     // schema 13 -> 14: 의뢰 게시판. An empty board; it fills itself on the
     // next launch for anyone past the tutorial.
-    (save) => ({ ...save, requests: save.requests || freshRequests(), schemaVersion: 14 })
+    (save) => ({ ...save, requests: save.requests || freshRequests(), schemaVersion: 14 }),
+    // schema 14 -> 15: 소품 slots (filled in by normalizeAquarium) and the
+    // v2.2 확장 price cut -- whatever a tank's already-bought steps cost over
+    // the new prices goes straight back into shells, announced once later.
+    // Not a sale, so 누적 판매 (the ranking score) is untouched.
+    (save) => {
+      const aq = save.aquarium || freshAquarium();
+      let refund = 0;
+      Object.keys(aq.tanks || {}).forEach((key) => {
+        if (AquariumData.TANKS[key]) refund += AquariumData.legacyCapRefund(key, Number(aq.tanks[key].cap) || 0);
+      });
+      return {
+        ...save,
+        shells: (Number(save.shells) || 0) + refund,
+        aquarium: { ...aq, capRefund: refund },
+        schemaVersion: 15
+      };
+    }
   ];
   function migrateSave(save) {
     let from = typeof save.schemaVersion === 'number' ? save.schemaVersion : 0;
@@ -1399,10 +1420,14 @@ function __zzhInit() {
     } catch (e) { /* ignore -- corrupt save, fall back to default */ }
     return defaultSave();
   }
+  // savedAt lets platform.js's hydrate() pick the newer of the Toss Storage
+  // and localStorage copies. The owner tag keeps the loaded save's own when
+  // the anonymous key didn't come back this launch, instead of erasing it.
   function persist() {
     try {
       Platform.storage.set(SAVE_KEY, JSON.stringify({
-        schemaVersion: SAVE_SCHEMA_VERSION, userKey: Platform.userKey, shells, rod, gems, stats, caughtFish, nextFishUid,
+        schemaVersion: SAVE_SCHEMA_VERSION, savedAt: Date.now(), userKey: Platform.userKey || saveOwner,
+        shells, rod, gems, stats, caughtFish, nextFishUid,
         catches, tutorialDone, introDone, hasReeledBefore, baits, equippedBait, gachaPity, achievements,
         stage, stagesUnlocked, aquarium, requests
       }));
@@ -1410,6 +1435,7 @@ function __zzhInit() {
   }
 
   const initialSave = loadSave();
+  const saveOwner = initialSave.userKey || null;
   let shells = initialSave.shells;
   let rod = initialSave.rod;
   // 보석 (rod grade-up secondary currency) -- one running balance, spent
@@ -1461,7 +1487,8 @@ function __zzhInit() {
     out.putHintSeen = !!a.putHintSeen;
     out.introSeen = !!a.introSeen;
     out.visited = !!a.visited;
-    out.decor = Array.isArray(a.decor) ? a.decor.filter((id) => AquariumData.decorById(id)) : [];
+    out.capRefund = Math.max(Number(a.capRefund) || 0, 0);
+    out.decor = Array.isArray(a.decor) ? [...new Set(a.decor.filter((id) => AquariumData.decorById(id)))] : [];
     AquariumData.TANK_ORDER.forEach((key) => {
       const tk = a.tanks && a.tanks[key];
       if (!tk) return;
@@ -1469,10 +1496,20 @@ function __zzhInit() {
         const d = AquariumData.decorById(tk[cat]);
         return d && d.tank === key && d.cat === cat ? d.id : AquariumData.defaultDecor(key, cat).id;
       };
+      // Each slot: an owned 소품 that fits this tank, at most once per tank.
+      const props = emptyProps();
+      if (Array.isArray(tk.props)) {
+        props.forEach((_, i) => {
+          const d = AquariumData.decorById(tk.props[i]);
+          const ok = d && d.cat === 'prop' && AquariumData.decorFitsTank(d, key) && out.decor.includes(d.id) && !props.includes(d.id);
+          if (ok) props[i] = d.id;
+        });
+      }
       out.tanks[key] = {
         cap: Math.min(Math.max(Number(tk.cap) || 0, 0), AquariumData.MAX_CAP_LEVEL),
         fish: Array.isArray(tk.fish) ? tk.fish.filter((f) => f && FishData.speciesById(f.id)) : [],
-        floor: pick('floor'), back: pick('back'), light: pick('light')
+        floor: pick('floor'), back: pick('back'), light: pick('light'),
+        props
       };
     });
     return out;
@@ -1513,6 +1550,10 @@ function __zzhInit() {
   const resultTitle = document.getElementById('result-title');
   const resultDesc = document.getElementById('result-desc');
   const resultBtn = document.getElementById('result-btn');
+  const resultAqBtn = document.getElementById('result-aq-btn');
+  // uid of the fish the open result card just put in the bucket (null for
+  // junk, misses and practice) -- what its [수족관에 넣기] moves.
+  let resultFishUid = null;
   const materialOverlay = document.getElementById('material-overlay');
   const materialIcon = document.getElementById('material-icon');
   const materialTitle = document.getElementById('material-title');
@@ -1641,11 +1682,11 @@ function __zzhInit() {
   const CURRENCY_INFO = {
     shells: {
       icon: 'icons/ui/shell.svg', name: '조개껍질',
-      desc: '낚싯대 레벨업, 근력·행운·정밀함 강화, 미끼 뽑기에 사용하는 기본 재화예요. 물고기를 낚거나 팔면 얻을 수 있어요.'
+      desc: '낚싯대 레벨업, 근력·행운·정밀함 강화, 미끼 뽑기, 낚시터 해금, 수족관에 사용하는 기본 재화예요. 물고기를 팔면 얻을 수 있어요.'
     },
     gems: {
       icon: 'icons/shop/gem.svg', name: '보석',
-      desc: '낚싯대 등급을 올릴 때만 쓰이는 특별한 재화예요. 조개껍질과는 별도로 모아야 해요.'
+      desc: '낚싯대 등급을 올리거나 수족관의 전설 소품을 들일 때 쓰는 특별한 재화예요. 물고기를 낚으면 가끔 함께 얻어요.'
     }
   };
   function openCurrencyInfo(key) {
@@ -2114,7 +2155,8 @@ function __zzhInit() {
     shells -= price;
     aquarium.tanks[key] = {
       cap: 0, fish: [],
-      floor: AQ.defaultDecor(key, 'floor').id, back: AQ.defaultDecor(key, 'back').id, light: AQ.defaultDecor(key, 'light').id
+      floor: AQ.defaultDecor(key, 'floor').id, back: AQ.defaultDecor(key, 'back').id, light: AQ.defaultDecor(key, 'light').id,
+      props: emptyProps()
     };
     sfx.coin();
     updateCurrencyDisplay();
@@ -2122,6 +2164,7 @@ function __zzhInit() {
     syncAquariumScene();
     renderAquariumHud();
     showStatus(`${AQ.TANKS[key].name}${objParticle(AQ.TANKS[key].name)} 들였어요`, null, 2200);
+    checkAchievements();
   }
 
   // ---- shared confirm ----
@@ -2224,10 +2267,20 @@ function __zzhInit() {
     if (btn) { sfx.tap(); askReleaseFish(Number(btn.dataset.aqRelease)); }
   });
   aqExpandBtn.addEventListener('click', expandTank);
-  function putFish(uid) {
-    const tk = tankOf(aqTank);
+  // Which tank this bucket fish could go into right now, or null (no tank
+  // for its 낚시터 yet, or that tank is full). Also used by the result card.
+  function tankRoomFor(f) {
+    const key = f && fishStage(f);
+    const tk = key && tankOf(key);
+    return tk && tk.fish.length < AQ.capacity(tk.cap) ? key : null;
+  }
+  // Moves a bucket fish into its 낚시터's tank. `onDone` runs after it
+  // actually moved (not when the first-time confirm is cancelled).
+  function putFish(uid, onDone) {
     const f = caughtFish.find((x) => x.uid === uid);
-    if (!tk || !f || fishStage(f) !== aqTank || tk.fish.length >= AQ.capacity(tk.cap)) return;
+    const key = tankRoomFor(f);
+    if (!key) return;
+    const tk = tankOf(key);
     const go = () => {
       const idx = caughtFish.findIndex((x) => x.uid === uid);
       if (idx === -1 || tk.fish.length >= AQ.capacity(tk.cap)) return;
@@ -2235,9 +2288,13 @@ function __zzhInit() {
       tk.fish.push({ uid: f.uid, id: f.id, tier: f.tier, size: f.size });
       persist();
       sfx.splash();
-      syncAquariumScene(uid);
-      renderAquariumDisplay();
-      renderAquariumHud();
+      if (view === 'aquarium' && aqTank === key) {
+        syncAquariumScene(uid);
+        renderAquariumDisplay();
+        renderAquariumHud();
+      }
+      checkAchievements();
+      if (onDone) onDone();
     };
     // The one irreversible part of the 수족관 is said out loud once.
     if (!aquarium.putHintSeen) {
@@ -2277,12 +2334,38 @@ function __zzhInit() {
     persist();
     renderAquariumDisplay();
     renderAquariumHud();
+    checkAchievements();
   }
 
   // ---- 꾸미기 popup ----
   let aqDecorCat = AQ.DECOR_CATEGORIES[0].key;
-  const DECOR_BADGE_CLASS = { basic: 'tier-junk', common: 'tier-common', rare: 'tier-rare', epic: 'tier-epic' };
+  // 소품 tab: the slot the next 놓기 / purchase goes into.
+  let aqPropSlot = 0;
+  const DECOR_BADGE_CLASS = {
+    basic: 'tier-junk', common: 'tier-common', rare: 'tier-rare', epic: 'tier-epic', legendary: 'tier-legendary', limited: 'tier-limited'
+  };
   function decorOwned(d) { return d.tier === 'basic' || aquarium.decor.includes(d.id); }
+  const gemPrice = (n) => `<img class="price-icon" src="icons/shop/gem.svg" alt="">${n.toLocaleString('ko-KR')}`;
+  function decorPriceHtml(d) {
+    const g = AQ.decorGems(d.id);
+    return shellPrice(AQ.decorPrice(d.id)) + (g ? ` + ${gemPrice(g)}` : '');
+  }
+  function canAffordDecor(d) { return shells >= AQ.decorPrice(d.id) && gems >= AQ.decorGems(d.id); }
+  // The 도전과제 that hands out this 한정 소품 (for its "how to get" line).
+  function decorRewardAchievement(id) {
+    return Achievements.LIST.find((a) => a.reward && a.reward.decor === id) || null;
+  }
+  // Small still of a 소품 for its list row (the painters are canvas-only).
+  function paintPropPreview(canvas, d) {
+    const dpr = window.devicePixelRatio || 1;
+    const size = 40;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    const g = canvas.getContext('2d');
+    g.scale(dpr, dpr);
+    // Painters are ~s tall and look.w × s wide; fit whichever is tighter.
+    AquariumProps.paint(g, d.look, size / 2, size - 5, Math.min(28, 36 / (d.look.w || 1)), 0, 1);
+  }
   function openAquariumDecor() {
     if (!tankOf(aqTank)) return;
     renderAquariumDecor();
@@ -2305,6 +2388,7 @@ function __zzhInit() {
       aqDecorTabsEl.appendChild(tab);
     });
     aqDecorListEl.innerHTML = '';
+    if (aqDecorCat === 'prop') { renderPropTab(tk); return; }
     AQ.decorFor(aqTank, aqDecorCat).forEach((d) => {
       const applied = tk[d.cat] === d.id;
       const owned = decorOwned(d);
@@ -2328,10 +2412,96 @@ function __zzhInit() {
       aqDecorListEl.appendChild(row);
     });
   }
+  // 소품: a row of the five fixed spots (pick one), then every 소품 for this
+  // tank -- buy / 놓기 into the picked spot / 여기로 옮기기 / 빼기.
+  function renderPropTab(tk) {
+    const slots = document.createElement('div');
+    slots.className = 'aq-prop-slots';
+    AQ.PROP_SLOTS.forEach((s, i) => {
+      const placed = AQ.decorById(tk.props[i]);
+      const btn = document.createElement('button');
+      btn.className = 'aq-prop-slot' + (i === aqPropSlot ? ' active' : '') + (placed ? ' filled' : '');
+      btn.dataset.aqSlot = i;
+      btn.innerHTML = `<span class="aq-prop-slot-label">${s.label}</span><span class="aq-prop-slot-name">${placed ? placed.name : '비어 있음'}</span>`;
+      slots.appendChild(btn);
+    });
+    aqDecorListEl.appendChild(slots);
+    const slotLabel = AQ.PROP_SLOTS[aqPropSlot].label;
+    AQ.decorFor(aqTank, 'prop').forEach((d) => {
+      const owned = decorOwned(d);
+      const at = tk.props.indexOf(d.id);
+      let right;
+      let meta;
+      if (at === aqPropSlot) {
+        right = `<button class="sell-btn aq-row-btn quiet" data-aq-prop-remove="${d.id}">빼기</button>`;
+        meta = `${slotLabel}에 놓여 있어요`;
+      } else if (owned) {
+        right = `<button class="sell-btn aq-row-btn quiet" data-aq-prop="${d.id}">${at >= 0 ? '여기로 옮기기' : '놓기'}</button>`;
+        meta = at >= 0 ? `${AQ.PROP_SLOTS[at].label}에 놓여 있어요` : '가지고 있어요';
+      } else if (d.tier === 'limited') {
+        const a = decorRewardAchievement(d.id);
+        right = '<span class="aq-inuse aq-locked">도전과제 보상</span>';
+        meta = a ? `도전과제 「${a.title}」 보상` : '도전과제 보상';
+      } else {
+        right = `<button class="sell-btn aq-row-btn" data-aq-prop="${d.id}" ${canAffordDecor(d) ? '' : 'disabled'}>${decorPriceHtml(d)}</button>`;
+        meta = `사면 ${slotLabel}에 놓여요`;
+      }
+      const row = document.createElement('div');
+      row.className = 'sell-row' + (at === aqPropSlot ? ' aq-current' : '');
+      row.innerHTML = `
+        <div class="sell-row-icon"><canvas class="aq-prop-preview"></canvas></div>
+        <div class="sell-row-info">
+          <div class="sell-row-name">
+            <span class="tier-badge ${DECOR_BADGE_CLASS[d.tier]}">${AQ.DECOR_TIER_LABEL[d.tier]}</span>
+            ${d.name}
+          </div>
+          <div class="sell-row-meta">${meta}</div>
+        </div>
+        ${right}`;
+      paintPropPreview(row.querySelector('canvas'), d);
+      aqDecorListEl.appendChild(row);
+    });
+  }
   aqDecorListEl.addEventListener('click', (e) => {
+    const slot = e.target.closest('[data-aq-slot]');
+    if (slot) { sfx.tap(); aqPropSlot = Number(slot.dataset.aqSlot); renderAquariumDecor(); return; }
+    const put = e.target.closest('[data-aq-prop]');
+    if (put && !put.disabled) { buyOrPlaceProp(put.dataset.aqProp); return; }
+    const remove = e.target.closest('[data-aq-prop-remove]');
+    if (remove) { removeProp(remove.dataset.aqPropRemove); return; }
     const btn = e.target.closest('[data-aq-decor]');
     if (btn && !btn.disabled) buyOrApplyDecor(btn.dataset.aqDecor);
   });
+  function buyOrPlaceProp(id) {
+    const d = AQ.decorById(id);
+    const tk = tankOf(aqTank);
+    if (!tk || !d || d.cat !== 'prop' || !AQ.decorFitsTank(d, aqTank)) return;
+    if (!decorOwned(d)) {
+      if (d.tier === 'limited' || !canAffordDecor(d)) return;
+      shells -= AQ.decorPrice(id);
+      gems -= AQ.decorGems(id);
+      aquarium.decor.push(id);
+      sfx.coin();
+      updateCurrencyDisplay();
+    } else {
+      sfx.tap();
+    }
+    const from = tk.props.indexOf(id);
+    if (from >= 0) tk.props[from] = null;
+    tk.props[aqPropSlot] = id;
+    persist();
+    renderAquariumDecor();
+    checkAchievements();
+  }
+  function removeProp(id) {
+    const tk = tankOf(aqTank);
+    const at = tk ? tk.props.indexOf(id) : -1;
+    if (at < 0) return;
+    sfx.tap();
+    tk.props[at] = null;
+    persist();
+    renderAquariumDecor();
+  }
   function buyOrApplyDecor(id) {
     const d = AQ.decorById(id);
     const tk = d && tankOf(d.tank);
@@ -2361,9 +2531,18 @@ function __zzhInit() {
   }
   function maybeShowAquariumIntro() {
     updateAquariumDot();
-    if (aquarium.introSeen || !aquariumUnlocked()) return;
-    if (state !== 'idle' || tutorial.active || view === 'aquarium') return;
+    if (state !== 'idle' || tutorial.active) return;
     if (gameEl.classList.contains('title-up') || document.querySelector('.overlay:not(.hidden)')) return;
+    // The v2.2 확장 refund is already in shells (save migration 14 -> 15);
+    // this just says so, once, at the same kind of calm moment.
+    if (aquarium.capRefund > 0) {
+      const amount = aquarium.capRefund;
+      aquarium.capRefund = 0;
+      persist();
+      showRefundNotice(amount);
+      return;
+    }
+    if (aquarium.introSeen || !aquariumUnlocked() || view === 'aquarium') return;
     aquarium.introSeen = true;
     persist();
     aqIntroOverlay.classList.remove('hidden');
@@ -2915,6 +3094,24 @@ function __zzhInit() {
   }
 
   // ---- Frame ----
+  // 소품 on the floor: the two back spots first (smaller, set into the
+  // floor's far edge), then the three front ones. Fish swim over all of them.
+  function drawAqProps(props, g, t) {
+    const tw = g.x1 - g.x0, th = g.tankBottom - g.tankTop;
+    const floorH = g.tankBottom - g.floorTop;
+    const base = Math.min(th * 0.19, tw * 0.26);
+    [true, false].forEach((back) => {
+      AQ.PROP_SLOTS.forEach((slot, i) => {
+        if (slot.back !== back) return;
+        const d = AQ.decorById(props[i]);
+        if (!d) return;
+        // Wide ones (look.w) are capped so they stay within their own spot.
+        const s = Math.min(base * (d.look.h || 1), tw * 0.36 / (d.look.w || 1)) * (back ? 0.7 : 1);
+        const y = g.floorTop + floorH * (back ? 0.3 : 0.8);
+        AquariumProps.paint(ctx, d.look, g.x0 + tw * slot.x, y, s, t + i * 1.7, back ? 0.9 : 1);
+      });
+    });
+  }
   function drawAquarium(t) {
     const g = aqGeometry();
     const dt = Math.min(0.05, Math.max(0, t - aqLastT));
@@ -2948,6 +3145,7 @@ function __zzhInit() {
     }
     AQ_BACK[looks.back.look.kind](looks.back.look, g, t, aqRand(aqSeed(looks.back.id + W)));
     paintAqFloor(looks.floor.look, g, t, aqSeed(looks.floor.id + W));
+    if (tk) drawAqProps(tk.props, g, t);
     // Air-stone bubbles in the back corner.
     for (let k = 0; k < 7; k++) {
       const ph = (t * 0.22 + k / 7) % 1;
@@ -3474,13 +3672,14 @@ function __zzhInit() {
   // Adds straight to the single running 보석 balance -- no per-target cap,
   // since any surplus past the current target's `needed` just carries
   // forward toward the next (bigger) grade-up instead of being wasted.
+  // v2.2: keeps dropping at the top grade too -- there they go to the 전설
+  // 소품 (md/AQUARIUM.md 3-3), so `needed` is null and the popup says so.
   function rollGem() {
     const gradeInfo = FishData.ROD_GRADES[rod.grade];
-    if (!gradeInfo.next) return null; // already at the top grade
     if (Math.random() >= FishData.ROD_GEM_DROP_CHANCE) return null;
     gems += 1;
     achievements.stats.gemsEarned++;
-    const needed = FishData.ROD_GRADE_UP[gradeInfo.next].needed;
+    const needed = gradeInfo.next ? FishData.ROD_GRADE_UP[gradeInfo.next].needed : null;
     return { count: gems, needed };
   }
 
@@ -3494,6 +3693,7 @@ function __zzhInit() {
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
     tutorialReelEnd();
+    resultFishUid = null;
     const c = currentCatch;
     const icon = c.tier === 'junk' ? FishData.junkIconPath(c.id) : FishData.speciesIconPath(c.tier, c.id);
     const title = c.tier === 'junk' ? `${c.name}...` : `${c.name}를 낚았어요!`;
@@ -3514,6 +3714,7 @@ function __zzhInit() {
       isNewSpecies = !catches[c.id];
       // Not sold yet -- it goes to the bucket and gets sold from the
       // shop's 판매 tab, so this price is a preview, not income.
+      resultFishUid = nextFishUid;
       caughtFish.push({ uid: nextFishUid++, id: c.id, name: c.name, tier: c.tier, size: c.size, price: c.price, desc: c.desc, stage: c.stage });
       recordCatch(c);
       pendingMaterial = rollGem();
@@ -3534,6 +3735,7 @@ function __zzhInit() {
     reelTapCatcherEl.classList.add('hidden');
     gameEl.classList.remove('reeling');
     tutorialReelEnd();
+    resultFishUid = null;
     if (currentCatch && currentCatch.practice) {
       showResult(false, '놓쳤어요...', '연습 낚시라 기록에는 남지 않아요.', 'icons/result/miss.svg');
       return;
@@ -3562,6 +3764,11 @@ function __zzhInit() {
     resultTitle.textContent = title;
     resultDesc.innerHTML = desc;
     newBadge.classList.toggle('hidden', !isNewSpecies);
+    // Straight to the tank from here, when this fish's tank has a free 칸.
+    const fresh = resultFishUid !== null && caughtFish.find((f) => f.uid === resultFishUid);
+    resultAqBtn.classList.toggle('hidden', !fresh || tutorial.active || !tankRoomFor(fresh));
+    resultAqBtn.disabled = false;
+    resultAqBtn.textContent = '수족관에 넣기';
     resultOverlay.classList.remove('hidden');
     resultCard.classList.remove('catch-reveal');
     splashFlash.classList.remove('active');
@@ -3590,6 +3797,13 @@ function __zzhInit() {
     }
   }
   resultBtn.addEventListener('click', closeResult);
+  resultAqBtn.addEventListener('click', () => {
+    if (resultAqBtn.disabled || resultFishUid === null) return;
+    putFish(resultFishUid, () => {
+      resultAqBtn.disabled = true;
+      resultAqBtn.textContent = '수조에 넣었어요';
+    });
+  });
 
   // ================= 보석 (rod grade-up currency) popup =================
   // Shown right after the catch result popup closes, only when a gem
@@ -3598,8 +3812,23 @@ function __zzhInit() {
     sfx.gem();
     materialIcon.src = 'icons/shop/gem.svg';
     materialTitle.textContent = `${FishData.GEM_LABEL} 획득!`;
-    materialDesc.textContent = `낚싯대 등급업에 쓰는 보조 화폐이다. ${mat.needed}개를 모으면 등급을 올릴 수 있다.`;
-    materialCountEl.textContent = `보유: ${mat.count} / ${mat.needed}개`;
+    if (mat.needed) {
+      materialDesc.textContent = `낚싯대 등급업에 쓰는 보조 화폐이다. ${mat.needed}개를 모으면 등급을 올릴 수 있다.`;
+      materialCountEl.textContent = `보유: ${mat.count} / ${mat.needed}개`;
+    } else {
+      materialDesc.textContent = `수족관의 전설 소품을 들일 때 쓴다. 전설 소품 하나에 ${FishData.GEM_LABEL} ${AquariumData.decorGems('lake_prop_orb')}개가 든다.`;
+      materialCountEl.textContent = `보유: ${mat.count}개`;
+    }
+    materialIcon.src = 'icons/shop/gem.svg';
+    materialOverlay.classList.remove('hidden');
+  }
+  // One-off notice through the same card: the v2.2 확장 price-cut refund.
+  function showRefundNotice(amount) {
+    sfx.coin();
+    materialIcon.src = 'icons/ui/shell.svg';
+    materialTitle.textContent = '수조 확장 가격이 내렸어요';
+    materialDesc.textContent = '이미 늘린 칸은 새 가격과의 차이만큼 조개로 돌려드렸어요.';
+    materialCountEl.textContent = `돌려받은 조개: ${amount.toLocaleString('ko-KR')}개`;
     materialOverlay.classList.remove('hidden');
   }
   function closeMaterialPopup() { materialOverlay.classList.add('hidden'); }
@@ -4105,6 +4334,8 @@ function __zzhInit() {
     if (reward.shells) shells += reward.shells;
     if (reward.gems) gems += reward.gems;
     if (reward.bait) Object.keys(reward.bait).forEach((tier) => { baits[tier] = (baits[tier] || 0) + reward.bait[tier]; });
+    // 한정 소품: owned from now on, placed from the 꾸미기 소품 tab.
+    if (reward.decor && AquariumData.decorById(reward.decor) && !aquarium.decor.includes(reward.decor)) aquarium.decor.push(reward.decor);
   }
   function claimAchievements(ids) {
     const claimable = ids.filter((id) => achievements.unlocked[id] && !achievements.claimed[id]);
@@ -4117,6 +4348,7 @@ function __zzhInit() {
     updateCurrencyDisplay();
     updateBaitButton();
     if (!shopOverlay.classList.contains('hidden')) { renderGachaTab(); renderUpgradeTab(); }
+    if (!aqDecorOverlay.classList.contains('hidden')) renderAquariumDecor();
     renderAchievements();
     updateAchievementBadge();
     checkAchievements(); // a shell reward can itself complete 조개 N개 goals
@@ -4124,7 +4356,7 @@ function __zzhInit() {
   achievementsClaimAllBtn.addEventListener('click', () => claimAchievements(unclaimedAchievementIds()));
 
   function achievementCtx() {
-    return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats, stagesUnlocked };
+    return { s: achievements.stats, catches, shells, gems, rod, playerStats: stats, stagesUnlocked, aquarium };
   }
 
   // Counters only a live catch can supply (streaks, size, time of day);
@@ -4197,7 +4429,7 @@ function __zzhInit() {
     pumpToasts();
   }
 
-  const ACHIEVEMENT_CATEGORIES = ['낚시', '도감', '상점', '뽑기', '강화', '낚시터'];
+  const ACHIEVEMENT_CATEGORIES = ['낚시', '도감', '상점', '뽑기', '강화', '낚시터', '수족관'];
   function renderAchievements() {
     const ctx = achievementCtx();
     const total = Achievements.LIST.length;
@@ -5175,6 +5407,11 @@ function __zzhInit() {
   titleEvents.forEach((evt) => {
     document.addEventListener(evt, dismissTitle, { passive: true });
   });
+  // index.html says 불러오는 중 until here -- a tap only does anything once
+  // the save is in and these listeners exist.
+  const titleHintEl = titleOverlay.querySelector('.title-hint');
+  titleHintEl.textContent = '화면을 눌러 낚시 시작';
+  titleHintEl.classList.remove('loading');
 
   // BGM is a continuous loop (unlike the one-shot SFX blips), so unlike
   // those it actually needs to stop when the tab/app goes to the

@@ -66,29 +66,53 @@ function applySafeArea(insets) {
   root.setProperty('--host-safe-bottom', `${insets.bottom || 0}px`);
 }
 
+// game.js stamps every save with savedAt (ms). Settings and pre-v2.2 saves
+// have none and read as 0.
+function savedAt(str) {
+  try { return Number(JSON.parse(str).savedAt) || 0; } catch (e) { return 0; }
+}
+
 async function hydrate() {
-  try {
-    const key = await withTimeout(User.getAnonymousKey());
-    if (key && key.type === 'HASH' && key.hash) Platform.userKey = key.hash;
-  } catch (e) { /* no identity -- the save just isn't tagged with an owner */ }
-
-  const keys = [SAVE_KEY, ...SETTING_KEYS];
-  if (Platform.userKey) keys.push(`${SAVE_KEY}:${Platform.userKey}`);
-
-  const readKeys = [...keys, MIGRATED_KEY];
+  // The identity and the storage reads don't depend on each other, so a
+  // stuck bridge costs one BRIDGE_TIMEOUT_MS on the title screen, not two.
+  const fixedKeys = [SAVE_KEY, ...SETTING_KEYS, MIGRATED_KEY];
+  const [keyResult, readResult] = await Promise.allSettled([
+    withTimeout(User.getAnonymousKey()),
+    withTimeout(Promise.all(fixedKeys.map((k) => Storage.getItem(k)))),
+  ]);
+  const key = keyResult.status === 'fulfilled' ? keyResult.value : null;
+  if (key && key.type === 'HASH' && key.hash) Platform.userKey = key.hash;
   let values;
-  try {
-    values = await withTimeout(Promise.all(readKeys.map((k) => Storage.getItem(k))));
-  } catch (e) {
+  if (readResult.status === 'fulfilled') {
+    values = readResult.value;
+  } else {
     storageUnreadable = true;
-    values = readKeys.map(() => null);
+    values = fixedKeys.map(() => null);
   }
   const migrated = values.pop() != null || localGet(MIGRATED_KEY) != null;
+
+  const keys = [SAVE_KEY, ...SETTING_KEYS];
+  // This account's parked save (shared-device case, see game.js loadSave) --
+  // its key needs the identity, so it's the one read that has to wait for it.
+  if (Platform.userKey) {
+    const ownKey = `${SAVE_KEY}:${Platform.userKey}`;
+    keys.push(ownKey);
+    let own = null;
+    if (!storageUnreadable) {
+      try { own = await withTimeout(Storage.getItem(ownKey)); } catch (e) { own = null; }
+    }
+    values.push(own);
+  }
 
   let previousOrigin = null;
   for (let i = 0; i < keys.length; i++) {
     let value = values[i];
-    if (value == null) value = localGet(keys[i]);
+    const local = localGet(keys[i]);
+    // A session that couldn't read Toss Storage saved only to localStorage;
+    // if that copy is newer, it wins (and is copied back below).
+    if (value == null || (local != null && savedAt(local) > savedAt(value))) {
+      if (local != null) { value = local; values[i] = null; }
+    }
     if (value == null && !migrated) {
       if (!previousOrigin) previousOrigin = await readPreviousOriginLocalStorage();
       value = previousOrigin.data[keys[i]] ?? null;

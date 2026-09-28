@@ -49,7 +49,8 @@
   // the freebies pay a token 30~50 so early income comes from fishing, not
   // from ticking boxes; mid goals 80~300 or a 희귀 미끼; the long grinds
   // 500~1,000 or 특급 미끼; capstones 보석/전설 미끼.
-  // Totals across all 61: 조개 9,720 · 보석 12 · 희귀 미끼 3 · 특급 미끼 12 · 전설 미끼 6.
+  // Totals across the first 61: 조개 9,720 · 보석 12 · 희귀 미끼 3 · 특급 미끼 12 · 전설 미끼 6.
+  // The 6 수족관 ones (v2.2) pay a 한정 소품 each instead ({ decor: id }).
   const REWARDS = {
     // 낚시
     first_cast: { shells: 30 }, casts_100: { shells: 200 }, first_fish: { shells: 30 },
@@ -80,7 +81,12 @@
     // 히든
     hidden_first_legendary: { gems: 1 }, hidden_biggest_imugi: { bait: { legendary: 1 } },
     hidden_same_species_5: { shells: 300 }, hidden_pulls_300: { bait: { epic: 1 } },
-    hidden_ten_epics: { shells: 1000 }
+    hidden_ten_epics: { shells: 1000 },
+    // 수족관 (v2.2): each pays one 한정 소품 -- never shells, which would
+    // undo the 수족관 being a sink (md/AQUARIUM.md 열린 질문 2).
+    aq_first_tank: { decor: 'limited_angler' }, aq_props_full: { decor: 'limited_bottle' },
+    aq_all_tanks: { decor: 'limited_boat' }, aq_legendary: { decor: 'limited_trophy' },
+    aq_full_cap: { decor: 'limited_rainbow' }, aq_complete: { decor: 'limited_imugi' }
   };
   // Flattens a reward into renderable parts: [{ icon, text }] in a fixed
   // order (조개, 보석, then baits low -> high) so every row reads the same.
@@ -94,6 +100,10 @@
         const n = reward.bait[tier];
         if (n) parts.push({ icon: `icons/ui/bait-${tier}.svg`, text: `${FishData.BAITS[tier].label} ${n}` });
       });
+    }
+    if (reward.decor) {
+      const d = AquariumData.decorById(reward.decor);
+      if (d) parts.push({ icon: 'icons/ui/aq-decor.svg', text: `한정 소품 「${d.name}」` });
     }
     return parts;
   }
@@ -115,6 +125,8 @@
     let v = reward.shells || 0;
     v += (reward.gems || 0) * 900;
     if (reward.bait) for (const k in reward.bait) v += (reward.bait[k] || 0) * (BAIT_VALUE[k] || 0);
+    // A 한정 소품 has no price; its DECOR entry carries a hand-set worth.
+    if (reward.decor) v += (AquariumData.decorById(reward.decor) || {}).value || 0;
     return v;
   }
   function trophyTier(a) {
@@ -122,7 +134,7 @@
     return v <= 100 ? TROPHY_TIERS.bronze : v <= 300 ? TROPHY_TIERS.silver : v <= 900 ? TROPHY_TIERS.gold : TROPHY_TIERS.platinum;
   }
 
-  // ctx = { s: stats above, catches, shells, gems, rod, playerStats, stagesUnlocked }
+  // ctx = { s: stats above, catches, shells, gems, rod, playerStats, stagesUnlocked, aquarium }
   // discovered()/dex_*_all/dex_all read FISH_BY_TIER = the 호수 roster only,
   // so adding 바다/심해 species never moves those goals; the plain "N종"
   // counters count every stage.
@@ -137,6 +149,9 @@
   const discoveredStage = (c, st) => stagePools(st).reduce((n, a) => n + a.filter((sp) => c.catches[sp.id]).length, 0);
   const caughtCount = (c, id) => (c.catches[id] && c.catches[id].count) || 0;
   const stageLegendaryCount = (c, st) => ((FishData.FISH_BY_STAGE[st] || {}).legendary || []).reduce((n, sp) => n + caughtCount(c, sp.id), 0);
+  // 수족관: owned tanks, and the best any one tank has managed so far.
+  const aqTanks = (c) => Object.keys((c.aquarium && c.aquarium.tanks) || {}).map((k) => [k, c.aquarium.tanks[k]]);
+  const aqBestSpecies = (c) => aqTanks(c).reduce((m, [k, tk]) => Math.max(m, new Set(tk.fish.map((f) => f.id)).size / (stageTotal(k) || 1)), 0);
 
   // Counting goals get a progress readout; flags just flip.
   const counter = (get, goal) => ({ test: (c) => get(c) >= goal, progress: (c) => [Math.min(get(c), goal), goal] });
@@ -205,6 +220,13 @@
     { id: 'stage_abyss', cat: '낚시터', title: '심해로!', desc: '심해 낚시터를 열었다', ...flag((c) => (c.stagesUnlocked || []).includes('abyss')) },
     { id: 'dex_abyss_all', cat: '낚시터', title: '심해 도감 완성', desc: '심해의 모든 생물을 낚았다', ...counter((c) => discoveredStage(c, 'abyss'), stageTotal('abyss')) },
     { id: 'first_abyss_legendary', cat: '낚시터', title: '심연의 전설을 낚았다!', desc: '리바이어던·크라켄·별빛아귀 중 하나를 처음 낚았다', ...counter((c) => stageLegendaryCount(c, 'abyss'), 1) },
+    // ---- 수족관 (v2.2) ----
+    { id: 'aq_first_tank', cat: '수족관', title: '나만의 수조', desc: '수조를 처음 들였다', ...flag((c) => aqTanks(c).length >= 1) },
+    { id: 'aq_props_full', cat: '수족관', title: '꾸미기 장인', desc: '한 수조의 소품 자리 5곳을 모두 채웠다', ...flag((c) => aqTanks(c).some(([, tk]) => tk.props.every(Boolean))) },
+    { id: 'aq_all_tanks', cat: '수족관', title: '수조 세 개', desc: '민물·바다·심해 수조를 모두 들였다', ...counter((c) => aqTanks(c).length, 3) },
+    { id: 'aq_legendary', cat: '수족관', title: '전설을 곁에 두다', desc: '전설 물고기를 수조에 넣었다', ...flag((c) => aqTanks(c).some(([, tk]) => tk.fish.some((f) => f.tier === 'legendary'))) },
+    { id: 'aq_full_cap', cat: '수족관', title: '가장 넓은 수조', desc: '한 수조를 24칸까지 늘렸다', ...flag((c) => aqTanks(c).some(([, tk]) => tk.cap >= AquariumData.MAX_CAP_LEVEL)) },
+    { id: 'aq_complete', cat: '수족관', title: '수조 완성', desc: '한 수조에 그 낚시터의 24종을 모두 넣었다', ...flag((c) => aqBestSpecies(c) >= 1) },
     // ---- 히든: invisible until cleared, then listed in their own category
     // with a badge. The panel only ever shows how many are still unfound.
     { id: 'hidden_first_legendary', cat: '낚시', hidden: true, title: '전설급 물고기를 처음으로 낚았다!', desc: '이무기를 처음 낚았다', ...flag((c) => c.s.tierTotals.legendary >= 1) },
