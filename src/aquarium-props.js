@@ -61,6 +61,11 @@
     g.arc(cx, cy, r, 0, Math.PI * 2);
     g.fill();
   }
+  function mixHex(a, b, k) {
+    const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+    const ch = (sh) => Math.round(((x >> sh) & 255) * (1 - k) + ((y >> sh) & 255) * k);
+    return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
+  }
   function hexA(hex, a) {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
@@ -537,31 +542,49 @@
       line(g, s * 0.2, -s * 0.8, s * 0.15, -s * 0.7, s * 0.015, c[2]);
       ellipse(g, -s * 0.18, -s * 0.88, s * 0.08, s * 0.05, 'rgba(70, 140, 110, 0.5)');
     },
-    abyssEye(g, s, t, c, look) {
-      halo(g, 0, -s * 0.5, s * 0.8, look.glow, t);
-      // Dark rocky socket with a single eye that slowly looks around.
-      ellipse(g, 0, -s * 0.4, s * 0.62, s * 0.42, c[0]);
-      ellipse(g, 0, -s * 0.42, s * 0.5, s * 0.34, c[1]);
-      const open = Math.max(0.1, Math.min(1, 1.2 * Math.abs(Math.sin(t * 0.35)) + 0.2));
-      g.save();
+    // A cluster of pointed crystal columns on a dark rock, each slowly
+    // shifting between teal and violet, with a glint that climbs one of them.
+    crystalCluster(g, s, t, c, look) {
+      halo(g, 0, -s * 0.5, s * 0.75, look.glow, t * 0.6, 0.55);
+      shadow(g, s * 0.6, s);
+      // [x, height, width, lean] -- tallest in the middle, smaller ones leaning out.
+      const cols = [[-0.36, 0.42, 0.13, -0.32], [0.38, 0.5, 0.14, 0.34], [-0.16, 0.72, 0.16, -0.12], [0.16, 0.62, 0.15, 0.16], [0, 0.98, 0.19, 0.02]];
+      cols.forEach(([fx, fh, fw, lean], i) => {
+        const mix = 0.5 + 0.5 * Math.sin(t * 0.7 + i * 1.3);
+        const col = mixHex(c[2], c[3], mix);
+        g.save();
+        g.translate(fx * s, -s * 0.12);
+        g.rotate(lean);
+        const hw = fw * s / 2, h = fh * s, tip = fw * s * 0.9;
+        // Two faces (lit left, shaded right) and a pointed tip.
+        poly(g, [[-hw, 0], [-hw, -h + tip], [0, -h], [0, 0]], hexA(col, 0.92));
+        poly(g, [[0, 0], [0, -h], [hw, -h + tip], [hw, 0]], hexA(mixHex(col, c[1], 0.35), 0.92));
+        line(g, -hw * 0.45, -h * 0.15, -hw * 0.45, -h + tip * 1.2, s * 0.012, hexA(c[4], 0.55));
+        g.restore();
+      });
+      // Dark rock the crystals grow out of.
+      g.fillStyle = c[0];
       g.beginPath();
-      g.ellipse(0, -s * 0.44, s * 0.4, s * 0.24 * open, 0, 0, Math.PI * 2);
-      g.clip();
-      ellipse(g, 0, -s * 0.44, s * 0.4, s * 0.24, c[3]);
-      const look2 = Math.sin(t * 0.5) * s * 0.12;
-      const grad = g.createRadialGradient(look2, -s * 0.44, 0, look2, -s * 0.44, s * 0.18);
-      grad.addColorStop(0, '#ffe0e8');
-      grad.addColorStop(0.4, c[2]);
-      grad.addColorStop(1, '#5a0a1a');
-      g.fillStyle = grad;
-      g.beginPath();
-      g.arc(look2, -s * 0.44, s * 0.18, 0, Math.PI * 2);
+      g.moveTo(-s * 0.55, 0);
+      g.quadraticCurveTo(-s * 0.5, -s * 0.2, -s * 0.2, -s * 0.18);
+      g.quadraticCurveTo(0, -s * 0.26, s * 0.22, -s * 0.17);
+      g.quadraticCurveTo(s * 0.5, -s * 0.2, s * 0.55, 0);
+      g.closePath();
       g.fill();
-      ellipse(g, look2, -s * 0.44, s * 0.03, s * 0.13, '#12050a');
-      g.restore();
-      for (let i = 0; i < 5; i++) {
-        const a = Math.PI + (i / 4) * Math.PI;
-        line(g, Math.cos(a) * s * 0.52, -s * 0.42 + Math.sin(a) * s * 0.36, Math.cos(a) * s * 0.66, -s * 0.42 + Math.sin(a) * s * 0.5, s * 0.03, c[0]);
+      ellipse(g, -s * 0.25, -s * 0.1, s * 0.12, s * 0.035, hexA(c[4], 0.08));
+      // A glint travelling up the tall crystal every few seconds.
+      const ph = (t * 0.25) % 1;
+      if (ph < 0.5) {
+        const k = ph / 0.5;
+        const gy = -s * 0.12 - k * s * 0.85;
+        const r = s * 0.06 * Math.sin(k * Math.PI);
+        g.fillStyle = hexA(c[4], 0.9);
+        g.beginPath();
+        g.moveTo(-s * 0.02, gy - r); g.lineTo(-s * 0.02 + r * 0.25, gy); g.lineTo(-s * 0.02, gy + r); g.lineTo(-s * 0.02 - r * 0.25, gy);
+        g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(-s * 0.02 - r, gy); g.lineTo(-s * 0.02, gy + r * 0.25); g.lineTo(-s * 0.02 + r, gy); g.lineTo(-s * 0.02, gy - r * 0.25);
+        g.closePath(); g.fill();
       }
     },
 

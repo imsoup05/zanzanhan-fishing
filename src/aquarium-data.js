@@ -210,8 +210,8 @@
       look: { kind: 'submarine', w: 2.2, h: 0.6, colors: ['#ffd24a', '#d9a53a', '#3f474c', '#bff4ff'] } },
     { id: 'abyss_prop_statue', tank: 'abyss', cat: 'prop', tier: 'epic', name: '고대 석상', swatch: ['#6f7a70', '#3a423c'],
       look: { kind: 'statue', h: 1.1, colors: ['#6f7a70', '#555e57', '#3a423c', '#7ee0ff'] } },
-    { id: 'abyss_prop_eye', tank: 'abyss', cat: 'prop', tier: 'legendary', name: '심연의 눈', swatch: ['#ff4a6a', '#1a0f24'],
-      look: { kind: 'abyssEye', w: 1.3, h: 0.9, colors: ['#2a1a36', '#1a0f24', '#ff4a6a', '#ffd0dc'], glow: '#ff4a6a' } },
+    { id: 'abyss_prop_crystal', tank: 'abyss', cat: 'prop', tier: 'legendary', name: '심해 수정 군집', swatch: ['#6ff0e0', '#8a5cff'],
+      look: { kind: 'crystalCluster', w: 1.3, h: 1.1, colors: ['#232838', '#151925', '#5fe8d8', '#a57cff', '#effdff'], glow: '#7ff0e8' } },
 
     // ----- 한정 소품: 수족관 도전과제 보상 (achievements-data.js REWARDS) -----
     // `value` = its 조개 worth for the trophy colour (Achievements.rewardValue).
